@@ -342,3 +342,31 @@ This change will also involve describing a deployment strategy.
 ----
 
 (many back and forths to get the architecture to a format that i could download as markdown)
+
+----
+
+there are updates needed to this architecture document.
+
+As an alternative to administrative DMs, please include a custom 'bot command for managing the 'bot from discord.  For the custom 'bot commands, use one discord slash command (e.g. `/climate`) and put the specific 'bot commands behind it (e.g. `/climate reprocess ...`); for DM commands, continue to accept just the specific 'bot commands (`reprocess ...` with no prefix).
+
+Make sure both command styles use exactly the same syntax for their arguments.  Please make sure the command line and argument syntax is desribed explicitly. Make sure you explicitly say how optional arguments are handled, especially if arguments can be passed positionally rather than by argument name.
+
+Also, please make sure the `reprocess` command allows either a message ID or a message URL (the latter to make it easier for an admin to point the 'bot to a message to be processed).
+
+There is at least one additional command to be described:  `reset` takes optional arguments for a climate `value` and climate `tags` and forces the climate to match the provided arguments, or an optional argument `default` (the literal string) that forces the climate to be reset to whatever the defined default state is.
+
+please make sure the format for the bot commands and command arguments is inline with Discord's bot best practices.
+
+--
+
+as a clarification, the update to section 1 should not differentiate between bot commands and direct climate modifications (since direct climate modifications are made through the `reset` bot command).  and there currently is no way to "bypass controls", although that may be added as a future bot command.
+
+also, do not use "skip" as a keyword for skipping an omitted argument.
+
+please change the argument name for the "reprocess" command to be "message".
+
+finally, please note that after the `reset` command is processed, the bot must send an updated climate report as described in section 10.
+
+--
+
+please change the reset command arguments to allow `default` to be an acceptable input for the `value` argument, rather than being a separate optional alternative argument.

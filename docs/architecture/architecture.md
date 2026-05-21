@@ -12,7 +12,7 @@ The engine is deployed as a single process inside a Docker container. It exposes
 
 * **Authentication Credentials**: The cryptographic token required to securely connect and authenticate with the Discord Gateway.
 * **Target Location Identifiers**: The specific server (guild) and channel identifiers where proposals are monitored and output updates are posted.
-* **Authorized Administrator Identifiers**: A list of authorized administrator user IDs permitted to issue manual, direct climate modifications, administrative DMs, and bypass controls.
+* **Authorized Administrator Identifiers**: A list of authorized administrator user IDs permitted to execute administrative bot commands (via direct messages or the `/climate` slash command).
 * **Optional Discord Logging Destination**: An optional target identifier (such as a specific Discord channel ID or administrator's DM snowflake ID) used for secondary routing of core engine logs.
 * **Execution Tuning Parameters**: General runtime parameters, intervals, verbose logging flags, or threshold settings that govern background processing loops, timing behaviors, or resource limits not specified elsewhere.
 
@@ -242,13 +242,43 @@ Because Climatomaton maintains its data strictly in memory, it reconstructs its 
 4. **Intercept Round Edge (Boundary Collision Detection):** If the engine encounters a proposal report indicating *Turn 1* of a round, or a proposal report belonging to a *previous* round number before finding a climate report, it implies that a fresh round has started and no climate data has been generated yet.
 5. **Bootstrap Default Clean State (System Baseline Reset):** Upon hitting a round boundary collision or reaching the end of the channel history without a match, the loop terminates immediately. Climatomaton initializes its clean baseline state for the active round (`climate.value = 0` and `climate.tags = []`) and finishes booting silently.
 
-### Administrative Failure Recovery via Direct Message
+#### Administrative Intervention & Command Interface
 
-To resolve processing failures without relying on volatile in-memory history (which is lost if the bot crashes or restarts), the engine implements a persistent direct-message retrieval protocol:
+To resolve processing failures without relying on volatile in-memory history (which is lost if the bot crashes or restarts), the engine implements a persistent command retrieval protocol. Authorized administrators (identified by the authorized user list defined in Section 1) can issue structured manual execution commands using two interfaces:
 
-* **Command Interface**: Authorized administrators (identified by the authorized user list defined in Section 1) can send a Direct Message (DM) to the bot containing a structured manual execution command (e.g., `reprocess [Proposals-Message-ID]`).
-* **Stateless Message Retrieval**: Upon receipt of this command, the bot extracts the target Discord Message ID (snowflake) of the failed proposal report. Because it cannot rely on active memory, the bot issues a stateless call to the Discord API to fetch the specified message directly from the historical log of the monitored proposals channel.
-* **Transaction Execution**: Once the target message is successfully retrieved, the bot parses its content, parses the metadata into the `proposals` namespace, and forces a sequential transaction execution loop directly against the active in-memory state, writing the updated outputs to the channel upon successful processing.
+* **Discord Slash Command Interface**: Administrators can utilize the globally registered `/climate` slash command within the target server, followed by a specific subcommand (e.g., `/climate reprocess`). This provides native UI discovery and aligns with Discord bot best practices.
+* **Direct Message (DM) Command Interface**: Administrators can send a Direct Message directly to the bot. DM commands omit the slash prefix and begin directly with the subcommand (e.g., `reprocess`).
+
+#### Unified Command Line and Argument Syntax Protocol
+
+To ensure operational consistency, both the Slash command UI inputs and the DM text inputs are routed through the exact same underlying parsing engine. They share identical logical syntax, argument order, and formatting rules.
+
+Arguments are evaluated positionally, separated by a single space character. Multi-word strings (such as a comma-separated tag list) must not contain spaces to ensure they are parsed as a single positional unit.
+
+**Handling Optional Positional Arguments**
+Because the DM text parser relies on strict positional indexing rather than Discord's named UI options, omitted optional parameters must be explicitly accounted for to maintain the correct sequence. If an administrator wishes to pass a subsequent optional argument while omitting a preceding one via DM, they must supply the explicit placeholder character `-` (a single hyphen) for the omitted argument.
+
+#### Defined Administrator Commands
+
+**1. The `reprocess` Command**
+
+* **Slash Execution**: `/climate reprocess message:<message>`
+* **DM Execution**: `reprocess <message>`
+* **Argument 1: `message` (Required)**: A string representing either the exact Discord Message ID (snowflake) of the failed proposal report, or a full Discord Message URL pointing to that report.
+* **Behavior**: Upon receipt of this command, the bot extracts the target message identifier. If a URL is provided, the engine parses the string to isolate and extract the target snowflake. Because it cannot rely on active memory, the bot issues a stateless call to the Discord API to fetch the specified message directly from the historical log of the monitored proposals channel. It then parses the metadata into the `proposals` namespace, forces a sequential transaction execution loop directly against the active in-memory state, and writes the updated outputs to the channel upon successful processing.
+
+**2. The `reset` Command**
+
+* **Slash Execution**: `/climate reset value:<value> tags:<tags>`
+* **DM Execution**: `reset <value> <tags>`
+* **Argument 1: `value` (Optional Float/String)**: The numerical override for `climate.value`, or the exact literal string `default`.
+* **Argument 2: `tags` (Optional String)**: A comma-separated list of strings (e.g., `scorched,arid`) with no spaces, used to override the `climate.tags` array.
+* **Behavior**: This command forces an immediate override of the in-memory climate state.
+   * If the `value` argument is passed as the literal string `default`, the engine ignores any provided tags and forcibly initializes its clean baseline state for the active round (`climate.value = 0` and `climate.tags = []`).
+   * If a numeric `value` and/or `tags` are passed, the engine evaluates and updates the respective components.
+   * **Reporting Requirement**: Immediately following a successful state override via the `reset` command, the bot must broadcast an updated output notification report to the configured channel, strictly adhering to the grammatical plain-English specifications defined in Section 10.
+* **Positional Override Example**: To reset only the tags to `volatile` via DM without changing the current numeric value, the administrator must maintain the index position of the arguments by using the explicit placeholder for the value:
+`reset - volatile`
 
 ---
 
