@@ -1,0 +1,344 @@
+Prompting for Climatomaton design and architecture.
+Using Gemini's "Flash Extended" model (used to be "thinking" model I think)
+
+----
+Initial prompt:
+
+I need a Discord 'bot that will maintain something called the "climate" based on messages seen in a specific channel of a specific Discord server.
+
+The "climate" consists of two parts:  A numeric value, and a set of zero or more "tags" (short strings) used to describe the climate.
+
+Anytime a particular message is seen that describes the state of one or more proposals, the 'bot needs to update the climate value based on a set of climate rules, and then needs to update the climate tag based on a set of tag rules.
+
+Neither the climate rules nor the tag rules are hard-coded:  they must be described in files that can be modified by humans outside of the 'bot code, then be parsed by the 'bot.  both climate rules and tag rules must be able to be defined in multiple files; the contents of the multiple files must be merged together into a single set of climate rules and tag rules when parsed by the 'bot.
+
+Climate and tag rules can make use of some values provided from the environment.  At a minimum, this includes the current climate value and the current set of climate tags, but might include other information in future iterations.
+
+Please create a general design for the 'bot, a grammar (syntax + semantics) specification of the files that describe the climate rules and the tag rules, a specificiation for how rules from multiple files get merged together, and an architecture document for the system.
+
+--------
+
+first update:
+
+* After the climate value and tags are updated, the 'bot needs to send a message back to its channel indicating what the new climate is.
+* The environment in which the rules act should include both climate data (value and tags) and proposal data (count of proposals, number of proposals that passed, and number of proposals that failed).
+* The environment data should be named in such a way that the environment can be constructed easily from backend data without having a bunch of different variables to maintain and without having to explicitly add new things to the environment each time one of the underlying components gets a new field.
+* Climate and tag rules should be defined in files that have a particular number associated with them.
+* Climate and tag rules do not need an explicit priority; their priority will come from the number of the file they are defined in, and their order within the file.  So, a file named "101" would have rules with priority "101-1", "101-2", etc., for the first, second, etc. rules within that file.
+* Tag rules should specify "include" and "exclude" rather than "add" and "remove", since the tags involved may already exist or already not exist.  They should also allow multiple tags to be listed in each "include" and/or "exclude" statement, and should allow multiple "include" and/or "exclude" statements per tag rule.
+* Rule names should not be used to deduplicate rules.  Each rule is uniquely identified by the file it's located in and the order within that file.
+* Climate rules need to be processed first, in a batch, with a single update made to the climate value once all climate rules have been processed.  Then the tags are updated based on the final climate value.
+* Rules need to be processed in ascending order -- for the reason you stated in your "Why this matters" section.  Your ordering has foundational rules executing _after_ higher numbered priority overrides.
+* A syntax error should not cause the system to fail.  A syntax error should cause that file to be ignored with a warning logged.
+* For the hot reload, this should be done only when the climate 'bot is in an idle state, not while it's processing a climate change.  The hot reload should load, parse, and merge all the rules into a temporary state, and only once they are verified as syntactically correct should it move them into the permanent state.
+
+----
+
+second update:
+
+* I asked for a syntax error to cause _a single file_ to be ignored with a logged warning, not for the entire update to be ignored.  The staging area is mostly to prevent partial updates from being applied while the climate is being processed.
+* The files can be loaded, parsed, and merged in the staging area while the climate is being processed.  The only part that needs to wait is actually activating the staged rules.
+* I like the data environment mapping, but since the "proposal" values are based on multiple proposals, I would prefer that to be plural.
+* The expression language needs to support arithmetic and precedence-grouping.
+* The expression language should support a "within" operator and a range data type, _or_ support a syntax like `low_limit_expr < value_expr < high_limit_expr` (with `<` standing in for any of the four relational inequality operators in any combination).
+* Please generate rule IDs independently between climate rules and tag rules.
+* The filenames should _begin_ with an id number, but may include additional text after the id number -- for example, to separate climate and tag rules into separate files (`101-climate.rules` and `101-tag.rules`) 
+* For human-readability sake, use 1-indexed positions for the second part of the rule ids
+* Finally, there should be no external database used for this code.  The climate state should be kept in memory.  When the system starts up from scratch, it should query the discord channel for previous messages until it either finds a previous climate report that it generated, or finds a proposal notification that is not part of the current round.  (The game in play is separated into multiple rounds of many turns each; the reports indicating proposal status include the round number and turn number which the report is summarizing.)
+* The climate report should be simple:  `The climate is now {value} and is {tag-list}.`  The tag list should be an English-formatted list of tags in sorted order (e.g. `bar and foo` or `bar, baz, and foo`)
+
+----
+
+third update:
+
+*   The startup sequence should not only scan for the most
+    recent climate update (or start of the round), but should
+    also gather all the proposal reports that have happened
+    since that most recent climate update (or start of the
+    round).  After initializing the climate, it should perform a
+    batched series of climate updates as if it had received
+    those proposal reports live.  Only if the new climate is
+    different than the original-found-or-initialized climate
+    should it be reported to the channel during the startup
+    procedure.  (During the normal run, any time a proposal
+    report is received, the climate should be reported, even if
+    the proposal report did not cause any changes.)
+*   Your flow diagram for the rules staging workflow includes a
+    "Message Event".  There should be no messages (excluding
+    logged warnings of course) generated during the rules
+    staging.
+*   The rules staging workflow also needs to run at startup, of
+    course.  That is not a hot-reload, but you should describe
+    that flow diagram as well, since it follows most of the same
+    steps.
+*   For readability, use spaces instead of underscores in the
+    "climate_rule" and "tag_rule" keywords.
+*   The description of tag rules using include and exclude
+    statements and accompanying example do not belong in a
+    section titled "Output Notification Blueprint".
+*   For the output notification, if there are no tags, the
+    output should just include the value without the additional
+    "is" phrase.
+
+----
+
+fourth update:
+
+I'm going to walk back one of my requirements.  During startup,
+perform the scan for the climate report, but _do not_ make any
+updates to the climate based on the proposal reports.  Instead,
+make sure that the scan for the climate report can recognize
+reports both from the 'bot user and from one or more configured
+administrative users, so that, if the 'bot is not working,
+the people running the game can maintain the climate manually.
+
+The reason I'm making this change is because there is no way to
+tell at which point during the round specific climate or tag
+rules will have come into play.
+
+Also, please make the "NamespacePath" more generic.  Instead of
+specifying `climate` and `proposals`, have the `NamespacePath` 
+be a series of `.`-separated identifiers; how the NamespacePath
+is processed is part of the semantics, not the syntax.
+
+Those semantics include the fact that there _are_ top-level
+objects identified by `climate` and `proposals` that include
+specific properties, but there may be other top-level objects
+added, and it's possible that properties on top-level objects
+may themselves include other properties, so the syntax should
+not be limited to a single `.`-separated identifier.
+
+Finally, some implementation details that I don't know will be
+needed in the architecture document or not.
+
+The information needed for the 'bot to connect to Discord will
+be passed as part of its process environment variables; this
+includes the 'bot's authentication token, the Discord server
+name to connect to, and the channel name within that Discord
+server on which to monitor and communicate.
+
+The 'bot will run as a process in a Docker container, so that
+it can be easily deployed in any environment that supports
+containers.  This may actually change the hot-reload capability,
+possibly involving fetching rules files from another source
+(such as a cloud-based object storage or from a git repo).
+
+----
+
+fifth update:
+
+1.  NO webhook.  This process should not have any exposed
+    connectivity endpoints.  Any pluggable rules modules will
+    need to use polling to identify changes.
+2.  If pluggable rules modules are separate programs running
+    distinct from the main 'bot, then you will need to include
+    how that synchronization will work so that the pluggable
+    rules modules do not change the rules while the 'bot is
+    using them.
+3.  In regards to evaluation of a namespace path failing, that
+    should cause a warning to be logged _and for the containing
+    rule to be ignored completely_.  You cannot assume a default
+    value.
+
+----
+
+sixth update:
+
+1.  Your flow still allows for the pluggable rules module to
+    overwrite files that the 'bot is reading.  Please design a
+    mechanism that will allow an atomic switch from one set of
+    rules files to another, while not accumulating no-longer-
+    used rules files in the volume.
+2.  Your startup flow lost the part about parsing for proposal
+    reports to identify the beginning of the round, since we
+    don't care about a climate report that happened before the
+    beginning of the round.  while those reports do not need
+    to be processed, we still need to know when we hit turn 1
+    of the latest round and stop processing at that point.
+
+----
+
+seventh update:
+
+1.  Instead of a strict a/b directory naming scheme that
+    requires cleaning of directories, does it make sense to have
+    the pluggable module pick a unique directory name for each
+    update?  The code in the 'bot that loads the files can then
+    delete the old directory it was using when it identifies the
+    new directory.
+2.  Please clarify "the [climate] report must exist within the
+    `Target Active Round`", since the climate reports will not
+    include a round number in the report.
+
+----
+
+eighth update:
+
+1.  It is possible, and likely under normal circumstances, that
+    the 'bot will encounter a climate report before ever seeing
+    a proposal report.  With your current startup flow, that
+    first climate report would be ignored, which is incorrect.
+2.  There is no need to call out that rules "use spaces for
+    rule indicators instead of underscores", as that should be
+    part of the grammar.  However, the grammar is no longer
+    included in your output, so...
+3.  After applying these changes, please produce a new, clean,
+    well-structured, complete architecture document.
+
+----
+
+ninth update:
+
+1.  Data environment mapping:  While full data environment will
+    probably not be represented in JSON (since it will be an in-
+    memory object), there _will_ need to be a way for pluggable
+    _environment_ modules to add information into the data
+    environment that is processed by the climate and tag rules.
+    Please include a specification for multiple optional
+    pluggable environment modules.
+
+2.  Order of rule evaluation:  Rules are not evaluated in
+    _alphanumeric_ order, since that would cause rule `101-C10`
+    to be evaluated before `101-C2`.  Rules must be evaluated
+    in *numeric* order.  Since climate rules and tag rules are
+    in different scopes, they do not need distinct IDs between
+    the two types of rules, and so the `C` or `T` can be
+    removed from the ID format, leaving you with two bare
+    numbers that can be compared hierarchically with other rule
+    IDs.
+
+3.  Please separate the execution pipeline into its own section
+    that comes _after_ the bootstrap section but before the
+    notification section.
+
+----
+
+tenth update:
+
+1.  With the pluggable environment modules generating files,
+    how would this system handle one of those pluggable
+    modules being taken away?  the files would still exist.
+    Perhaps these could be written into the active rules
+    directory, with the pluggable environment modules being
+    responsible for monitoring the `rules.commit` file?
+
+2.  For readability sake, rule IDs should still be represented
+    as two numbers separated by a `-` (e.g. `102-1`), not as a
+    tuple (`(102, 1)`), even if they are internally treated as
+    such.
+
+3.  Section 7 (two-stage batch execution pipeline) should
+    include the evaluation of the environment files from the
+    pluggable environment modules.
+
+----
+
+Exported to Google Docs:
+https://docs.google.com/document/d/1SmVqpIfH_Qvi0yEoDWLYIqEsXudVkIVFtc_jjFNRCwM/view
+
+----
+
+Problems raised while trying to break down the attached architecture into sub-projects:
+
+1.  Assumptions and inconsistencies in handling of rules file
+    naming and rule indexing.
+
+    Section 5 of the architecture seems to assume that no more
+    than one file will contain any given file number prefix
+    (by not accounting for multiple files in constructing the
+    rule IDs), but the example has two files with the same
+    file number prefix.
+
+    Please address this to specifically allow for multiple
+    rules files with the same file number prefix and allow
+    for consistent rule ordering based on those files.
+
+
+2.  Mis-formatting of diagrams when the previously generated
+    document was exported from Gemini to Google Docs.
+
+    Throughout the document, you can see several sections of
+    example code or sample output that begin with the tag
+    "Plaintext".  That tag should not exist; the indicated
+    sections should be presented in a monospace font instead.
+
+    Additionally, in section 5, there is a Latex mathematical
+    equation that did not get generated as an equation in the
+    Docs file.  Please change this equation to be similar to
+    the corrected example code / sample output sections.
+
+----
+
+(stuff got messed up, but i was eventually given a new document)
+
+an architecture document does not need to specify "monospace string layout". :P
+
+----
+
+please remove the specific environment variable names from section 1.  You can give a general description of what parameters are needed, but do not specify their names or content at this time.
+
+----
+
+Please replace "File Watcher Intervals" with a more generic name execution parameters not already listed.
+
+----
+
+question for section 2:  understanding that there is no way to completely guarantee that independent processes writing into the rules directory will not overlap with the core logic thread reading from those files, what is the best way to minimize the chance of that happening?  do not update the architecture document based on this question, just present the discussion.
+
+--
+
+the problem is that neither the core engine nor the individual pluggable environment modules _necessarily_ know about what other pluggable environment modules exist.  what do you propose for synchronization in this case?
+
+--
+(provided a solution : the core engine scans the rules for namespaces, and will not proceed with activating the new rules and environment if an environment file is missing for a non-core namespace)
+
+okay, let's try that solution. please update the architecture document as appropriate.
+
+----
+
+the architecture should include sections in this order:  (Note that these numbers are not dictating the section numbers this information should live in, just that the information should be presented in this order within the document)
+
+1. a section defining what climate and tag rules are, and what their format is.
+2. a section defining what pluggable rules modules are, that exactly one must be active at any time, and what the contract is for the pluggable rules modules.
+3. a section defining what pluggable environment modules are, that zero or more may be active at any time, and what the contract is for pluggable environment modules.
+4. a section defining the synchronization protocol.
+
+currently this information is spread among sections 2, 3, and 4.
+
+--
+
+The "Rule Identification" and "Multi-File Collation" subsections of section 2 should be moved into a new section about how rules files are handled and should include the file naming convention, how the file names are used, and the merging algorithm.
+
+--
+
+The new section 3 mentions the "commit manifest" but does not define it.  that should be defined first within section 3 - not as a specific file format, but its existence and what information it must convey.  that definition can then be referenced from the pluggable rules modules section when discussing their contract.
+
+--
+
+Do not include "It does not dictate a rigid file format".  There will be a rigid file format for this file; it is just not defined yet.
+
+--
+
+You currently define the path for the commit manifest in section 4; this should be defined in section 3 with the definition of the manifest, and repeated in sections 4 and 5 with references back to the definition.
+
+
+also, in section 4, you indicate that the file should be "overwritten".  overwriting is not guaranteed to be atomic.  Follow the same protocol as section 5 uses.
+
+--
+
+Your description (fixed static path `/shared-volume/rules.commit` within the shared volume) indicates that, if the shared volume is `/volume`, the commit manifest will be `/volume/shared-volume/rules.commit`.  this is not what you intended nor what i want.  specify the path _relative_ to the shared volume.  make sure you make that same update wherever the commit manifest path is referenced.
+
+----
+
+I'm changing my mind about the path resolution failure policy, and about other failures that occur while processing the rules.
+
+This change will also involve describing a deployment strategy.
+
+1.  A new section should be added to the end describing a staging/production deployment strategy.  The staging deployment should use a different process environment pointing to a potentially different Discord server and channel, with a configuration to potentially enable more verbose logging (including but not limited to logging when new rules are loaded, or logging the entire environment used for a climate update).
+2.  For all instances, logging messages from the core engine should be done both to the process's local output and to an optional specified Discord logging channel (or logging DM).
+3.  When a namespace path resolution fails or any other failure during rules processing occurs, the failure needs to be logged (and sent to the logging channel/DM), _and all rule processing aborted_ with no change to the climate.  The logged failure needs to include the proposals report that generated the failure.
+4.  When such a rules processing failure occurs, there needs to be a way for an admin to DM the 'bot and force it to re-process the failed proposals report, _even if_ the 'bot has since been restarted (and thus this process cannot rely on the 'bot remembering the failed proposals report).
+
+----
+
+(many back and forths to get the architecture to a format that i could download as markdown)
