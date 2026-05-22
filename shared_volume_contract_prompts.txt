@@ -210,3 +210,33 @@ please provide just the document for copying, with no non-document conversation 
 
 ----
 
+i just realized that this document lost the failure logic and garbage cleanup part of the core engine workflow.
+
+--
+
+please undo the change you just made.
+
+this was the workflow as originally described in the shared volume contract.  please take this information and incorporate it into the updated document.
+
+1. **Trigger**: Detect a change in the `rules.commit` pointer.
+2. **Syntax Discovery**: Scan all `.rules` files in the target directory and parse them. If syntax errors occur, **Abort**.
+3. **Dependency Extraction**: Use parsed rules to compile a `RequiredModulesList` of all `NamespacePath` tokens.
+4. **Ingestion & Validation**:
+   * Poll the directory for all files in the `RequiredModulesList`.
+   * If a file appears, parse the JSON. If a **JSON parsing error** occurs, **Abort**.
+   * Continue waiting until all files are present or `T_MAX` (e.g., 5s) expires.
+5. **Atomic Swap**: If all validations pass, update the internal memory pointer to the new directory.
+6. **Garbage Collection**: Recursively delete any directories not pointed to by the current `rules.commit`.
+7. **Failure Logic (Abort-and-Report)**:
+   * If an error occurs (syntax/parse failure or timeout), the engine executes the following rollback sequence **immediately**:
+     1. **Rollback Pointer**: Use the **"Atomic" File Update Protocol** to write the *previous* directory path (the "last known good" state) back into `rules.commit`.
+     2. **Abort**: Halt the current transition and discard all staged data.
+     3. **Mandatory Logging**: Log the failure to `stdout/stderr` and the Discord logging target, explicitly naming the missing or malformed files (e.g., `Error: JSON parse error in economy.json`).
+     4. **Deferred Cleanup**: Only *after* the `rules.commit` file has been reverted may the engine proceed to potential garbage collection or diagnostic cleanup.
+
+--
+
+reverse the order of the "rollback" and "abort" steps of the core engine failure logic
+
+----
+

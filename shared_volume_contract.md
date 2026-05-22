@@ -11,6 +11,7 @@ The shared volume serves as the primary communication medium. The Core Engine an
 └── rules-YYYYMMDD-HHMMSS/          # Active versioned directory
     ├── [FileNumber]-[Descriptor].rules
     └── [namespace].json            # Pluggable environment module data
+
 ```
 
 ### "Atomic" File Update Protocol
@@ -47,19 +48,25 @@ PEMs are reactive components that operate independently of the Core Engine's sta
 
 ## 4. Core Engine and Game State Management
 
-The Core Engine acts as the central orchestrator. It separates interaction types and manages data ingestion through two distinct phases.
+The Core Engine acts as the central orchestrator, managing rules promotion, data ingestion, and system maintenance.
 
-### Phases of Operation
+### Rules Promotion Workflow
 
-1. **Phase A: Rules Promotion (Compilation & Verification)**:
-   * **Trigger**: Change in `rules.commit`.
-   * **Action**: Compile all `.rules` files in the target directory to validate syntax and identify required `[namespace].json` dependencies.
-   * **Validation**: Verify these required files exist in the target directory (or wait up to `T_MAX`).
+Upon detecting a change in the `rules.commit` pointer, the Core Engine executes the following transition sequence:
 
-2. **Phase B: Climate Management (Ingestion)**:
-   * **Trigger**: Start of a climate update cycle.
-   * **Action**: Read and parse all required `[namespace].json` files into memory.
-   * **Execution**: Perform the climate management logic using the ingested data.
+1. **Syntax Discovery**: Scan all `.rules` files in the target directory and parse them. If syntax errors occur, **Abort**.
+2. **Dependency Extraction**: Use parsed rules to compile a `RequiredModulesList` of all `NamespacePath` tokens.
+3. **Ingestion & Validation**:
+   * Poll the directory for all files in the `RequiredModulesList`.
+   * If a file appears, parse the JSON. If a **JSON parsing error** occurs, **Abort**.
+   * Continue waiting until all files are present or `T_MAX` (5s) expires.
+4. **Atomic Swap**: If all validations pass, update the internal memory pointer to the new directory.
+5. **Garbage Collection**: Recursively delete any directories not pointed to by the current `rules.commit`.
+6. **Failure Logic (Abort-and-Report)**: If an error occurs (syntax/parse failure or timeout), the engine executes the rollback sequence **immediately**:
+   * **Abort**: Halt the current transition and discard all staged data.
+   * **Rollback Pointer**: Use the **Atomic File Update Protocol** to write the previous directory path (the "last known good" state) back into `rules.commit`.
+   * **Mandatory Logging**: Log the failure to `stdout/stderr` and the Discord logging target, explicitly naming the missing or malformed files.
+   * **Deferred Cleanup**: Only *after* the `rules.commit` file has been reverted may the engine proceed to potential garbage collection or diagnostic cleanup.
 
 ### Interaction Interfaces
 
@@ -85,11 +92,12 @@ The event file must contain a valid JSON object:
   "log_level": "info" | "warning" | "error" | "critical",
   "payload": "string"
 }
+
 ```
 
 #### Notification Lifecycle
 
-1. **Event Generation**: Any component (PRM, PEM, or Core Engine) writes the JSON payload to `outbox/` using the **Atomic File Update Protocol**, with the filename formatted as `[YYYYMMDDHHMMSS]-[module].event.json`.
+1. **Event Generation**: Any component writes the JSON payload to `outbox/` using the **Atomic File Update Protocol**.
 2. **Core Engine Processing (Gateway Logic)**:
    * The Core Engine continuously polls the `outbox/` directory.
    * Files are sorted alphabetically to ensure chronological order.
