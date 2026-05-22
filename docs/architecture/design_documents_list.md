@@ -1,11 +1,15 @@
 ## List of required Design Documents
 
-### 1. System Architecture Overview
+### 1. ~System Architecture Overview~
+
+**NOT NEEDED**: This is defined in both the core architecture document and in the shared volume contract.
 
 * **Purpose:** Establishes the "big picture" of how the PRM, PEMs, and the Core Engine interact within the shared volume environment.
 * **Key Focus:** Defines the trust boundaries, the flow of data, and the roles of each module. This is essential for onboarding and high-level system maintenance.
 
-### 2. Rule DSL Specification
+### 2. ~Rule DSL Specification~
+
+**NOT NEEDED**: This is defined in the core architecture document.
 
 * **Purpose:** Defines the grammar and semantics of the `.rules` files.
 * **Key Focus:** Since the Core Engine performs syntax validation and dependency extraction, this document serves as the formal specification for the language syntax, allowed operators, and how rule scoping is handled.
