@@ -1,30 +1,46 @@
 ## List of required Design Documents
 
-### 1. ~System Architecture Overview~
+### 1. Shared Volume Contract Design Document [_COMPLETE_]
 
-**NOT NEEDED**: This is defined in both the core architecture document and in the shared volume contract.
+This document defines the core data layout, synchronization protocols, and atomic file update rules that govern decoupled communication across all container modules over the shared Docker volume.
 
-* **Purpose:** Establishes the "big picture" of how the PRM, PEMs, and the Core Engine interact within the shared volume environment.
-* **Key Focus:** Defines the trust boundaries, the flow of data, and the roles of each module. This is essential for onboarding and high-level system maintenance.
+* **Shared Volume Layout & Directory Structure:** Define the folder topology, including the static `rules.commit` pointer path, the `outbox/` IPC notification queue, and versioned rules folders (`rules-YYYYMMDD-HHMMSS/`).
+* **Atomic File Update Protocol:** Outline the strict three-step sequence (`Serialize` to `.tmp` $\rightarrow$ `Flush` via `fsync()` $\rightarrow$ `Rename`) required for any container component writing to the shared volume to prevent partial reads by the engine.
+* **Rules Promotion and Validation Lifecycle:** Detail the Core Engine's execution phases when a new path is committed, including dynamic dependency extraction, JSON environment schema validation boundaries, the atomic memory pointer swap, and post-swap garbage collection.
+* **Asynchronous Outbox Notification Protocol:** Specify the lifecycle and schema of JSON payloads written to the `outbox/` queue, mapping out how the engine polls, sorts, processes, and safely unlinks completed event files.
 
-### 2. ~Rule DSL Specification~
+---
 
-**NOT NEEDED**: This is defined in the core architecture document.
+### 2. Custom DSL Parser & AST Interpreter Design Document
 
-* **Purpose:** Defines the grammar and semantics of the `.rules` files.
-* **Key Focus:** Since the Core Engine performs syntax validation and dependency extraction, this document serves as the formal specification for the language syntax, allowed operators, and how rule scoping is handled.
+This document defines how the Core Engine ingests raw `.rules` files, builds an executable Abstract Syntax Tree (AST), handles sorting priorities, and safely executes calculations against the dynamic memory graph.
 
-### 3. Observability & Logging Specification
+* **Lexer / Tokenizer Specification:** Define the regular expressions and token states for literals (strings, floats, integers), relational operators, and logical keywords, explicitly matching space-separated strings `climate rule` and `tag rule`.
+* **Parser Architecture & AST Schema:** Outline the recursive descent parser mapping to EBNF grammar, including the structural expansion of chained relational expressions (e.g., `0 < climate.value <= 90`) into implicit logical conjunction nodes.
+* **Collation, Sorting, and Rule ID Indexer Engine:** Detail the multi-file merging algorithm sorted ascending primarily by numeric `FileNumber` and secondarily alphabetically by filename, utilizing resetting counters to assign unique continuous `FileNumber-RuleIndex` identifiers.
+* **Syntax Discovery & Validation Pipeline:** Detail how the parser acts as an isolated validation phase during rules promotion, throwing compiler exceptions to abort transactions before memory pointers are modified.
+* **Runtime AST Interpreter & Transaction Safety:** Document the runtime evaluation engine that resolves `NamespacePath` variables sequentially in strict numeric order, enforcing an immediate abort, transactional rollback, and dual-delivery error log upon any processing failure.
 
-* **Purpose:** Standardizes how the system reports health and errors.
-* **Key Focus:** Defines log levels, formatting, the specific triggers for Discord alerts (as established in your synchronization protocol), and how metrics or telemetry should be handled to monitor system "heartbeat."
+---
 
-### 4. Deployment & Configuration Specification
+### 3. PRM (Git-Fetch) Design Document
 
-* **Purpose:** Defines the runtime environment requirements.
-* **Key Focus:** Details the configuration parameters (e.g., `T_MAX` values, shared volume path settings, Discord webhook URLs), containerization requirements, and environment variables needed to bootstrap the system.
+This document defines how the Pluggable Rules Module operates as an automated version-control fetcher and directory coordinator to act as the system's operational clock.
 
-### 5. Security & Isolation Model
+* **Git Operations & Authentication Config:** Define the process environment variables required to target the external source repository (`GIT_REPO_URL`, `GIT_BRANCH`, `GIT_TARGET_FOLDER`) and how the system securely loads access credentials.
+* **Sync Polling Logic:** Define the interval timers and commit hash comparison rules used to fetch upstream changes without procedurally modifying the rulesets themselves.
+* **Staging Directory Rotation Pipeline:** Detail the workflow for establishing uniquely named, versioned folders (`rules-YYYYMMDD-HHMMSS/`) relative to the root of the shared volume to maintain complete write isolation.
+* **Atomic Promotion Protocol:** Outline the sequence for flushing written rules files, writing the relative folder path payload to `.rules.commit.tmp`, and performing an atomic host-level `rename()` to the static `rules.commit` file path.
 
-* **Purpose:** Outlines safety boundaries in a modular system.
-* **Key Focus:** Since PEMs and PRMs are modular, this document describes how to restrict access (e.g., read-only access to the shared volume for certain modules), input sanitization, and the process for validating that a module is "trusted" to execute.
+---
+
+### 4. Discord Gateway & Ingestion Engine Design Document
+
+This document serves as the implementation blueprint for the inbound gateway client, message processing loops, command ingestion wrappers, and system state transitions.
+
+* **Gateway Connection & Channel Monitoring Infrastructure:** Specify connection lifecycle management rules, tracking heartbeats, handling session resumes, and declaring the mandatory Privileged Gateway Intents (`GUILD_MESSAGES`, `MESSAGE_CONTENT`) required to capture raw channel events.
+* **Discord Command Registration & Ingestion Layer:** Detail global registration routines targeting Discord's REST endpoints for the `/climate` command and its subcommands (`reprocess`, `reset`), alongside gateway hooks for `INTERACTION_CREATE` and administrator `MESSAGE_CREATE` DM events that normalize inputs into uniform text arrays.
+* **Inbound Proposal Ingestion:** Detail the text pattern-matching filters that actively monitor the public game channel for incoming proposal reports to parse metrics directly into the `proposals` namespace keys (`count`, `passed`, `failed`).
+* **Bootstrap Flow & State Recovery Engine:** Document the chronological lookback loop pattern that processes historical logs backward to locate the most recent live climate report anchor state or trigger a baseline reset, constrained by a startup gate preventing rule evaluation during the initialization scan.
+* **Unified Command Parser (Pure Text & Logic Processing Layer):** Detail the positional string-splitting algorithm, the hyphen (`-`) placeholder token processing for omitted optional parameters, and the step-by-step internal execution workflows for `reprocess` and `reset` (including the literal `default` baseline wipe and updated plain-English status broadcasts).
+* **Outbox IPC Worker:** Document the background file watcher that polls the shared volume's `outbox/` queue, enforces alphabetical sorting for chronological transmission, manages rate-limiting client queues, and unlinks event files only after verified HTTP delivery.

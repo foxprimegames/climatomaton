@@ -1,0 +1,46 @@
+----
+
+based on the architecture document and shared volume contract design document provided, please discuss what other design documents are required.
+
+--
+
+the commit manifest is specified in the shared volume contract.
+
+--
+
+We will not be defining any PEMs at the moment, since those are for future expansion.  Their contract/API is already defined, and what their environment objects are and how they are generated are the responsibility of the future maintainers of those specific PEMs.
+
+
+The PRM does need to be defined.  Note that it does not _generate_ the ruleset; it fetches the rules files from a specified folder of a specified branch of a specified git repo, so that is what the PRM design document needs to cover.
+
+
+The discord gateway design document also needs to discuss the actual logic to implement the bootstrap flow, as well as the logic required to watch for proposal reports to be posted.
+
+
+The orchestration guide can wait for now.  We have the requirements and the orchestration guide is not required for the development phase, only for the deployment phase.`
+
+--
+
+we still do need the DSL parser design document also
+
+--
+
+Does the Unified Command Parser section need to include the documentation about how to actually implement the discord command?  (i.e. how to get discord to recognize the command, how the core engine receives the commands, etc.)
+
+--
+
+please restate the list of design documents including that update.
+
+--
+
+please provide just the document for copying, with no non-document conversation before or after the document text.
+
+--
+
+please include the (already complete) shared volume contract document as document number 1
+
+--
+
+nonono, don't include the entire document, just the description of the design document similar to the other entries in the list
+
+----
