@@ -1,0 +1,76 @@
+----
+
+based on the attached architecture file and design document list, let's start working on the dsl parser design.
+
+--
+
+1. let's include the EBNF for the language here, since we're going to be making updates to it; include a note to that effect.
+2. add a recursive `Expression` into the `Relational` definition
+3. add syntax for a function call into both `Relational` and `ArithExpr`.  functions are identified by a `NamespacePath`.
+4. whether in this document or elsewhere, we need to identify built-in functions and functions to be included on the native `climate` and `proposals` environment objects.
+5. "climate rule" and "tag rule" should each be two tokens, not single tokens, to make it easier to add other types of rules also.
+6. to make it more clear that an `Expression` is a conditional or logical expression, please rename it appropriately.
+7. function call arguments need to support either conditional expressions or arithmetic expressions.
+
+--
+
+1. Please allow function call arguments to also be a literal string.
+2. Move the EBNF to section 1, before discussing tokenization.
+
+--
+
+the description of the updated ebnf does not need to indicate "literal string arguments", since that's part of the addition of function calls.
+
+--
+
+instead of describing a bunch of different types of tokens in section 2, after the section introduction, provide a table of token names and their description (or literal text match).
+
+--
+
+1. The definition of `TOKEN_STRING` needs to define how double-quotes and special characters (including unicode characters) can be included in the string.
+2. in the AST logic, you _don't_ need as much specificity.  the rules you list come directly from the EBNF grammar.  What you need to do is to define what the AST _is_.
+3. if `climate.hasTag()` is a function, then we don't need the `contains` operator in the EBNF.
+4. we need to figure out how to deal with `climate.value`.  in conditionals, that's almost always going to be the value from before the batch execution of rules, but in actions, it's generally going to refer to the temporary state being processed.  please bring this up for discussion after applying other changes.
+5. `proposals.getPassRatio()` is not needed, since that's exactly `proposals.passed / proposals.count`.
+6. `min()` and `max()` should take any number of arguments.
+7. `round(0` needs to specify how values at exact 0.5 fractions are rounded, both in positive and negative values.
+
+--
+
+in section 3, `ArrayMutationNode` should be called `SetMutationNode`.  Also, you don't mention arithmetic nodes or function call nodes.
+
+--
+
+is `VariableReferenceNode` the same as a NamespacePath reference?  if so, it should be a `NamespacePathNode`, and the same AST node should be referenced from the function call node.
+
+in regards to `climate.value`, requiring `climate.getPreviousValue()` in the conditional section is a recipe for user error, since conditionals _always_ want the previous value and it would be easy to forget when starting a new rules file.
+
+what if we define that, within the conditionals block, all `NamespacePath` references refer to the environment as it existed before the current set of rules (meaning climate rules vs tag rules) were processed, while within the actions block, all `NamespacePath` references refer to the environment as it is being mutated by the rules?
+
+--
+
+how does section 5 work if most of the rules parsing/handling logic does not know the physical location of any of the rules?
+
+--
+
+(need to continue after token limit resets)
+
+you misunderstood the question.  most of the rules parsing and handling logic does not know which file contained a rule or where that rule was within the file.  how do the rules get their IDs properly assigned when the parser logic is only receiving a stream of stateless tokens?
+
+--
+
+why does the token metadata need to include the filenumber if that information is also in the compilation context?
+
+--
+
+in that case, update the compilation context to also include the file _name_, since the file number is not enough to uniquely identify the file.
+
+--
+
+for the stateful ast id allocation, i assume "requests a new id" means requesting a new id of the appropriate type.
+
+--
+
+good.  please re-display the entire document with no conversation before or afterwards.
+
+----
