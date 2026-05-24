@@ -4,7 +4,7 @@ This document defines how the Core Engine ingests raw `.rules` files, builds an 
 
 ## 1. Formal DSL Grammar (Updated EBNF)
 
-*Note: The EBNF grammar below establishes the definitive structural rules for the DSL, updated to support recursive conditional expressions and native function calls. The `contains` operator has been removed in favor of native function invocations.*
+*Note: The EBNF grammar establishes the definitive structural rules for the DSL, supporting recursive conditional expressions and native function calls.*
 
 ```ebnf
 File            ::= ( ClimateRule | TagRule )*
@@ -86,10 +86,10 @@ The system utilizes a recursive descent parser that maps the token stream into a
 
 * **Root Nodes (`RuleNode`):** The top level of the AST consists of distinct objects for each parsed rule (e.g., `ClimateRuleNode`, `TagRuleNode`). Each root node stores its assigned `Rule ID` and string identifier.
 * **Evaluation Trees (`ConditionalNode`):** The `when` clause of a rule is stored as a binary expression tree. Internal nodes represent logical operations (`AndNode`, `OrNode`, `NotNode`) and relational comparisons (`RelationalNode`).
-* **Arithmetic Trees (`ArithExprNode`):** Mathematical operations (`+`, `-`, `*`, `/`) are represented by internal arithmetic nodes (e.g., `AdditionNode`, `MultiplicationNode`). These nodes recursively resolve to dynamic floating-point values during execution.
+* **Arithmetic Trees (`ArithExprNode`):** Mathematical operations (`+`, `-`, `*`, `/`) are represented by internal arithmetic nodes.
 * **Function Nodes (`FunctionCallNode`):** Represent invocations of native or global functions. These nodes capture a target `NamespacePathNode` to identify the function and recursively evaluate their `ArgumentList` prior to executing the underlying engine function.
 * **Execution Blocks (`ActionNode`):** The `then` clause of a rule is stored as an ordered list of executable statement nodes (e.g., `AssignmentNode`, `SetMutationNode`), ensuring actions are strictly deferred until the `ConditionalNode` resolves to true.
-* **Leaf Nodes:** The terminal ends of the evaluation and action trees consist of literal primitives (`StringNode`, `NumberNode`) and dynamic state pointers (`NamespacePathNode`) mapping directly to the EBNF `NamespacePath`.
+* **Leaf Nodes:** The terminal ends of the evaluation and action trees consist of literal primitives (`StringNode`, `NumberNode`) and dynamic state pointers (`NamespacePathNode`).
 
 ---
 
@@ -105,11 +105,11 @@ These functions are directly attached to the baseline memory graphs and provide 
 
 ### Global Standard Functions
 
-These built-in math and logic utilities are evaluated in the global namespace (no prefix required) to safely mutate numerical parameters within rules:
+These built-in math and logic utilities are evaluated in the global namespace (no prefix required):
 
 * **`max(...ArithExpr)`**: Variadic function. Returns the largest value from a comma-separated list of arguments.
 * **`min(...ArithExpr)`**: Variadic function. Returns the smallest value from a comma-separated list of arguments.
-* **`round(ArithExpr)`**: Returns the float rounded to the nearest whole integer. For values with a fractional part exactly equal to `0.5`, the function rounds "half away from zero" (e.g., `2.5` becomes `3`, and `-2.5` becomes `-3`).
+* **`round(ArithExpr)`**: Returns the float rounded to the nearest whole integer. Rounds "half away from zero" (e.g., `2.5` becomes `3`, and `-2.5` becomes `-3`).
 * **`abs(ArithExpr)`**: Returns the absolute value of the provided float or integer.
 
 ---
@@ -120,9 +120,8 @@ Because rules can be distributed across multiple physical `.rules` files, the pa
 
 * **Primary Grouping:** The engine groups and sorts all active `.rules` files in ascending order based on their parsed integer `FileNumber` prefix.
 * **Secondary Tie-Breaking:** If multiple rule files share the exact same numeric prefix, the engine sorts those files lexicographically by their full physical filename.
-* **The Stateful Compilation Context:** To bridge the gap between physical files on disk and the stateless token stream consumed by the parser, the sorting engine acts as an Orchestrator. As it iterates through the sorted files, it injects a stateful `CompilationContext` object into the parser. This context securely tracks both the parsed `FileNumber` (used for rule ID generation) and the full physical `FileName` (used to trace syntax exceptions and runtime crashes).
-* **Continuous Counter Initialization:** Two independent sequential counters are initialized at `1` for the two separate execution scopes: Climate Rules and Tag Rules.
-* **Stateful AST ID Allocation:** As the recursive descent parser resolves a `ClimateRule` or `TagRule` block, it requests a new ID from the `CompilationContext`, explicitly passing the resolved rule's scope (`Climate` or `Tag`) as an argument. The Context increments the appropriate scope's dedicated counter and returns the permanent identifier formatted as `FileNumber-RuleIndex`. The context strictly resets both counters to `1` only when it detects a transition to a new numeric `FileNumber` prefix.
+* **The Stateful Compilation Context:** The parsing engine injects a stateful `CompilationContext` object into the parser. This context securely tracks both the parsed `FileNumber` (used for rule ID generation) and the full physical `FileName` (used to trace syntax exceptions and runtime crashes).
+* **Stateful AST ID Allocation:** As the recursive descent parser resolves a `ClimateRule` or `TagRule` block, it requests a new ID from the `CompilationContext`. The Context increments the appropriate scope's dedicated counter and returns the permanent identifier formatted as `FileNumber-RuleIndex`. The context strictly resets both counters to `1` only when it detects a transition to a new numeric `FileNumber` prefix.
 
 ---
 
@@ -132,20 +131,39 @@ The parser operates as a strict, isolated validation phase during the dynamic ru
 
 * **Atomic Presence Verification:** Before allowing a directory swap, the engine parses all `.rules` files to ensure they pass syntax checks.
 * **Dynamic Dependency Scanning:** The AST is scanned for references to any `NamespacePath` (including `FunctionCall` namespaces) to dynamically compile the Required Modules List.
-* **Compiler Exceptions:** If any invalid syntax, malformed expressions, or broken grammar rules are encountered, the parser throws a compiler exception to abort the transaction immediately, explicitly before active memory pointers are modified.
+* **Compiler Exceptions:** If any invalid syntax or broken grammar rules are encountered, the parser throws a compiler exception to abort the transaction immediately, explicitly before active memory pointers are modified.
 
 ---
 
 ## 7. Runtime AST Interpreter & Transaction Safety
 
-Once loaded into active memory, the runtime AST interpreter safely executes rules against the dynamic environment graph.
+The active execution environment is fundamentally **read-only by default**. All parsed `.json` environment objects (e.g., `economy`, `factions`), standard namespaces (e.g., `proposals`), and the `climate` baseline snapshot act as a frozen data graph. To support sequential rule execution, the Core Engine initializes an explicitly mutable namespace prefix (`new`) to track the running transaction state.
 
-* **Dual-State Evaluation Context:** To guarantee mathematical consistency and eliminate user error, the AST strictly partitions how memory pointers are resolved during a batch:
-  * **Within `when` blocks (`ConditionalNode`):** All `NamespacePathNode` references evaluate against the **frozen, pre-batch state**. This ensures that conditional logic is based on the settled environment from the start of the phase.
-  * **Within `then` blocks (`ActionNode`):** All `NamespacePathNode` references evaluate against the **live, mutating state**. This allows calculations (e.g., `climate.value += proposals.passed`) to utilize the continuously updated temporary values processed by preceding rules in the execution sequence.
-* **Atomic Transaction Boundary:** The core engine treats every rule evaluation cycle triggered by a proposal report as a single atomic transaction.
-* **Immediate Abort & Rollback:** If any rule execution fails (e.g., an unresolvable `NamespacePath` variable or a missing function signature), the active cycle halts immediately. The active in-memory state is completely rolled back, ensuring no partial mutations write to `climate.value` or `climate.tags`.
-* **Dual-Delivery Error Logging:** A global failure triggers the engine's dual-delivery log pipeline, printing to both the local process terminal and the optionally configured Discord logging target. The emitted failure log must explicitly detail:
-  * The unresolvable path or syntax error traceback.
-  * The exact physical **`FileName`** (pulled from the AST node's attached context) and the crashed **Rule ID**.
-  * The raw proposal report metadata (Message ID and content) that triggered the transaction.
+* **The Mutable `new` Namespace:** At the start of the evaluation phase, the Core Engine deep-copies the `climate` state into the mutable `new` namespace (yielding `new.climate.value` and `new.climate.tags`). This allows `then` blocks to mutate running totals while simultaneously reading from the immutable `climate` snapshot.
+* **Dual-State Evaluation Context:**
+  * **Within `when` blocks (`ConditionalNode`):** Logic relies strictly on the frozen environment, ensuring the initial conditions of the transaction cycle dictate rule firing.
+  * **Within `then` blocks (`ActionNode`):** Logic calculations may read from both the frozen environment (e.g., `climate.value`) and the mutable buffer (e.g., `new.climate.value`), computing deltas dynamically.
+* **Immediate Abort & Rollback:** If any rule execution fails (e.g., an unresolvable `NamespacePath`), the active cycle halts immediately. The `new` namespace buffer is discarded, ensuring no partial mutations persist.
+* **Dual-Delivery Error Logging:** A global failure triggers the engine's dual-delivery log pipeline, detailing the exact `FileName`, `Rule ID`, unresolvable path or error, and the raw proposal report that triggered the failure.
+
+---
+
+## 8. Namespace Access Control & Immutability Protocol
+
+To guarantee that the frozen environment cannot be manipulated by malicious or poorly written rules, the parser enforces strict compiler-level immutability checks during AST generation.
+
+Because the architecture dictates that *only* the `new` namespace is mutable, the parser completely avoids tracking runtime locks or reading metadata configurations. It relies exclusively on a hardcoded prefix validation check.
+
+### Compile-Time Immutability Validation
+
+1. **Target Inspection**: Whenever the parser resolves an assignment or mutation action within a `then` block (matching operators `=`, `+=`, `-=`, `include`, or `exclude`), it isolates the target `NamespacePath` (the left-hand side of the expression).
+2. **Prefix Matching**: The parser serializes the target `NamespacePath` into a continuous dot-notation string and verifies its prefix.
+3. **Rejection Rule**: If the target string does **not** begin exactly with `new.`, the action is illegal.
+   * *Allowed*: `new.climate.value += 1;` (Targets the mutable buffer)
+   * *Allowed*: `new.economy.budget -= 50;` (Future-proofed for potential external buffers)
+   * *Rejected*: `climate.value += 1;` (Fails compilation: Missing `new.` prefix)
+   * *Rejected*: `economy.inflation = 0;` (Fails compilation: Attempted mutation of frozen PEM environment object)
+4. **Compiler Exception**: If a violation is detected, the parser immediately halts AST generation and throws a `CompilerException`. The exception must log:
+   * The precise `LineNumber` and `ColumnNumber` of the illegal mutation.
+   * The `FileName` where the violation occurred.
+   * A clear error trace: `[Compile Error] Attempted illegal mutation on read-only namespace path: <NamespacePath>. All mutations must target the 'new.' namespace.`

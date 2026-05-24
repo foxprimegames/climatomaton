@@ -74,3 +74,88 @@ for the stateful ast id allocation, i assume "requests a new id" means requestin
 good.  please re-display the entire document with no conversation before or afterwards.
 
 ----
+
+(after restarting on a new session)
+
+based on the attached architecture file, design document list, and first draft of the dsl parser design, let's continue working on it.
+
+for the NamespacePath solution in section 7, it would be useful to create an `initial` environment object that contains the entire execution environment from the start of the rules processing; this way, even if we do the scope-change between `when` and `then` blocks, the `then` blocks still have access to the initial state if they wish.
+
+for example:
+```
+climate rule "if all proposals failed, double the climate change for this turn"
+when proposals.passed == 0 and proposals.failed > 0
+then climate.value += climate.value - initial.climate.value
+end
+```
+
+that `initial` environment object needs to be read-only, which means we need a way for the parser to recognize a read-only NamespacePath and reject assignments to that path or any child of that path.  in other words, the following example needs to fail:
+
+```
+climate rule "if all proposals failed, double the climate change for this turn"
+when proposals.passed == 0 and proposals.failed > 0
+then initial.climate.value += climate.value - initial.climate.value
+end
+```
+
+since we will have such a mechanism, we'll want to be able to have PEMs dictate their own read-only NamespacePaths for their environment objects.  the way that PEMs pass that information to the core engine will be defined at a later time, but this document needs to define the protocol by which the core engine tells the parser which NamespacePath prefixes are read-only.
+
+--
+
+PEMs cannot "dynamically" request locks, at least not in the way "dynamically" is usually meant.  PEMs do not directly communicate with the core engine.  This section will have to define _how_ PEMs communicate their read-only sub-paths to the core engine.  Please pay attention to the attached shared volume contract to ensure you don't negatively impact any of the other protocols already in place.
+
+--
+
+please include an example of a PEM marking a child of one of its properties as read-only.
+
+--
+
+good.  now we need to present two separate documents, with no extraneous conversation.  i'll ask for the first, and then ask for the second in the subsequent prompt.
+
+
+first: the revised shared volume contract document that includes the documentation of the read-only protocol described above used by PEMs.
+
+--
+
+okay, back to conversation mode.  i need to roll back a bunch of this conversation.  i just realized that the climate rules should never be able to modify any environment object other than `climate`.  therefore, instead of having an `initial` read-only namespace, there should be a `new` mutable namespace that _only_ includes the `climate` object.
+
+--
+
+one correction.  the parser checks if the left hand target string begins with `new.`.  there might be other mutable namespaces introduced in the future.
+
+--
+
+please remove the comment about the contains operator being replaced.
+
+--
+
+1. please expand the "standard escape sequences".  make sure that it's specified that unicode escape sequences are also accepted.
+2. please define "rounds half away from zero".
+3. please replace "sorting engine" with "parsing engine".
+4. when referring to the `.json` files, call them "environment objects" not "states".
+
+----
+
+so, for the update to the DSL design document, what would you suggest for a git commit, following best practices for git commit messages?
+
+--
+
+okay, i made an assumption that i shouldn't have, which is that you would have known i didn't update the DSL document with the interim update that included the read-only environment tree.
+
+
+please create a git commit message for the latest version of the dsl document against the version that i uploaded at the start of the conversation.
+
+--
+
+the previous architecture did not rely on manual metadata declarations, because everything was mutable.
+
+--
+
+please include the fact that the `new.` prefix currently only includes the `climate` object, although other objects may be added to it in the future.
+
+
+Also, you can use (minimal) markdown formatting for the git commit message (such as `new.` instead of 'new.')
+
+--
+
+now rework the message to follow best practices for git commit messages.  (your subject is too long)
