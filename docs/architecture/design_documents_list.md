@@ -1,6 +1,6 @@
 ## List of required Design Documents
 
-### 1. Shared Volume Contract Design Document [_COMPLETE_]
+### 1. [Shared Volume Contract Design Document](shared_volume_contract.md)
 
 This document defines the core data layout, synchronization protocols, and atomic file update rules that govern decoupled communication across all container modules over the shared Docker volume.
 
@@ -11,7 +11,7 @@ This document defines the core data layout, synchronization protocols, and atomi
 
 ---
 
-### 2. Custom DSL Parser & AST Interpreter Design Document
+### 2. [Custom DSL Parser & AST Interpreter Design Document](dsl_parser_design_document.md)
 
 This document defines how the Core Engine ingests raw `.rules` files, builds an executable Abstract Syntax Tree (AST), handles sorting priorities, and safely executes calculations against the dynamic memory graph.
 
