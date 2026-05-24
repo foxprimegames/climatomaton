@@ -1,0 +1,79 @@
+based on the given architecture, design document list, and shared volume contract, let's work on the PRM design document for a pluggable rules module that fetches rules from a specified git repo, git branch, and directory within that branch.
+
+--
+
+1. "sole, authoritative source of game mechanics and logic constraints" is overly broad and ambiguous.
+2. The rules are not "generated"; they are fetched.
+3. Is this document the correct place to define _how_ the git repo branch commit is monitored and rules files fetched from the repo?
+
+--
+
+is there any standardized way to access a remote git repo (to find branch refs, locate and fetch files from that branch, etc), without needing a local clone of the repo, and better yet without having to execute a git binary?
+
+--
+
+i don't think we can count on having a provider-specific rest api available.  that rules out 1 and 3.
+
+--
+
+it will be in python.  however, you missed one step - to initialize the PRM, it needs to make that empty clone.
+
+--
+
+the initial clone should be a "no-checkout" clone.  i'm not sure how that is implemented through the libgit2 interface.
+
+--
+
+however, this document, being a design document and not an implementation plan, should not include implementation details.  it can include the general (strong) recommendation to use a native-language git library binding, and describe the steps needed to implement the monitor-fetch-update cycle, but should not have any code.
+
+also, phase 0 does not need to include the initial rules fetch.  that can be handled simply by having a "not-defined" initial hash for the git branch, so when the loop goes to check and finds a different hash, it will initiate the rules fetch as usual.
+
+finally, don't talk about the smart http endpoint or whatever.  just talk about the repo.
+
+--
+
+instead of "not-defined" for the initial remembered hash, just say an invalid hash (e.g. null or an empty string).
+
+one more thing.  Since this is a design for a specific PRM, not generic instructions for all PRMs, include the PRM's name the first time you mention PRM in each section.
+
+--
+
+a comment:  the climate system is not "the game".  it is one aspect of the game that is being managed by this set of processes.
+
+--
+
+actually, the game is almost completely separate from this system.  this system is just injecting climate data into a separate game based on the proposal reports from that game.  please figure out a different way to describe it.
+
+--
+
+it is not critical to recognize the climate system in this design document.  that might be something that needs to be added to the main architecture document.
+
+--
+
+more clarification:  the git-fetch PRM does not mirror an entire repo.  it mirrors the rules files found in a specific directory of a specific branch of the repo.
+
+--
+
+using libgit2 is it possible to fetch the list of files in a directory and the content of a specific file from the remote directly, without synchronizing the object db to the local system?
+
+--
+
+very well.  please re-display the entire document with no conversation before or afterwards.
+
+--
+
+in "client initialization", does "initializes its native Git client to target the configured external repository" imply that it's doing the initial bare clone?  or is that not needed since the first step in phase 2 is to fetch the object database?
+
+--
+
+please change "locally cached commit hash" to "previously deployed commit hash".  "cached" implies it's stored on disk for future use.
+
+--
+
+what git commit message would you recommend for this document, following best practices for git commit messages?
+
+--
+
+please place the subject and body into a single copyable block.
+
+----
