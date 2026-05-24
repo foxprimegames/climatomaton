@@ -23,7 +23,7 @@ This document defines how the Core Engine ingests raw `.rules` files, builds an 
 
 ---
 
-### 3. PRM (Git-Fetch) Design Document
+### 3. [Git-Fetch PRM Design Document](git_fetch_prm_design_document.md)
 
 This document defines how the Pluggable Rules Module operates as an automated version-control fetcher and directory coordinator to act as the system's operational clock.
 
