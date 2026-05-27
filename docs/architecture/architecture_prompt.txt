@@ -105,3 +105,8 @@ The first thing I want from you is an architecture document describing the overa
 1. in the high level architecture description, the shared data objects are not a separate component which the system consists of.  you can say something like ", all of which share a set of common data object types".
 2. the communication between the components of the core system needs to be identified or clarified.  for example, if the DGL is calling the EOT parser with an end-of-turn report, which then calls the Rules Engine to process the end-of-turn report, which then has to build the environment, process all the rules, potentially record transactions for the PEMs and wait for acknowledgements, then format the climate report and call the DAC to post it, that's a long chain of calls to wait for that can cause the DGL to miss heartbeats.
 3. please reproduce the entire document, and then include your responses to the above issues after the end of the document.
+
+--
+
+1. should the core event router be used for any other communication?  asked a different way, should this use a completely event-driven architecture, or should the event router be limited to incoming discord messages (in which case it should have a more specific component name)?
+2. please reproduce the entire document, and then include your responses to the above issues after the end of the document.

@@ -25,17 +25,17 @@ Climatomaton consists of the **Core Daemon** and its **Pluggable Subprocesses** 
 
 ### 2.2 Core System Components & Internal Communication
 
-To prevent high-latency internal processing from blocking critical WebSocket heartbeats, the Core Daemon utilizes an **Internal Event Queue**. Components communicate asynchronously: network listeners act strictly as producers, pushing raw events to the queue, while the processing logic acts as consumers.
+To prevent high-latency internal processing from blocking critical WebSocket heartbeats and to unify the execution model, the Core Daemon utilizes a completely **event-driven architecture** internally via an **Internal Event Bus (In-Memory Pub/Sub)**. Components communicate asynchronously: listeners and watchers act as producers, pushing standardized events to the bus, while processing logic acts as consumers.
 
-1. **Discord Gateway Listener (DGL):** Maintains the outbound WebSocket connection for real-time channel monitoring and command listening. It is strictly non-blocking; when it detects a new message in the target channel or a command payload, it immediately pushes the raw payload to the Internal Event Queue and yields back to the network loop.
+1. **Discord Gateway Listener (DGL):** Maintains the outbound WebSocket connection for real-time channel monitoring and command listening. It is strictly non-blocking; when it detects a new message or command, it immediately pushes the raw payload to the Internal Event Bus and yields back to the network loop.
 2. **Discord API Client (DAC):** Handles all asynchronous HTTP REST operations, including sending messages, queueing DMs, and paginating channel history.
-3. **Core Event Router:** Consumes payloads from the Internal Event Queue and routes them to the appropriate processing component (Command Parser or EOT Parser).
-4. **Command Parser:** Intercepts slash commands (`/climate`) and DMs routed from the Event Queue. Differentiates between standard Discord command payloads and the streamlined DM syntax.
-5. **EOT Parser:** Receives potential end-of-turn reports from the Event Queue, uses pattern matching to verify them, extracts the required game data into an `EOTSummary` object, and triggers the Rules Engine workflow.
+3. **Internal Event Bus:** An in-memory Pub/Sub broker that routes all asynchronous events within the Core Daemon. It consumes network events from the DGL and filesystem events from the IPC Broker, decoupling all I/O operations from logic execution.
+4. **Command Parser:** Intercepts slash commands (`/climate`) and DMs routed from the Event Bus. Differentiates between standard Discord command payloads and the streamlined DM syntax.
+5. **EOT Parser:** Receives potential end-of-turn reports from the Event Bus, uses pattern matching to verify them, extracts the required game data into an `EOTSummary` object, and triggers the Rules Engine workflow.
 6. **Environment Manager:** Scaffolds the environments during rule evaluation. It selectively duplicates explicitly registered mutable variables into the `new.` transaction environment.
 7. **Rules Engine:** Evaluates rule conditions against the environments, applies actions, coordinates with the IPC Broker for PEM acknowledgments, and finally uses the DAC to post the resulting `ClimateReport`.
 8. **State Rehydrator:** A high-level logic process that calls the DAC to fetch historical messages on startup and passes them to the `ClimateReport` object to establish the initial `climate.` namespace.
-9. **File-Based IPC Broker:** Manages local communication with the PRM and PEMs via shared container volumes and file system event watchers (`inotify`).
+9. **File-Based IPC Broker:** Manages local communication with the PRM and PEMs via shared container volumes. It utilizes file system event watchers (`inotify`) to detect changes and pushes these as events (e.g., `PEM_ACK_RECEIVED`, `RULES_UPDATED`, `NOTIFICATION_QUEUED`) to the Internal Event Bus.
 
 ---
 
@@ -46,19 +46,19 @@ Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by 
 ### 3.1 PRM Protocol (Rules Module)
 
 * **`push_rules` (PRM -> Core):** The PRM writes a new compiled JSON ruleset to `/shared/prm/active_rules.json.tmp`, then atomically renames it.
-* **Core Processing:** The Core parses the new rules into `RuleAST` objects in the background, validates them, and atomically swaps the active rules pointer.
+* **Core Processing:** The IPC Broker detects the rename, fires a `RULES_UPDATED` event to the Event Bus. The Core then parses the new rules into `RuleAST` objects in the background, validates them, and atomically swaps the active rules pointer.
 
 ### 3.2 PEM Protocol (Environment Module)
 
 * **Schema Registration & Heartbeat (PEM -> Core):** PEMs write their schema and state payload to `/shared/pems/{namespace}.json`. PEMs must periodically update this file to indicate they are alive.
 * **Transaction Commit (Core -> PEM):** If rules mutate a PEM namespace, the Core writes a diff to `/shared/tx/req_{tx_id}_{namespace}.json`.
 * **Acknowledgment:** The PEM processes the transaction and writes `/shared/tx/ack_{tx_id}_{namespace}.json`.
-* **Cleanup:** Once the Core receives the ACK and successfully posts the Discord report, the Core deletes both the `req` and `ack` files.
+* **Cleanup:** The IPC Broker detects the ACK file, fires an event to the Event Bus, and once the Core successfully posts the Discord report, it deletes both the `req` and `ack` files.
 * **PEM Deregistration/Cleanup:** If a PEM crashes and fails to update its file within a TTL (Time-To-Live), the Core automatically unloads the schema and deletes the stale `{namespace}.json` file.
 
 ### 3.3 Notification Protocol
 
-* **`notify_admin`:** PRM or PEMs drop files into `/shared/notifications/{timestamp}_{id}.json`. The Core queues a DM to Admins and **immediately deletes the file**.
+* **`notify_admin`:** PRM or PEMs drop files into `/shared/notifications/{timestamp}_{id}.json`. The IPC Broker detects the file, pushes an event to the Event Bus, queues a DM to Admins via the DAC, and **immediately deletes the file**.
 
 ---
 
@@ -148,11 +148,13 @@ Admins interact via `/climate` commands or DMs. For streamlined DMs, positional 
 
 ---
 
+---
+
 ### Responses to Your Issues
 
-**1. Shared Data Objects Phrasing:** You are entirely correct. Defining them as a "separate component" alongside daemons and modules implies active execution rather than data structure definitions. I have updated the introductory sentence of Section 2 to read exactly as you suggested: *"Climatomaton consists of the Core Daemon and its Pluggable Subprocesses (PRM and PEMs), all of which share a set of common data object types."*
+**1. Event-Driven Architecture vs. Specific Router:**
+You have hit on a crucial architectural decision. Moving to a completely event-driven architecture internally is highly recommended and creates a much more robust system.
 
-**2. Internal Component Communication and DGL Blocking:**
-This is an excellent catch. If the DGL passes a message synchronously down a chain that eventually waits for file-based IPC ACKs or REST API calls (DAC), the thread or async loop managing the WebSocket will inevitably freeze, causing dropped heartbeats and disconnects.
+I have updated Section 2.2 to replace the "Core Event Router" with an **Internal Event Bus (In-Memory Pub/Sub)**. Instead of limiting the event flow to just Discord messages, the bus now handles *everything*. The DGL pushes network events to it, and the File-Based IPC Broker (using its `inotify` watchers) pushes filesystem events to it (e.g., emitting a `PEM_ACK_RECEIVED` or `RULES_UPDATED` event).
 
-To resolve this, I have updated **Section 2.2** to explicitly introduce an **Internal Event Queue** and a **Core Event Router**. The architecture now strictly mandates asynchronous handoffs. The DGL acts *only* as a producer: when a message arrives, it shoves the raw payload onto the in-memory queue and instantly yields back to the network loop. Background worker processes (acting as consumers) pull from that queue to handle the heavy lifting (parsing, rules execution, IPC polling, and DAC dispatching). This isolates the critical network timing from the potentially slow internal execution pipeline.
+This approach turns the Core Daemon into a true event-driven game engine. It perfectly complements your low-frequency event requirements and filesystem-backed IPC by cleanly decoupling all I/O operations (both network and disk) from the actual logic execution.
