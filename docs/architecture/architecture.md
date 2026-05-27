@@ -78,6 +78,13 @@ Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by 
 * **High-Priority Notifications:** Modules may drop explicitly formatted notification requests into `notifications/{timestamp}_{id}.json`.
 * **Processing:** The IPC Broker detects the files, pushes the respective `sys.log` or `sys.notification` events to the Event Bus, and **immediately deletes the files**.
 
+### 4.4 IPC File Validation & Schemas
+
+Because the IPC mechanism relies on external processes writing data to the shared volume, the Core Daemon must enforce structural integrity:
+
+* **Schemas:** PEMs are responsible for publishing and adhering to their own schemas. The PRM's compiled output must strictly follow a rule schema that will be defined in the PRM component design document and maintained as a static asset in the project.
+* **File Size Limits:** To prevent a malfunctioning module from crashing the Core Daemon via massive payloads, maximum file size limits may be required. These exact limits are left as an implementation detail, but they will vary by module type (e.g., PRM rule files may remain unlimited or have very high limits, while PEM environment objects will likely require lower, stricter caps).
+
 ---
 
 ## 5. Observability & Logging
@@ -202,6 +209,10 @@ Admins interact via a unified Discord slash command (`/climate`) or via direct m
 
 
 
+### 7.3 Authorization
+
+The specific mechanism for identifying and authorizing Administrators (e.g., verifying against specific injected Discord Role IDs, Discord server permissions, or a hardcoded list of user IDs) is left as a design and implementation detail to be defined during component-level specification.
+
 ---
 
 ## 8. Deployment Architecture Requirements
@@ -218,9 +229,8 @@ While the specific hosting environment is not yet defined, the deployment strate
 
 ---
 
-### Discussion Points for Review
+### Issues & Suggestions for Discussion
 
-Before moving on to the component-level design documents, I want to bring up two minor details that could cause friction later:
+This architecture document is looking extremely solid. Since we will tackle component sequencing in new conversations, there is only one minor operational edge case I’d suggest clarifying before we finalize this document:
 
-1. **Authorization / "Admin" Definition:** The document states that "Admins interact via a unified Discord slash command" and receive notifications. How exactly does the bot identify an Administrator? Are we mapping this to a specific Discord Role ID injected via environment variables, checking for server administration permissions, or relying on a hardcoded list of user IDs?
-2. **IPC File Validation:** Because we are using File-Based IPC via shared volumes, we are inherently trusting external processes (PRMs/PEMs) to write data. Should the Core IPC Broker enforce strict JSON schema validation and maximum file size limits *before* firing the internal events, to prevent a malfunctioning PEM from crashing the Core Daemon with a massive or malformed payload?
+* **Stale IPC File Cleanup on Startup:** If the Core Daemon or a PEM experiences a hard crash mid-transaction (e.g., before `SIGTERM` can finish graceful shutdown), orphaned `req_`, `ack_`, or `.tmp` files may be left lingering in the shared IPC volume. Should the architecture explicitly require the IPC Broker to purge all in-flight transaction files during startup to ensure a completely clean slate, or should it attempt to resume them? (My recommendation is to purge, given the stateless design).
