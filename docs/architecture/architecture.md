@@ -34,6 +34,7 @@ Climatomaton consists of the **Core Daemon** and its **Pluggable Subprocesses** 
 7. **Rules Engine:** Evaluates rule conditions against the environments, applies actions, coordinates with the IPC Broker for PEM acknowledgments, and dispatches outbound messages.
 8. **State Rehydrator:** A high-level logic process that calls the DAC to fetch historical messages on startup and passes them to the `ClimateReport` object to establish the initial `climate.` namespace.
 9. **File-Based IPC Broker:** Manages local communication with the PRM and PEMs via shared container volumes. It utilizes file system event watchers (`inotify`) to detect changes and translates them into internal events.
+10. **Logging & Observability Manager:** A centralized component that ingests all logs, observability metrics, and notifications from the Core Daemon, PRM, and PEMs. It formats these for the local system and selectively routes high-severity alerts to Discord administrators.
 
 ---
 
@@ -48,8 +49,9 @@ To guarantee the DGL never blocks and to maintain a fully event-driven execution
 | `game.command` | Command Parser | Core Daemon, Rules Engine | `command_action` (e.g., reset, pause), `parsed_args` |
 | `ipc.rules_updated` | IPC Broker | Rules Engine | `file_path` (relative to shared volume) |
 | `ipc.pem_ack` | IPC Broker | Rules Engine | `tx_id`, `namespace` |
-| `sys.notification` | IPC Broker, Rules Engine | DAC | `severity_level`, `message_text` |
-| `network.outbound` | Rules Engine, Core Daemon | DAC | `formatted_message`, `target_destination` (channel/user ID) |
+| `sys.log` | All Components, IPC Broker | Logging Manager | `level`, `source`, `message`, `metadata` |
+| `sys.notification` | All Components, IPC Broker | Logging Manager | `level`, `message_text`, `admin_ids` |
+| `network.outbound` | Rules Engine, Logging Manager | DAC | `formatted_message`, `target_destination` (channel/user ID) |
 
 ---
 
@@ -70,15 +72,43 @@ Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by 
 * **Cleanup:** The IPC Broker detects the ACK file, fires an `ipc.pem_ack` event, and once the Core successfully posts the Discord report, it deletes both the `req` and `ack` files.
 * **PEM Deregistration/Cleanup:** If a PEM crashes and fails to update its file within a TTL (Time-To-Live), the Core automatically unloads the schema and deletes the stale `{namespace}.json` file.
 
-### 4.3 Notification Protocol
+### 4.3 Logging & Notification Protocol
 
-* **`notify_admin`:** PRM or PEMs drop files into `notifications/{timestamp}_{id}.json`. The IPC Broker detects the file, pushes a `sys.notification` event, and **immediately deletes the file**.
+* **`log_event` & `notify_admin` (PRM/PEM -> Core):** PRMs or PEMs drop JSON formatted log payloads into `logs/{timestamp}_{id}.json` or high-priority notifications into `notifications/{timestamp}_{id}.json`.
+* **Processing:** The IPC Broker detects the files, pushes the respective `sys.log` or `sys.notification` events to the Event Bus, and **immediately deletes the files**.
 
 ---
 
-## 5. Environment & Execution Workflows
+## 5. Observability & Logging
 
-### 5.1 State Rehydration Workflow
+To ensure a robust audit trail and timely administrative action without overwhelming Discord channels, all observability events funnel through the **Logging & Observability Manager**.
+
+### 5.1 Log Levels & Routing
+
+The system categorizes all log and observability events into standard severity levels:
+
+* **DEBUG & INFO:** Routine operations (e.g., heartbeats received, successful cache rehydration, parsed command detected).
+* *Routing:* Sent **only** to the local system log.
+
+
+* **WARNING:** Non-fatal issues that require attention but do not halt execution (e.g., a PEM missed a heartbeat but hasn't expired, rate limit backoff triggered by Discord).
+* *Routing:* Sent to the local system log. Queued as a notification to Discord administrators.
+
+
+* **ERROR & FATAL:** Critical failures that abort processing (e.g., network failure, unhandled rule execution exception, missing required PEM data for an EOT).
+* *Routing:* Sent to the local system log. Immediately dispatched as a high-priority notification to Discord administrators.
+
+
+
+### 5.2 Local System Logging
+
+The Logging & Observability Manager outputs all events as structured JSON to standard output/standard error (`stdout`/`stderr`). This ensures that the logs are highly portable and can be easily aggregated by whatever container orchestration platform is eventually chosen.
+
+---
+
+## 6. Environment & Execution Workflows
+
+### 6.1 State Rehydration Workflow
 
 Because historical rulesets are unknown, Climatomaton **does not** automatically process historical EOT reports during recovery.
 Upon startup, or if memory is cleared:
@@ -89,7 +119,7 @@ Upon startup, or if memory is cleared:
 4. If the search hits a "Turn 1" EOT report first, it initializes to `0` and `Mild`.
 5. If any EOTs occurred between the last parsed climate report and the present, the system remains in its parsed state. It is up to climate administrators to manually calculate missing updates and apply them via the `reset` command.
 
-### 5.2 Handling Missing PEM Data
+### 6.2 Handling Missing PEM Data
 
 If an EOT arrives, but the PRM rules rely on a PEM namespace that has not initialized or is missing data:
 
@@ -97,7 +127,7 @@ If an EOT arrives, but the PRM rules rely on a PEM namespace that has not initia
 2. **Notification:** It fires a `sys.notification` event detailing the missing required PEM data.
 3. **Resolution:** Once the missing PEM writes its schema/data to the shared volume, the Core **restarts the processing of the EOT** from the beginning to ensure the newly provided data actually satisfies the missing keys and rules evaluation requirements.
 
-### 5.3 Rules Execution Workflow
+### 6.3 Rules Execution Workflow
 
 Triggered when a `game.eot_detected` event is received and all required PEM data is validated.
 
@@ -120,7 +150,7 @@ Triggered when a `game.eot_detected` event is received and all required PEM data
 
 
 
-### 5.4 Natural English List Formatting
+### 6.4 Natural English List Formatting
 
 When the `ClimateReport` object formats the string, it applies standard English list rules:
 
@@ -131,11 +161,11 @@ When the `ClimateReport` object formats the string, it applies standard English 
 
 ---
 
-## 6. Command Interface
+## 7. Command Interface
 
 Admins interact via a unified Discord slash command (`/climate`) or via direct messages to the bot. For DMs, the specific sub-commands can be used directly without the slash prefix. Positional optional arguments can be omitted from right-to-left. To omit an earlier positional argument while providing a subsequent one, a placeholder (`-`) must be used. Tags are comma-separated.
 
-### 6.1 System Control Commands
+### 7.1 System Control Commands
 
 * **`pause`**
 * Suspends automatic EOT processing. Any EOT reports posted to the channel while the system is paused are ignored, granting administrators time to manually calculate and apply rule updates.
@@ -146,7 +176,7 @@ Admins interact via a unified Discord slash command (`/climate`) or via direct m
 
 
 
-### 6.2 Data Management Commands
+### 7.2 Data Management Commands
 
 * **`reset [round] [turn] [value] [tags...]`**
 * *No arguments:* Returns an error.
@@ -164,12 +194,22 @@ Admins interact via a unified Discord slash command (`/climate`) or via direct m
 
 ---
 
-### Potential Missing Elements for Discussion
+## 8. Deployment Architecture Requirements
 
-The document establishes a highly robust software architecture, but before diving into the detailed component design, there are a few operational and organizational gaps we should consider defining:
+While the specific hosting environment (e.g., Kubernetes, AWS ECS, Docker Compose, Nomad) is not yet defined, the deployment strategy will strictly utilize OCI-compliant containers (Docker). Any target environment must support the following base requirements:
 
-1. **Deployment Strategy:** The architecture relies heavily on shared volumes for IPC, which implies a specific containerization strategy. We need a section detailing how Docker (or a similar runtime) will orchestrate the Core Daemon alongside the PRM/PEMs, and how the staging and production environments will differ.
-2. **Observability & Logging:** We have `sys.notification` for immediate admin alerts, but the system lacks a defined logging strategy. Should we designate specific Discord channels for standard logging, monitoring, and audit trails?
-3. **Project Organization:** How do we want to map this architecture into actionable development tasks? Breaking this down into Agile epics or sub-projects (e.g., separating the Event Bus infrastructure from the Rules Engine execution) would help sequence the upcoming design documents.
+1. **Shared Volume Mounting:** The orchestration layer must support mounting a common, high-speed, POSIX-compliant shared volume across multiple containers (the Core Daemon, PRM, and PEMs) to facilitate the file-based IPC routing.
+2. **Environment Variable Injection:** Sensitive configurations (e.g., Discord Bot Tokens, Admin User IDs, Target Channel IDs) must be injected safely into the containers at runtime via environment variables or secret managers.
+3. **Container Lifecycle & Health Checks:** The environment should be capable of automatically restarting failed subprocesses (PEMs/PRMs). The Core Daemon relies on external orchestration to keep the pluggable modules running if they crash.
+4. **Log Aggregation:** Because the Core Daemon writes all local observability data directly to `stdout`/`stderr`, the deployment environment must feature an agent or mechanism to capture, rotate, and aggregate standard output logs.
+5. **Graceful Shutdown Signals:** The environment must issue standard termination signals (`SIGTERM`) and provide a brief grace period. The Event Bus and Rules Engine require this to finalize any in-flight database transactions (file writes) and Discord network requests before exiting.
 
-Would you like to draft a new section encompassing the deployment strategy and observability first, or would you prefer to break the existing architecture down into Agile epics?
+---
+
+---
+
+### Discussion Points
+
+1. **Notification Batching / Throttling:** If the system enters an error loop (e.g., a PEM fails continuously and triggers a high-severity alert every 5 seconds), it could quickly hit Discord's API rate limits or spam administrators. Should we build a simple deduplication or rate-limiting mechanism into the Logging & Observability Manager for outgoing Discord notifications?
+2. **File-Based Logging Constraints:** Right now, PEMs and PRMs write logs to `logs/{timestamp}_{id}.json` to communicate with the Core Daemon's Logging Manager. If a PEM generates heavy `DEBUG` traffic, the file I/O overhead on the shared volume could become a bottleneck. We could mitigate this by instructing PEMs to only use the IPC log channel for `WARN` and above, and direct their own `DEBUG`/`INFO` directly to their container's `stdout`.
+3. **Log Retention:** Since standard out is being used, log rotation is offloaded to the deployment environment. However, is there any need for the Core Daemon to maintain an internal "last N events" cache for debugging via a Discord command (e.g., `/climate debug logs`)?
