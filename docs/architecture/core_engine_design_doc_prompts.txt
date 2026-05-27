@@ -36,3 +36,7 @@ third:  how does the described design for the core engine differ from an event-d
 --
 
 if you remove the memory queues from the discord gateway to the other components, don't you still run the risk of losing the discord connection while waiting for a synchronous call (or chain of calls) to complete?
+
+--
+
+so one clarifiation:  there will be one proposal report a week.  there will be an unknown number (but almost certainly less than 50) of admin DMs a week.  however, the channel on which the proposal reports are published also gets lots of other traffic that needs to be weeded out to find the proposal reports.  the current architecture (correctly) separates the message parsing out of the discord communication handling, so the communication handling part still needs to handle a low-but-not-nonexistent level of constant traffic.

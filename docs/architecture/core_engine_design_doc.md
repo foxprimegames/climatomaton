@@ -1,34 +1,17 @@
-You are completely right, and I am glad you caught that. I gave you bad advice in my last response by suggesting a synchronous handoff.
+That clarification completely validates your earlier concerns and perfectly highlights why the separation of concerns in the architecture is strictly necessary, even with a low event-execution frequency.
 
-If you force the `DiscordGatewayConnector` to synchronously wait for the `CommandIngestionWrapper`, which then waits for the `TransactionManager` to parse rules and execute game logic, you will almost certainly drop the connection.
+Even if the *game logic* only fires once a week, the **Gateway** is operating in a live, noisy environment 24/7. If the Gateway and the parsing logic were tightly coupled, a sudden burst of regular conversation in the public channel could monopolize the execution thread and choke out the WebSocket heartbeat.
 
-Here is exactly why your instinct is correct, and how we clarify the design to prevent it without over-engineering.
+Here is how the event-loop architecture gracefully handles that specific "chatter" reality:
 
-### The Danger of a Synchronous Gateway
+### The Asynchronous Sieve
 
-Discord’s WebSocket requires constant maintenance. The gateway sends periodic "heartbeat" pings, and your client must respond with a "heartbeat ack" within a strict time window.
+1. **The Scoop:** The `DiscordGatewayConnector` receives a burst of 10 random chat messages. It does no evaluation; it simply wraps them in `DiscordMessage` objects and dispatches them to the runtime's event loop instantly. The Gateway goes right back to listening.
+2. **The Sieve:** The `ProposalFilterEngine` picks up those tasks in the background. Its only job is to run the `ProposalReport.tryParse()` regex against the text.
+3. **The Drop:** For 99.9% of that constant traffic, the regex instantly fails. The `ProposalFilterEngine` silently drops the object. Memory is freed, and the event loop moves on.
 
-If your core engine is designed synchronously:
+Because the runtime scheduler manages this handoff, the Gateway remains entirely shielded from the volume of the chatter. The core `TransactionManager` remains completely dormant, consuming zero CPU until the `ProposalFilterEngine` finally hits that one-in-a-week positive regex match and wakes it up.
 
-1. A user issues a `/climate reprocess` command.
-2. The Gateway intercepts it and passes it down the chain.
-3. The `TransactionManager` starts opening files, evaluating the custom DSL, and building the AST.
-4. While the `TransactionManager` is doing this math, Discord sends a heartbeat ping.
-5. Because the execution thread is blocked by the math calculations, the Gateway cannot hear or respond to the ping.
-6. Discord assumes the bot has died and forcefully terminates the WebSocket connection.
+This setup gives you the exact resilience you need: it processes the constant low-level noise without dropping the network connection, and it isolates the heavy mathematical lifting for when it actually matters.
 
-### The Solution: Native Event Loops vs. Custom Queues
-
-When I suggested "stripping out the internal memory queues," I misspoke. What I should have said is that we don't need to build a heavy, custom-coded `MessageQueue` class with dedicated consumer threads, which is often overkill for an engine expecting one update a week.
-
-Instead, because the engine runs as an isolated process inside a single Docker container, we must leverage the native asynchronous capabilities of your programming language's underlying event loop to handle the hand-off.
-
-The architecture should look like this:
-
-* **The Handoff:** When the Gateway receives a `MESSAGE_CREATE` event, it does not call a blocking function. It wraps the payload in a `DiscordMessage` object and dispatches it as an asynchronous task (e.g., dispatching a Promise in Node.js, or using `asyncio.create_task()` in Python).
-* **The Return:** The Gateway function immediately returns control to the underlying event loop, taking mere milliseconds. It is now instantly free to listen for heartbeats or other incoming messages.
-* **The Execution:** The language's runtime scheduler takes over the background task, running the `CommandIngestionWrapper` and `TransactionManager` independently of the Gateway's listening loop.
-
-This approach achieves the exact decoupled, non-blocking behavior of an Inbound Memory Queue, but it relies on the language's built-in memory management rather than requiring you to write and maintain custom queuing infrastructure.
-
-What programming language and runtime environment are you planning to use to build this containerized process?
+With the Gateway, Ingestion, and Execution pipelines now fully aligned with your actual traffic reality, are you ready to move on to the next design document on your list, or are there any other edge cases in the Core Engine you want to pressure-test first?
