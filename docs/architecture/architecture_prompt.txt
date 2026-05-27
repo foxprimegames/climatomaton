@@ -99,3 +99,9 @@ The first thing I want from you is an architecture document describing the overa
 4. in order to allow time for administrators to manually calculate climate updates after a reset, we need `pause` and `unpause` commands.
 5. for the "missing pem data" section, instead of "continues processing", instead say it restarts the processing of the EOT.  just because the environment data gets updated doesn't mean it isn't still missing the keys in question.
 6. please reproduce the entire document, and then include your responses to the above issues after the end of the document.
+
+--
+
+1. in the high level architecture description, the shared data objects are not a separate component which the system consists of.  you can say something like ", all of which share a set of common data object types".
+2. the communication between the components of the core system needs to be identified or clarified.  for example, if the DGL is calling the EOT parser with an end-of-turn report, which then calls the Rules Engine to process the end-of-turn report, which then has to build the environment, process all the rules, potentially record transactions for the PEMs and wait for acknowledgements, then format the climate report and call the DAC to post it, that's a long chain of calls to wait for that can cause the DGL to miss heartbeats.
+3. please reproduce the entire document, and then include your responses to the above issues after the end of the document.

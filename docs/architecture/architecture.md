@@ -14,7 +14,7 @@
 
 ## 2. High-Level Architecture & Shared Data Models
 
-Climatomaton consists of the **Core Daemon**, its **Pluggable Subprocesses** (PRM and PEMs), and a set of shared data objects.
+Climatomaton consists of the **Core Daemon** and its **Pluggable Subprocesses** (PRM and PEMs), all of which share a set of common data object types.
 
 ### 2.1 Shared Data Objects
 
@@ -23,18 +23,19 @@ Climatomaton consists of the **Core Daemon**, its **Pluggable Subprocesses** (PR
 3. **`Transaction`:** Encapsulates the diffs/mutations applied to any mutable namespace during rule evaluation, standardizing how data is sent to PEMs for acknowledgment.
 4. **`RuleAST`:** The compiled Abstract Syntax Tree representation of a rule, ensuring conditions and actions are evaluated consistently.
 
-### 2.2 Core System Components
+### 2.2 Core System Components & Internal Communication
 
-To prevent high-latency REST API calls from blocking critical WebSocket heartbeats, Discord network interactions are separated into two distinct components:
+To prevent high-latency internal processing from blocking critical WebSocket heartbeats, the Core Daemon utilizes an **Internal Event Queue**. Components communicate asynchronously: network listeners act strictly as producers, pushing raw events to the queue, while the processing logic acts as consumers.
 
-1. **Discord Gateway Listener (DGL):** Maintains the outbound WebSocket connection for real-time channel monitoring and command listening. It is strictly non-blocking to preserve connection health.
+1. **Discord Gateway Listener (DGL):** Maintains the outbound WebSocket connection for real-time channel monitoring and command listening. It is strictly non-blocking; when it detects a new message in the target channel or a command payload, it immediately pushes the raw payload to the Internal Event Queue and yields back to the network loop.
 2. **Discord API Client (DAC):** Handles all asynchronous HTTP REST operations, including sending messages, queueing DMs, and paginating channel history.
-3. **State Rehydrator:** A high-level logic process that calls the DAC to fetch historical messages and passes them to the `ClimateReport` object to establish the initial `climate.` namespace.
-4. **Command Parser:** Intercepts slash commands (`/climate`) and DMs from the DGL. Differentiates between standard Discord command payloads and the streamlined DM syntax.
-5. **EOT Parser:** Identifies end-of-turn reports in the channel, extracts the required game data into an `EOTSummary` object, and triggers the climate update workflow.
-6. **Environment Manager:** Scaffolds the environments. It selectively duplicates explicitly registered mutable variables into the `new.` transaction environment.
-7. **Rules Engine:** Evaluates rule conditions against the environments and applies actions.
-8. **File-Based IPC Broker:** Manages local communication with the PRM and PEMs via shared container volumes and file system event watchers (`inotify`).
+3. **Core Event Router:** Consumes payloads from the Internal Event Queue and routes them to the appropriate processing component (Command Parser or EOT Parser).
+4. **Command Parser:** Intercepts slash commands (`/climate`) and DMs routed from the Event Queue. Differentiates between standard Discord command payloads and the streamlined DM syntax.
+5. **EOT Parser:** Receives potential end-of-turn reports from the Event Queue, uses pattern matching to verify them, extracts the required game data into an `EOTSummary` object, and triggers the Rules Engine workflow.
+6. **Environment Manager:** Scaffolds the environments during rule evaluation. It selectively duplicates explicitly registered mutable variables into the `new.` transaction environment.
+7. **Rules Engine:** Evaluates rule conditions against the environments, applies actions, coordinates with the IPC Broker for PEM acknowledgments, and finally uses the DAC to post the resulting `ClimateReport`.
+8. **State Rehydrator:** A high-level logic process that calls the DAC to fetch historical messages on startup and passes them to the `ClimateReport` object to establish the initial `climate.` namespace.
+9. **File-Based IPC Broker:** Manages local communication with the PRM and PEMs via shared container volumes and file system event watchers (`inotify`).
 
 ---
 
@@ -84,7 +85,7 @@ If an EOT arrives, but the PRM rules rely on a PEM namespace that has not initia
 
 ### 4.3 Rules Execution Workflow
 
-Triggered when an EOT message is identified and all required PEM data is validated.
+Triggered when an EOT message is identified by the parser and all required PEM data is validated.
 
 1. **Environment Initialization:**
 * `climate.*`, `proposals.*`, and `{pem_namespace}.*` are loaded from cache.
@@ -98,7 +99,7 @@ Triggered when an EOT message is identified and all required PEM data is validat
 
 
 3. **Commit & Report:**
-* Write `Transaction` diffs to `/shared/tx/` and wait for PEM ACKs.
+* Write `Transaction` diffs to `/shared/tx/` and wait for PEM ACKs asynchronously.
 * Use the `ClimateReport` object to generate the formatted string and post via DAC.
 
 
@@ -147,21 +148,11 @@ Admins interact via `/climate` commands or DMs. For streamlined DMs, positional 
 
 ---
 
----
-
 ### Responses to Your Issues
 
-**1. Discord Component Separation (Gateway vs. API):**
-You are completely right to flip-flop here; it's a known and dangerous pitfall in bot architecture. A single thread trying to maintain a WebSocket connection will invariably drop heartbeats (causing frequent reconnects or "ghost" sessions) if it gets blocked waiting on a rate-limited REST API call (like paginating through hundreds of historical messages). I have updated Section 2.2 to explicitly split Discord interactions into two components: the **Discord Gateway Listener (DGL)**, which strictly handles the non-blocking real-time event stream, and the **Discord API Client (DAC)**, which handles all asynchronous, potentially blocking REST HTTP requests.
+**1. Shared Data Objects Phrasing:** You are entirely correct. Defining them as a "separate component" alongside daemons and modules implies active execution rather than data structure definitions. I have updated the introductory sentence of Section 2 to read exactly as you suggested: *"Climatomaton consists of the Core Daemon and its Pluggable Subprocesses (PRM and PEMs), all of which share a set of common data object types."*
 
-**2. Unknown Historical Rulesets during Recovery:**
-This is a critical insight. If a ruleset changed on Turn 3, and the bot crashed on Turn 2 and wakes up on Turn 5, processing the historical backlog with Turn 5's ruleset would corrupt the game state. I have entirely removed the "forward scanning/queue recovery" logic from Section 4.1. The system now strictly halts at the last known `ClimateReport` it parses. Catching up on missed EOTs is now explicitly designated as a manual administrative task.
+**2. Internal Component Communication and DGL Blocking:**
+This is an excellent catch. If the DGL passes a message synchronously down a chain that eventually waits for file-based IPC ACKs or REST API calls (DAC), the thread or async loop managing the WebSocket will inevitably freeze, causing dropped heartbeats and disconnects.
 
-**3. `reset` Command Signature (Round & Turn):**
-Based on your observation in #2, the `reset` command must reflect the structure of a `ClimateReport`. I have updated the signature in Section 5.2 to `reset [round] [turn] [value] [tags...]`. This gives administrators full control over establishing the precise mathematical and temporal state of the climate after manually calculating missed updates.
-
-**4. `pause` and `unpause` Commands:**
-To facilitate the manual calculations mentioned above, I have added a "System Control Commands" section (5.1) featuring `pause` and `unpause`. This allows admins to safely halt the bot's automated listening, run their manual overrides via `reset`, and then resume normal operations without race conditions from new EOTs dropping in the middle of their work.
-
-**5. Missing PEM Data Re-evaluation:**
-I have updated Section 4.2 to explicitly state that the system "restarts the processing of the EOT" from the beginning. Your reasoning is perfectly sound: just because a PEM updated its data file and triggered the file watcher doesn't guarantee the *specific keys* the rules engine was looking for are actually present. Re-evaluating the rule dependencies from the top ensures absolute validity before proceeding.
+To resolve this, I have updated **Section 2.2** to explicitly introduce an **Internal Event Queue** and a **Core Event Router**. The architecture now strictly mandates asynchronous handoffs. The DGL acts *only* as a producer: when a message arrives, it shoves the raw payload onto the in-memory queue and instantly yields back to the network loop. Background worker processes (acting as consumers) pull from that queue to handle the heavy lifting (parsing, rules execution, IPC polling, and DAC dispatching). This isolates the critical network timing from the potentially slow internal execution pipeline.
