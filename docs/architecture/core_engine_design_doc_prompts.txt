@@ -64,3 +64,7 @@ why does State Bootstrapper or the State Bootstrap Engine need to subscribe to b
 --
 
 please reproduce the design document including the synchronous initialization workflow that results in the pub/sub engine and asynchronous components operating in the correct state.
+
+--
+
+now there's a subscription or some sort of connection between the bot/inbound_traffic topic and the outbox ipc worker.  why?
