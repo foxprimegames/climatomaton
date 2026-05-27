@@ -20,3 +20,7 @@ Data object types should be defined as fully isolated and encapsulated data obje
 --
 
 based on all of the possible action triggers for the core engine, does this tightly coupled design implement the best practices for a system like this?
+
+--
+
+does this not bind execution of each component to the other components?  if the gateway & network layer has to hand off a DiscordMessage to the ingestion & command layer, which then either parses it as a command (and apparently does nothing with it) or as a proposal report, which then gets handed off to the core engine, which then has to run the transaction manager, which then has to hand off an output notification to the outbox ipc worker, which then has to send a message to discord and wait for confirmation, that's a lot of time during which the gateway & network layer is not doing its job while waiting for a response.
