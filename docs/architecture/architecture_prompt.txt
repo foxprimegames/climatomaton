@@ -177,3 +177,13 @@ point 2: this should be part of the design document for the DGL and DAC.
 point 3: let's use a configuration file that can get mounted at a known location, since that's a standard deployment model.
 
 as always, please reproduce the document including the above feedback, then list issues or suggestions, if any, that need to be discussed.
+
+--
+
+yes, use UTC timezone for all operations.
+
+as always, please reproduce the document including the above feedback, then list issues or suggestions, if any, that need to be discussed.
+
+(after a suggestion about how to move forward...)
+
+if there are no issues, then please reproduce the document with no conversation so i can capture a clean copy.
