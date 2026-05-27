@@ -1,112 +1,134 @@
-# Discord Gateway & Ingestion Engine Design Document
+# Discord Gateway & Ingestion Engine Design Document (Revised)
 
-This document defines the architectural implementation for the Discord Gateway & Ingestion Engine. It outlines the isolated components responsible for interfacing with the Discord network, parsing inbound commands, managing execution state recovery, and dispatching outbound asynchronous notifications.
+This document defines the complete architectural implementation for the core engine. It details the isolated components responsible for interfacing with external systems (Discord, Shared Volume), the encapsulated data objects that ferry information between layers, and the internal transaction pipeline that orchestrates game logic execution.
 
-To maintain strict separation of concerns, the system is divided into discrete, specialized modules communicating via strongly typed, encapsulated data objects.
+## 1. Encapsulated System Data Objects
 
----
+To guarantee safe data transit and adhere to strict Object-Oriented principles, all shared data structures are fully encapsulated. External components **do not** parse raw text into these objects; instead, they pass raw text to the objects' own static factory or constructor methods, which encapsulate their specific regex, validation, and instantiation logic.
 
-## 1. System Data Objects (OOP Encapsulation)
-
-To guarantee safe data transit between isolated processing components and the execution pipeline, all shared data is encapsulated into strictly typed, object-oriented structures. These objects encapsulate their validation logic and expose read-only properties to prevent state mutation during transit.
-
-* **`DiscordMessage`**: Encapsulates raw inbound Discord message data.
-* *Properties*: `MessageID` (Snowflake), `ChannelID` (Snowflake), `AuthorID` (Snowflake), `RawContent` (String), `IsDirectMessage` (Boolean).
-* *Methods*: `getAuthorIdentity()`, `isFromAuthorizedAdmin(adminList)`.
+* **`DiscordMessage`**
+* *State:* `messageId` (String), `channelId` (String), `authorId` (String), `rawContent` (String), `isDirectMessage` (Boolean).
+* *Instantiation:* `static fromGatewayPayload(jsonPayload)` – parses the raw Discord WebSocket event into the object properties.
+* *Methods:* `isFromAuthorizedAdmin(adminList)` (Evaluates `authorId` against the injected config array).
 
 
-* **`ProposalReport`**: Represents a validated, parsed set of proposal metrics.
-* *Properties*: `count` (Integer), `passed` (Integer), `failed` (Integer).
-* *Methods*: `getMetrics()` (Returns an immutable dictionary mapping to the `proposals` namespace), `isValid()` (Validates no negative integers).
+* **`ProposalReport`**
+* *State:* `turn` (Integer), `count` (Integer), `passed` (Integer), `failed` (Integer).
+* *Instantiation:* `static tryParse(rawContent)` – Encapsulates the specific regex required to identify a proposal report. If the string does not match the strict format, or if negative integers are parsed, it throws a `ParseException` or returns `null`.
+* *Methods:* `isTurnOne()` (Returns true if `turn == 1`), `getMetricsGraph()` (Returns an immutable JSON-style dictionary mapping exactly to the engine's `proposals` memory namespace).
 
 
-* **`CommandPayload`**: Encapsulates the fully resolved intent of an administrative command, divorced from its original UI origin (Slash or DM).
-* *Properties*: `CommandType` (Enum: `REPROCESS`, `RESET`), `PositionalArgs` (Array of Strings).
-* *Methods*: `getArgumentAt(index)`, `hasArgument(index)`.
+* **`ClimateState`**
+* *State:* `value` (Float), `tags` (Set of Strings).
+* *Instantiation:* `static tryParseAnchor(rawContent)` – Encapsulates the regex logic to scan historical bot/admin messages for the "The climate is now X and is Y" string format.
+* *Methods:* `mutate(newValue, newTags)` (The only permitted way to alter state, used by the transaction pipeline), `generateReportString()` (Encapsulates the plain-English grammar formatting logic based on tag counts).
 
 
-* **`ClimateState`**: The strictly encapsulated memory anchor for the active engine.
-* *Properties*: `value` (Float), `tags` (Set of Strings).
-* *Methods*: `updateState(newValue, newTags)`, `getSnapshot()` (Returns an immutable copy of the state for the rules pipeline).
-
-
-
----
-
-## 2. Gateway Connection & Channel Monitoring Infrastructure
-
-**Component:** `DiscordGatewayConnector`
-
-This component manages the persistent inbound data stream from the Discord network. It is explicitly responsible for maintaining the WebSocket lifecycle and routing inbound events to the appropriate ingestion layers.
-
-* **Connection Management:** Initiates the connection, handles gateway heartbeats, and automatically manages session resumes or reconnects upon network interruption.
-* **Intent Declaration:** Authenticates with the required Privileged Gateway Intents (`GUILD_MESSAGES`, `MESSAGE_CONTENT`) to ensure the bot can actively monitor message strings in the designated public game channel.
-* **Event Routing:** Operates purely as a dispatcher. It does not parse game logic. It intercepts `MESSAGE_CREATE` and `INTERACTION_CREATE` events, maps them into `DiscordMessage` objects, and pushes them to either the `CommandIngestionWrapper` or the `ProposalFilterEngine`.
-
----
-
-## 3. Discord Command Registration & Ingestion Layer
-
-**Component:** `CommandIngestionWrapper`
-
-This layer normalizes administrative inputs from vastly different Discord UI features into a single, standardized format.
-
-* **Global Registration:** Executes the one-time Discord REST API calls during startup to globally register the `/climate` slash command and its nested subcommands (`reprocess`, `reset`) with the Discord UI.
-* **Slash Command Ingestion (`INTERACTION_CREATE`):** Intercepts native UI slash commands (e.g., `/climate reset value:10`). It strips the `/climate` prefix and extracts the named UI options into a sequential string array.
-* **Direct Message Ingestion (`MESSAGE_CREATE`):** Intercepts private DMs from authorized administrators. It validates the `AuthorID` against the injected environment configuration. It expects no command prefix (e.g., `reset 10`) and tokenizes the raw text by space delimiters.
-* **Normalization:** Both flows output a clean array of strings (e.g., `["reset", "10"]`) which is passed synchronously to the Unified Command Parser.
-
----
-
-## 4. Inbound Proposal Ingestion
-
-**Component:** `ProposalFilterEngine`
-
-This component is dedicated to silently monitoring the public game channel and intercepting valid mechanical triggers.
-
-* **Pattern Matching Pipeline:** Subscribes to the `DiscordGatewayConnector`. For every `DiscordMessage` originating from the target channel, it applies strict regex-based pattern matching to determine if the text constitutes a formatted proposal report.
-* **Encapsulation:** If a match is found, the regex capture groups are extracted, type-cast to integers, and encapsulated into a `ProposalReport` object.
-* **Execution Trigger:** The instantiated `ProposalReport` is handed off to the Two-Stage Batch Execution Pipeline (defined in the core architecture) to initiate a transaction cycle. Unmatched messages are immediately discarded to conserve memory.
-
----
-
-## 5. Bootstrap Flow & State Recovery Engine
-
-**Component:** `StateBootstrapper`
-
-Because Climatomaton operates without a database, this component reconstructs the operational `ClimateState` upon container startup using Discord's history as an immutable ledger.
-
-* **Chronological Lookback:** Upon initialization, the bootstrapper utilizes stateless Discord REST API calls to fetch message blocks from the target channel, traversing backward chronologically from the present.
-* **Anchor Resolution:** It searches for a valid climate report matching the bot's output signature (or an authorized admin's signature).
-* **Startup Sequence Constraints:** During this initial backward scan, the engine's primary objective is locating the baseline anchor. If the scan encounters proposal reports during this lookup phase, **it must explicitly ignore them and make no updates to the climate state based on those proposal reports.** The engine relies entirely on administrative oversight or the definitive climate report anchor to establish the active state.
-* **Collision Detection:** If a proposal report indicating *Turn 1* is encountered before a climate anchor, the engine halts the scan and initializes a clean baseline state (`climate.value = 0`, `climate.tags = []`).
-
----
-
-## 6. Unified Command Parser (Pure Text & Logic Processing Layer)
-
-**Component:** `UnifiedCommandParser`
-
-This is a pure logic component. It receives normalized string arrays from the `CommandIngestionWrapper`, resolves them into `CommandPayload` objects, and executes the requested system overrides.
-
-* **Positional Argument Mapping:** Evaluates arguments strictly by their index position. Multi-word strings (like comma-separated tag lists) are parsed as single index strings.
-* **Omitted Argument Handling (`-` Token):** If a string array contains the hyphen token (`-`), the parser identifies this as an intentionally omitted optional parameter, preserving the index sequence for subsequent arguments.
-* **The `reprocess` Execution:** Extracts the target message identifier (Snowflake or URL). It issues a stateless outbound Discord REST API call to fetch the exact message payload, processes it into a `ProposalReport`, and forces it through the execution pipeline.
-* **The `reset` Execution:** * Evaluates argument 1 (`value`). If the specific string `default` is passed, the parser immediately flushes the in-memory state to the baseline (`climate.value = 0`, `climate.tags = []`), ignoring subsequent arguments.
-* If numeric values or string tag arrays are provided, it forcibly overwrites the encapsulated `ClimateState`.
-* Upon successful mutation, it triggers an outbound broadcast of the plain-English status report.
+* **`CommandPayload`**
+* *State:* `intent` (Enum: `REPROCESS`, `RESET`), `arguments` (Map<String, String> resolved from positional logic).
+* *Instantiation:* `static parseFromInput(rawStringArray)` – Encapsulates the positional logic, mapping array indexes to named arguments, handling the hyphen (`-`) placeholder token for omitted arguments, and mapping the literal string `default` into the intent map.
+* *Methods:* `getIntent()`, `getArgument(key)`.
 
 
 
 ---
 
-## 7. Outbox IPC Worker
+## 2. Gateway & Network Layer
 
-**Component:** `OutboxIPCWorker`
+This layer acts as the physical boundary of the application, managing raw I/O without understanding the game's internal mechanics.
 
-This component manages all asynchronous, outbound notifications generated by the Core Engine or modular components, ensuring reliable delivery without blocking internal transaction loops.
+### **Component: `DiscordGatewayConnector**`
 
-* **Shared Volume Polling:** Continuously monitors the `outbox/` directory via filesystem polling.
-* **Chronological Sorting:** Enforces alphabetical sorting of discovered JSON event files to guarantee chronological processing of sequential events.
-* **Outbound API Integration:** While the `DiscordGatewayConnector` handles the persistent WebSocket, the `OutboxIPCWorker` independently formats and executes outbound stateless HTTP POST requests to the Discord REST APIs to deliver the notification payloads.
-* **Atomic Cleanup:** Upon receiving a successful `200 OK` HTTP response from Discord, the worker unlinks (deletes) the event file from the shared volume. If rate-limited (`429 Too Many Requests`), it pauses its polling cycle, respecting the `Retry-After` header before reattempting delivery.
+Manages the persistent inbound stream from the Discord network.
+
+* **Responsibilities:** Maintains the WebSocket lifecycle, handles heartbeats, and declares the `GUILD_MESSAGES` and `MESSAGE_CONTENT` intents. Maps raw `MESSAGE_CREATE` and `INTERACTION_CREATE` JSON payloads into `DiscordMessage` objects and pushes them to the ingestion layer via an Observer pattern.
+* **Error Handling:** * *Network Drops:* Automatically executes Discord's documented resume/reconnect backoff loops.
+* *Authentication Failures:* If the token is invalid (HTTP 401), it logs a `CRITICAL` error to the local terminal and safely kills the container process (as recovery is impossible without configuration changes).
+
+
+
+### **Component: `OutboxIPCWorker**`
+
+Manages asynchronous outbound notifications to prevent blocking the internal execution thread.
+
+* **Responsibilities:** Continuously polls the `outbox/` directory on the shared volume. Sorts discovered JSON event files alphabetically, parses them, and executes stateless HTTP POST requests to Discord REST APIs.
+* **Error Handling:**
+* *Rate Limiting (HTTP 429):* Parses the `Retry-After` header, pauses the worker thread, and safely leaves the file in the outbox.
+* *Malformed Outbox Files:* If a JSON file cannot be parsed, it logs a local warning and unlinks (deletes) the file to prevent pipeline clogging.
+
+
+
+---
+
+## 3. Ingestion & Command Layer
+
+This layer translates network events into actionable game triggers.
+
+### **Component: `CommandIngestionWrapper**`
+
+Normalizes structured interactions and unstructured DMs into uniform payloads.
+
+* **Responsibilities:** Intercepts `/climate` slash commands and DM text. Validates authorization via `DiscordMessage.isFromAuthorizedAdmin()`. Strips prefixes, tokenizes the text into a string array, and attempts to instantiate a `CommandPayload`.
+* **Error Handling:**
+* *Invalid Syntax/Parsing Failure:* If `CommandPayload.parseFromInput()` throws an exception, the wrapper intercepts it and immediately dispatches a direct message back to the `authorId` containing a syntax usage guide. The command is dropped.
+* *Unauthorized Access:* Drops the event silently and logs a security warning to the terminal.
+
+
+
+### **Component: `ProposalFilterEngine**`
+
+The silent listener for game events.
+
+* **Responsibilities:** Receives every public channel `DiscordMessage`. Attempts to instantiate a `ProposalReport` by calling `ProposalReport.tryParse(message.rawContent)`. If successful, the object is placed into the core engine's execution queue.
+* **Error Handling:**
+* *Non-matching Strings:* `tryParse` returns null. The filter engine discards the message silently (standard behavior for normal chat).
+
+
+
+---
+
+## 4. State Recovery & Initialization
+
+### **Component: `StateBootstrapper**`
+
+Reconstructs the memory state upon container startup before the engine accepts live events.
+
+* **Responsibilities:** Issues stateless REST calls to fetch channel history backward. It passes each message's text to both `ClimateState.tryParseAnchor()` and `ProposalReport.tryParse()`.
+* **Logic Clarification & Constraints:** The bootstrapper parses proposal reports solely for metadata inspection, **never** for execution.
+* If a `ClimateState` anchor is successfully parsed, it hydrates memory and terminates the boot process.
+* If a `ProposalReport` is parsed, it checks `report.isTurnOne()`. If true, it signifies a round boundary collision; it terminates the backward scan and initializes the `default` baseline state. If `false` (Turn > 1), the bootstrapper explicitly ignores the report, applies no updates to the climate, and continues scanning backward for the true anchor.
+
+
+* **Error Handling:**
+* *Discord API Outage during Boot:* Logs a `CRITICAL` error and crashes the container. The bot cannot operate without a verified initial state; it relies on Docker's restart policies to try again later.
+
+
+
+---
+
+## 5. Core Execution Engine & Synchronization Pipeline
+
+This is the central nervous system, orchestrating the file watcher, staging updates, and executing the mathematical game logic.
+
+### **Component: `DirectorySynchronizationWatcher**`
+
+Manages the shared volume transition lifecycle.
+
+* **Responsibilities:** Polls `rules.commit` (using relative paths). Upon change, it extracts dynamic dependencies (via AST inspection), waits for required `.json` modules, and verifies syntax via the parser. If valid, it triggers an atomic memory pointer swap to the new `rules-YYYYMMDD-HHMMSS/` directory and queues old directories for garbage collection.
+* **Error Handling:**
+* *Validation/Timeout Failure:* Immediately halts the staging process, reverts `rules.commit` to the previous directory path, and dispatches a dual-delivery log (Terminal + Discord via Outbox) detailing the missing dependencies or syntax errors.
+
+
+
+### **Component: `TransactionManager**`
+
+Executes the Three-Phase Pipeline (Phase 0, 1, and 2) upon receiving a `ProposalReport` or `CommandPayload` override.
+
+* **Responsibilities:**
+* *Phase 0 (Rehydration):* Reads all active `.json` files from the committed directory and attaches them to a read-only environment graph.
+* *Phase 1 & 2 (Execution):* Instantiates the mutable `new` namespace buffer. Iterates over the sorted AST (provided by the parser), evaluating conditionals against the Phase 0 graph, and writing mutations to the `new` buffer.
+* *Commitment:* If successful, invokes `ClimateState.mutate()` to finalize the values, then queues a standard output notification via the `OutboxIPCWorker`.
+
+
+* **Error Handling:**
+* *Execution Abort Policy:* If any AST node fails (e.g., namespace path resolution failure, divide-by-zero), the `TransactionManager` catches the runtime exception. It instantly discards the mutable `new` buffer (preventing partial state writes), aborts the entire transaction cycle, and generates a dual-delivery log containing the failed Rule ID and the triggering message payload. No default values are assumed.
