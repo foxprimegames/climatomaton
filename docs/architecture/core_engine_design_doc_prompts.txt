@@ -16,3 +16,7 @@ Data object types should be defined as fully isolated and encapsulated data obje
 2. Just because something is mentioned in the _architecture_ document does not mean that is a code design, organization, communication protocol, or data definition.  This is a design document and needs to include the full design for the core engine.
 3. Your bootstrap flow is self-contradictory: "If the scan encounters proposal reports during this lookup phase, it must explicitly ignore them [...]" vs "If a proposal report indicating Turn 1 is encountered [...]"
 4. Each component needs to describe how error conditions are to be handled.
+
+--
+
+based on all of the possible action triggers for the core engine, does this tightly coupled design implement the best practices for a system like this?
