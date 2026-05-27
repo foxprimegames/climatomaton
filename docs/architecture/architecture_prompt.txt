@@ -110,3 +110,9 @@ The first thing I want from you is an architecture document describing the overa
 
 1. should the core event router be used for any other communication?  asked a different way, should this use a completely event-driven architecture, or should the event router be limited to incoming discord messages (in which case it should have a more specific component name)?
 2. please reproduce the entire document, and then include your responses to the above issues after the end of the document.
+
+--
+
+if we are moving to an event-driven architecture, that architecture needs to be defined in this document:  which components subscribe to which event types or topics, which components publish which event types to which topics (if using topics), and what information those event types need to communicate.
+
+please reproduce the entire document, and then include your responses to the above issues after the end of the document.

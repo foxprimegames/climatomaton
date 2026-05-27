@@ -2,7 +2,7 @@
 
 ## 1. System Overview
 
-**Climatomaton** is an automated, stateless Discord bot designed to manage the "climate" of the Nomic-style game Nomicron. It operates by **monitoring Discord** for incoming data (via Gateway events), reading game history to establish state, and evaluating an externally provided ruleset to process end-of-turn (EOT) reports.
+**Climatomaton** is an automated, stateless Discord bot designed to manage the "climate" of the Nomic-style game Nomicron. It operates by monitoring Discord for incoming data (via Gateway events), reading game history to establish state, and evaluating an externally provided ruleset to process end-of-turn (EOT) reports.
 
 ### Core Constraints & Solutions
 
@@ -23,48 +23,62 @@ Climatomaton consists of the **Core Daemon** and its **Pluggable Subprocesses** 
 3. **`Transaction`:** Encapsulates the diffs/mutations applied to any mutable namespace during rule evaluation, standardizing how data is sent to PEMs for acknowledgment.
 4. **`RuleAST`:** The compiled Abstract Syntax Tree representation of a rule, ensuring conditions and actions are evaluated consistently.
 
-### 2.2 Core System Components & Internal Communication
+### 2.2 Core System Components
 
-To prevent high-latency internal processing from blocking critical WebSocket heartbeats and to unify the execution model, the Core Daemon utilizes a completely **event-driven architecture** internally via an **Internal Event Bus (In-Memory Pub/Sub)**. Components communicate asynchronously: listeners and watchers act as producers, pushing standardized events to the bus, while processing logic acts as consumers.
-
-1. **Discord Gateway Listener (DGL):** Maintains the outbound WebSocket connection for real-time channel monitoring and command listening. It is strictly non-blocking; when it detects a new message or command, it immediately pushes the raw payload to the Internal Event Bus and yields back to the network loop.
+1. **Discord Gateway Listener (DGL):** Maintains the outbound WebSocket connection for real-time channel monitoring. It acts strictly as an event producer, pushing raw payloads to the Internal Event Bus.
 2. **Discord API Client (DAC):** Handles all asynchronous HTTP REST operations, including sending messages, queueing DMs, and paginating channel history.
-3. **Internal Event Bus:** An in-memory Pub/Sub broker that routes all asynchronous events within the Core Daemon. It consumes network events from the DGL and filesystem events from the IPC Broker, decoupling all I/O operations from logic execution.
-4. **Command Parser:** Intercepts slash commands (`/climate`) and DMs routed from the Event Bus. Differentiates between standard Discord command payloads and the streamlined DM syntax.
-5. **EOT Parser:** Receives potential end-of-turn reports from the Event Bus, uses pattern matching to verify them, extracts the required game data into an `EOTSummary` object, and triggers the Rules Engine workflow.
+3. **Internal Event Bus:** An in-memory Pub/Sub broker that routes all asynchronous events within the Core Daemon, decoupling all I/O operations from logic execution.
+4. **Command Parser:** Intercepts slash commands (`/climate`) and DMs. Differentiates between standard Discord command payloads and the streamlined DM syntax.
+5. **EOT Parser:** Receives potential end-of-turn reports, uses pattern matching to verify them, extracts the required game data into an `EOTSummary` object, and triggers the Rules Engine workflow.
 6. **Environment Manager:** Scaffolds the environments during rule evaluation. It selectively duplicates explicitly registered mutable variables into the `new.` transaction environment.
-7. **Rules Engine:** Evaluates rule conditions against the environments, applies actions, coordinates with the IPC Broker for PEM acknowledgments, and finally uses the DAC to post the resulting `ClimateReport`.
+7. **Rules Engine:** Evaluates rule conditions against the environments, applies actions, coordinates with the IPC Broker for PEM acknowledgments, and dispatches outbound messages.
 8. **State Rehydrator:** A high-level logic process that calls the DAC to fetch historical messages on startup and passes them to the `ClimateReport` object to establish the initial `climate.` namespace.
-9. **File-Based IPC Broker:** Manages local communication with the PRM and PEMs via shared container volumes. It utilizes file system event watchers (`inotify`) to detect changes and pushes these as events (e.g., `PEM_ACK_RECEIVED`, `RULES_UPDATED`, `NOTIFICATION_QUEUED`) to the Internal Event Bus.
+9. **File-Based IPC Broker:** Manages local communication with the PRM and PEMs via shared container volumes. It utilizes file system event watchers (`inotify`) to detect changes and translates them into internal events.
 
 ---
 
-## 3. Communication Protocols (File-Based IPC)
+## 3. Internal Event Bus Specification
 
-Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by writing atomic JSON payloads to directories.
+To guarantee the DGL never blocks and to maintain a fully event-driven execution model, the Core Daemon relies on a central Pub/Sub topic architecture.
 
-### 3.1 PRM Protocol (Rules Module)
+| Topic | Publisher | Subscriber(s) | Payload / Data Communicated |
+| --- | --- | --- | --- |
+| `network.inbound` | DGL | Command Parser, EOT Parser | `raw_json_payload`, `source` (channel/DM) |
+| `game.eot_detected` | EOT Parser | Rules Engine | `EOTSummary` object |
+| `game.command` | Command Parser | Core Daemon, Rules Engine | `command_action` (e.g., reset, pause), `parsed_args` |
+| `ipc.rules_updated` | IPC Broker | Rules Engine | `file_path` (relative to shared volume) |
+| `ipc.pem_ack` | IPC Broker | Rules Engine | `tx_id`, `namespace` |
+| `sys.notification` | IPC Broker, Rules Engine | DAC | `severity_level`, `message_text` |
+| `network.outbound` | Rules Engine, Core Daemon | DAC | `formatted_message`, `target_destination` (channel/user ID) |
 
-* **`push_rules` (PRM -> Core):** The PRM writes a new compiled JSON ruleset to `/shared/prm/active_rules.json.tmp`, then atomically renames it.
-* **Core Processing:** The IPC Broker detects the rename, fires a `RULES_UPDATED` event to the Event Bus. The Core then parses the new rules into `RuleAST` objects in the background, validates them, and atomically swaps the active rules pointer.
+---
 
-### 3.2 PEM Protocol (Environment Module)
+## 4. Communication Protocols (File-Based IPC)
 
-* **Schema Registration & Heartbeat (PEM -> Core):** PEMs write their schema and state payload to `/shared/pems/{namespace}.json`. PEMs must periodically update this file to indicate they are alive.
-* **Transaction Commit (Core -> PEM):** If rules mutate a PEM namespace, the Core writes a diff to `/shared/tx/req_{tx_id}_{namespace}.json`.
-* **Acknowledgment:** The PEM processes the transaction and writes `/shared/tx/ack_{tx_id}_{namespace}.json`.
-* **Cleanup:** The IPC Broker detects the ACK file, fires an event to the Event Bus, and once the Core successfully posts the Discord report, it deletes both the `req` and `ack` files.
+Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by writing atomic JSON payloads to directories. All file paths are strictly relative to the shared volume root.
+
+### 4.1 PRM Protocol (Rules Module)
+
+* **`push_rules` (PRM -> Core):** The PRM writes a new compiled JSON ruleset to `prm/active_rules.json.tmp`, then atomically renames it.
+* **Core Processing:** The IPC Broker detects the rename, fires an `ipc.rules_updated` event. The Core then parses the new rules into `RuleAST` objects in the background, validates them, and atomically swaps the active rules pointer.
+
+### 4.2 PEM Protocol (Environment Module)
+
+* **Schema Registration & Heartbeat (PEM -> Core):** PEMs write their schema and state payload to `pems/{namespace}.json`. PEMs must periodically update this file to indicate they are alive.
+* **Transaction Commit (Core -> PEM):** If rules mutate a PEM namespace, the Core writes a diff to `tx/req_{tx_id}_{namespace}.json`.
+* **Acknowledgment:** The PEM processes the transaction and writes `tx/ack_{tx_id}_{namespace}.json`.
+* **Cleanup:** The IPC Broker detects the ACK file, fires an `ipc.pem_ack` event, and once the Core successfully posts the Discord report, it deletes both the `req` and `ack` files.
 * **PEM Deregistration/Cleanup:** If a PEM crashes and fails to update its file within a TTL (Time-To-Live), the Core automatically unloads the schema and deletes the stale `{namespace}.json` file.
 
-### 3.3 Notification Protocol
+### 4.3 Notification Protocol
 
-* **`notify_admin`:** PRM or PEMs drop files into `/shared/notifications/{timestamp}_{id}.json`. The IPC Broker detects the file, pushes an event to the Event Bus, queues a DM to Admins via the DAC, and **immediately deletes the file**.
+* **`notify_admin`:** PRM or PEMs drop files into `notifications/{timestamp}_{id}.json`. The IPC Broker detects the file, pushes a `sys.notification` event, and **immediately deletes the file**.
 
 ---
 
-## 4. Environment & Execution Workflows
+## 5. Environment & Execution Workflows
 
-### 4.1 State Rehydration Workflow
+### 5.1 State Rehydration Workflow
 
 Because historical rulesets are unknown, Climatomaton **does not** automatically process historical EOT reports during recovery.
 Upon startup, or if memory is cleared:
@@ -75,17 +89,17 @@ Upon startup, or if memory is cleared:
 4. If the search hits a "Turn 1" EOT report first, it initializes to `0` and `Mild`.
 5. If any EOTs occurred between the last parsed climate report and the present, the system remains in its parsed state. It is up to climate administrators to manually calculate missing updates and apply them via the `reset` command.
 
-### 4.2 Handling Missing PEM Data
+### 5.2 Handling Missing PEM Data
 
 If an EOT arrives, but the PRM rules rely on a PEM namespace that has not initialized or is missing data:
 
 1. **Suspension:** The Core places the parsed EOT into the "Pending EOT" queue.
-2. **Notification:** It fires a DM to administrators detailing the missing required PEM data.
+2. **Notification:** It fires a `sys.notification` event detailing the missing required PEM data.
 3. **Resolution:** Once the missing PEM writes its schema/data to the shared volume, the Core **restarts the processing of the EOT** from the beginning to ensure the newly provided data actually satisfies the missing keys and rules evaluation requirements.
 
-### 4.3 Rules Execution Workflow
+### 5.3 Rules Execution Workflow
 
-Triggered when an EOT message is identified by the parser and all required PEM data is validated.
+Triggered when an `game.eot_detected` event is received and all required PEM data is validated.
 
 1. **Environment Initialization:**
 * `climate.*`, `proposals.*`, and `{pem_namespace}.*` are loaded from cache.
@@ -93,18 +107,20 @@ Triggered when an EOT message is identified by the parser and all required PEM d
 * `new.*` is populated as a clone of **only** the explicitly registered mutable fields.
 
 
-2. **Rules Processing (Ordered):**
+2. **Rules Processing:**
+* **Execution Constraints:** Rules are evaluated **strictly in numeric order**. Syntax requires spaces for keywords (e.g., "climate rule", "tag rule").
+* **Strict Error Handling:** If a namespace path resolution fails, or any other execution error occurs, **all rule processing is immediately aborted**. The failure is logged, and a `sys.notification` event is fired to alert administrators. No default values are ever assumed.
 * **Climate Rules:** Evaluate and mutate `new.climate.value`, `var.*`, or **any other mutable numeric field** mapped in `new.*`.
 * **Tag Rules:** Evaluate and mutate `new.climate.tags`, or **any other mutable tag-list field** mapped in `new.*`.
 
 
 3. **Commit & Report:**
-* Write `Transaction` diffs to `/shared/tx/` and wait for PEM ACKs asynchronously.
-* Use the `ClimateReport` object to generate the formatted string and post via DAC.
+* Write `Transaction` diffs to `tx/` and wait for PEM ACKs asynchronously.
+* Use the `ClimateReport` object to generate the formatted string and fire a `network.outbound` event.
 
 
 
-### 4.4 Natural English List Formatting
+### 5.4 Natural English List Formatting
 
 When the `ClimateReport` object formats the string, it applies standard English list rules:
 
@@ -115,11 +131,11 @@ When the `ClimateReport` object formats the string, it applies standard English 
 
 ---
 
-## 5. Command Interface
+## 6. Command Interface
 
-Admins interact via `/climate` commands or DMs. For streamlined DMs, positional optional arguments can be omitted from right-to-left. To omit an earlier positional argument while providing a subsequent one, a placeholder (`-`) must be used. Tags are comma-separated.
+Admins interact via a unified Discord slash command (`/climate`) or via direct messages to the bot. For DMs, the specific sub-commands can be used directly without the slash prefix. Positional optional arguments can be omitted from right-to-left. To omit an earlier positional argument while providing a subsequent one, a placeholder (`-`) must be used. Tags are comma-separated.
 
-### 5.1 System Control Commands
+### 6.1 System Control Commands
 
 * **`pause`**
 * Suspends automatic EOT processing. Any EOT reports posted to the channel while the system is paused are ignored, granting administrators time to manually calculate and apply rule updates.
@@ -130,11 +146,11 @@ Admins interact via `/climate` commands or DMs. For streamlined DMs, positional 
 
 
 
-### 5.2 Data Management Commands
+### 6.2 Data Management Commands
 
 * **`reset [round] [turn] [value] [tags...]`**
 * *No arguments:* Returns an error.
-* `reset default` $\rightarrow$ Resets to Value `0`, Tags `["Mild"]`, with Round/Turn cleared or set to baseline.
+* `reset default` $\rightarrow$ Resets to Value `0`, Tags `["Mild"]`, with Round/Turn cleared or set to baseline. Note: `default` is passed directly into the `value` argument position.
 * `reset 4 2 15` $\rightarrow$ Updates internal state to Round 4, Turn 2, Value 15. The `tags` argument is omitted, so the current tags remain unchanged.
 * `reset - - - Greenhouse Effect, High Winds` $\rightarrow$ Round, Turn, and Value remain unchanged. Tags are replaced.
 * `reset 5 1 12 Stable` $\rightarrow$ State updated to Round 5, Turn 1, Value 12. Tags replaced with `["Stable"]`.
@@ -152,9 +168,5 @@ Admins interact via `/climate` commands or DMs. For streamlined DMs, positional 
 
 ### Responses to Your Issues
 
-**1. Event-Driven Architecture vs. Specific Router:**
-You have hit on a crucial architectural decision. Moving to a completely event-driven architecture internally is highly recommended and creates a much more robust system.
-
-I have updated Section 2.2 to replace the "Core Event Router" with an **Internal Event Bus (In-Memory Pub/Sub)**. Instead of limiting the event flow to just Discord messages, the bus now handles *everything*. The DGL pushes network events to it, and the File-Based IPC Broker (using its `inotify` watchers) pushes filesystem events to it (e.g., emitting a `PEM_ACK_RECEIVED` or `RULES_UPDATED` event).
-
-This approach turns the Core Daemon into a true event-driven game engine. It perfectly complements your low-frequency event requirements and filesystem-backed IPC by cleanly decoupling all I/O operations (both network and disk) from the actual logic execution.
+**1. Defining the Event-Driven Architecture:**
+I have fully fleshed out the pub/sub mechanics by creating a brand new **Section 3: Internal Event Bus Specification**. This section features a topic routing table that explicitly defines the topics (e.g., `network.inbound`, `game.eot_detected`, `ipc.pem_ack`), which components publish to them, which components subscribe to them, and the data payload they carry. This formalizes the decoupled data flow you requested, ensuring clear boundaries between networking, file-system watching, and core game logic.
