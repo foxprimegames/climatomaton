@@ -44,3 +44,7 @@ so one clarifiation:  there will be one proposal report a week.  there will be a
 --
 
 Please redisplay the design document in its entirety with no conversation before or after.
+
+--
+
+question: does transforming this into a message-broker architecture make anything cleaner, if we ignore the costs of deploying a message broker?
