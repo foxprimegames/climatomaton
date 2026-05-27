@@ -48,3 +48,7 @@ Please redisplay the design document in its entirety with no conversation before
 --
 
 question: does transforming this into a message-broker architecture make anything cleaner, if we ignore the costs of deploying a message broker?
+
+--
+
+clarification: i'm talking about only using a message broker between the core engine components.  the filesystem still exists.
