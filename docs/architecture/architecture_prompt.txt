@@ -116,3 +116,9 @@ The first thing I want from you is an architecture document describing the overa
 if we are moving to an event-driven architecture, that architecture needs to be defined in this document:  which components subscribe to which event types or topics, which components publish which event types to which topics (if using topics), and what information those event types need to communicate.
 
 please reproduce the entire document, and then include your responses to the above issues after the end of the document.
+
+--
+
+okay, if you think this document is complete enough to move on to creating design documents for individual components, modules, libraries, shared objects, etc., then please reproduce the document with no conversation before or after.
+
+if you think there is anything missing, please reproduce the document and list what might be missing at the end so we can discuss.

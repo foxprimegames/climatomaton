@@ -99,7 +99,7 @@ If an EOT arrives, but the PRM rules rely on a PEM namespace that has not initia
 
 ### 5.3 Rules Execution Workflow
 
-Triggered when an `game.eot_detected` event is received and all required PEM data is validated.
+Triggered when a `game.eot_detected` event is received and all required PEM data is validated.
 
 1. **Environment Initialization:**
 * `climate.*`, `proposals.*`, and `{pem_namespace}.*` are loaded from cache.
@@ -164,9 +164,12 @@ Admins interact via a unified Discord slash command (`/climate`) or via direct m
 
 ---
 
----
+### Potential Missing Elements for Discussion
 
-### Responses to Your Issues
+The document establishes a highly robust software architecture, but before diving into the detailed component design, there are a few operational and organizational gaps we should consider defining:
 
-**1. Defining the Event-Driven Architecture:**
-I have fully fleshed out the pub/sub mechanics by creating a brand new **Section 3: Internal Event Bus Specification**. This section features a topic routing table that explicitly defines the topics (e.g., `network.inbound`, `game.eot_detected`, `ipc.pem_ack`), which components publish to them, which components subscribe to them, and the data payload they carry. This formalizes the decoupled data flow you requested, ensuring clear boundaries between networking, file-system watching, and core game logic.
+1. **Deployment Strategy:** The architecture relies heavily on shared volumes for IPC, which implies a specific containerization strategy. We need a section detailing how Docker (or a similar runtime) will orchestrate the Core Daemon alongside the PRM/PEMs, and how the staging and production environments will differ.
+2. **Observability & Logging:** We have `sys.notification` for immediate admin alerts, but the system lacks a defined logging strategy. Should we designate specific Discord channels for standard logging, monitoring, and audit trails?
+3. **Project Organization:** How do we want to map this architecture into actionable development tasks? Breaking this down into Agile epics or sub-projects (e.g., separating the Event Bus infrastructure from the Rules Engine execution) would help sequence the upcoming design documents.
+
+Would you like to draft a new section encompassing the deployment strategy and observability first, or would you prefer to break the existing architecture down into Agile epics?
