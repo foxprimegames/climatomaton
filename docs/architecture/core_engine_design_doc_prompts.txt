@@ -60,3 +60,7 @@ so this code will be written in python, and the site https://medium.com/@connect
 --
 
 why does State Bootstrapper or the State Bootstrap Engine need to subscribe to bot/inbound_traffic messages from the Discord Gateway?
+
+--
+
+please reproduce the design document including the synchronous initialization workflow that results in the pub/sub engine and asynchronous components operating in the correct state.
