@@ -52,3 +52,7 @@ question: does transforming this into a message-broker architecture make anythin
 --
 
 clarification: i'm talking about only using a message broker between the core engine components.  the filesystem still exists.
+
+--
+
+so this code will be written in python, and the site https://medium.com/@connect.hashblock/how-i-built-an-in-memory-pub-sub-engine-in-python-with-only-80-lines-eb42d30f0160 implements a pure python pub/sub broker.  please redesign the core engine design document around a pub/sub broker for the event/message passing system.
