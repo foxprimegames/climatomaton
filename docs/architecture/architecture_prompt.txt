@@ -161,3 +161,9 @@ for discussion point 1:  please state in the architecture that this is being lef
 for discussion point 2:  schemas, yes - PEMs publish their own schemas, and the PRM output should follow a schema published in the design document for the PRM component and maintained as a static asset in the project.  max file size - maybe, but the rules and environment objects would need different limits.  rules may need to remain unlimited, or have a very high limit, while environment objects could have a lower limit.  i do not know what those limits should be, however.
 
 as always, please reproduce the document including the above feedback, then list issues or suggestions, if any, that need to be discussed.
+
+--
+
+i agree, purge in-flight transaction files upon startup.
+
+as always, please reproduce the document including the above feedback, then list issues or suggestions, if any, that need to be discussed.

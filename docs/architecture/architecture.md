@@ -125,16 +125,17 @@ To prevent hitting Discord's API rate limits or spamming administrators during f
 
 ## 6. Environment & Execution Workflows
 
-### 6.1 State Rehydration Workflow
+### 6.1 State Rehydration & Startup Workflow
 
 Because historical rulesets are unknown, Climatomaton **does not** automatically process historical EOT reports during recovery.
-Upon startup, or if memory is cleared:
+Upon startup, or if memory is cleared, the following sequence occurs:
 
-1. The State Rehydrator requests the DAC to fetch channel history, paginating backward.
-2. Messages are passed to the `ClimateReport` object's `parse()` method.
-3. If a valid report is parsed successfully, the `climate` environment is populated with the corresponding round, turn, value, and tags.
-4. If the search hits a "Turn 1" EOT report first, it initializes to `0` and `Mild`.
-5. **Historical EOT Detection:** If the parser detects *any* end-of-turn reports that occurred *after* the most recently established climate report, the system cannot safely process them due to unknown historical rulesets. Instead, the Core Daemon will immediately transition to a **PAUSED** state and dispatch a high-priority `sys.notification` event. This alerts administrators to manually evaluate the game history and recover the state via the `reset` command before unpausing.
+1. **Stale IPC File Cleanup:** The IPC Broker explicitly purges all lingering, in-flight transaction files (e.g., `req_*`, `ack_*`, `.tmp`) from the shared volume to guarantee a clean slate and prevent the system from attempting to resume orphaned state operations left over from a prior hard crash.
+2. The State Rehydrator requests the DAC to fetch channel history, paginating backward.
+3. Messages are passed to the `ClimateReport` object's `parse()` method.
+4. If a valid report is parsed successfully, the `climate` environment is populated with the corresponding round, turn, value, and tags.
+5. If the search hits a "Turn 1" EOT report first, it initializes to `0` and `Mild`.
+6. **Historical EOT Detection:** If the parser detects *any* end-of-turn reports that occurred *after* the most recently established climate report, the system cannot safely process them due to unknown historical rulesets. Instead, the Core Daemon will immediately transition to a **PAUSED** state and dispatch a high-priority `sys.notification` event. This alerts administrators to manually evaluate the game history and recover the state via the `reset` command before unpausing.
 
 ### 6.2 Handling Missing PEM Data
 
@@ -231,6 +232,8 @@ While the specific hosting environment is not yet defined, the deployment strate
 
 ### Issues & Suggestions for Discussion
 
-This architecture document is looking extremely solid. Since we will tackle component sequencing in new conversations, there is only one minor operational edge case I’d suggest clarifying before we finalize this document:
+This architecture document appears quite comprehensive and stable. To wrap up the high-level architecture phase before transitioning into component specifications in subsequent conversations, here are a few final points that might need clarity:
 
-* **Stale IPC File Cleanup on Startup:** If the Core Daemon or a PEM experiences a hard crash mid-transaction (e.g., before `SIGTERM` can finish graceful shutdown), orphaned `req_`, `ack_`, or `.tmp` files may be left lingering in the shared IPC volume. Should the architecture explicitly require the IPC Broker to purge all in-flight transaction files during startup to ensure a completely clean slate, or should it attempt to resume them? (My recommendation is to purge, given the stateless design).
+1. **Testing Strategy / "Dry Run" Mode:** Because the bot heavily relies on reading state from Discord channel history and interacts with live channels, how do we handle functional testing? Do we need to architect a specific "dry run" or "sandbox" mode that mocks the Discord API layer, or will testing simply be performed against a dedicated, private Discord server setup for staging?
+2. **Bot Permissions & Intents:** To read historical messages on startup and monitor for real-time EOT updates, the bot will likely require the `MESSAGE_CONTENT` privileged intent, as well as `Read Message History` and `Send Messages` permissions. Should we explicitly document the required Discord OAuth2 scopes and Bot Intents in the Deployment Architecture section so that whoever sets up the Discord Developer Application knows exactly what to toggle?
+3. **Non-Secret Configuration Loading:** We established that secrets (tokens, admin IDs) will pass through environment variables. What is the preferred pattern for injecting non-secret configuration (e.g., logging verbosity, maximum IPC file size limits, specific PEM module names to expect)? Should these also be mandated as environment variables for simplicity, or would a generic `config.json` mounted into the container be preferable?
