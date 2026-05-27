@@ -73,3 +73,29 @@ The first thing I want from you is an architecture document describing the overa
 2. the core engine cannot assume a default value for PEM-provided namespaces; doing so will surely produce invalid results.  at the same time, we can't just ignore an end-of-turn report because we can't process the rules properly.  please provide solutions for this.
 3. for the command syntax, please indicate how optional arguments are handled, as i asked for in the original prompt.
 4. please reproduce the entire document, and then include your responses to the above issues after the end of the document.
+
+--
+
+1. instead of saying that the system works by "observing outbound connections" to discord, say instead that it "monitors discord" for the various ways in which information comes from discord to the system.
+2. you combine monitoring inbound communiation from discord and sending notifications to discord in the discord gateway interface, but separate out scanning the discord channel history into the state rehydrator.  should all discord communication be combined into a single component, or should the individual functions be separated into separate components (or into existing components that make use of those functions)?
+3. don't specify how the EOT parser works, just that it identified end of turn reports and processes them to invoke a climate update (or however you want to word that).
+4. is it actually using memory-mapped file system IPC if it's using a shared volume and inotify event handlers?
+5. how do the files in `/shared/tx` get cleaned up?
+6. if a PEM is removed from the system, how do its schema and data files get cleaned up?
+7. how do files in `/shared/notifications` get cleaned up?
+8. it looks like one component is formatting climate messages and another component is parsing climate messages.  since the logic for those two actions needs to be kept in sync, that functionality should be encapsulated into a shared data object type.  please identify other data object types that should be encapsulated.
+9. what happens if the system restarts while there are eots in the internal "pending eot" queue?
+10. in the rules processing section, just to be clear, climate rules can also mutate other mutable numeric `new` fields that are populated from the PEM namespaces, and tag rules can also mutate other mutable tag-list `new` fields that are populated from the PEM namespaces.
+11. in the `reset` command definition, it feels like a conflict to say "tags are omitted (preserved as-is)".
+11. the `reset` command definition does not give its command signature.
+12. in the `process` command signature, the message argument is indicated as optional.
+13. please reproduce the entire document, and then include your responses to the above issues after the end of the document.
+
+--
+
+1. in a previous conversation with you, it was suggested that merging other discord activity into the same component that maintains the websocket is an incorrect solution because of the critical timing involved in maintaining the websocket.  do you think that can be mitigated in order to maintain all the discord communication within a single component, or does that timing issue require the different discord interaction types to be split up between components?  (sorry for flip-flopping, just trying to make sure the architecture avoids pitfalls)
+2. during state recovery, you are not allowed to process the end of turn reports.  you do not know what rules were in play for each of those end of turn reports.  the climate report that is posted will indicate the round and turn for which it applies, and a climate administrator can calculate the necessary updates and apply them using the `reset` command.
+3. based on #2 and on the format of climate reports, the `reset` command should allow setting the round and/or turn that the report reflects.
+4. in order to allow time for administrators to manually calculate climate updates after a reset, we need `pause` and `unpause` commands.
+5. for the "missing pem data" section, instead of "continues processing", instead say it restarts the processing of the EOT.  just because the environment data gets updated doesn't mean it isn't still missing the keys in question.
+6. please reproduce the entire document, and then include your responses to the above issues after the end of the document.
