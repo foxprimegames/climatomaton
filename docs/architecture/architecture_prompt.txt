@@ -55,3 +55,14 @@ First, there can be no inbound network connectivity to the system.  This include
 Second, the system must be as stateless as possible.  No database system is allowed.  The state of the climate can be refreshed by looking at the history in the Discord channel and locating the most recently reported climate change that was posted without looking earlier than a "Turn 1" end-of-turn report.
 
 The first thing I want from you is an architecture document describing the overall system (which will be called "climatomaton"), the protocols by which the various components of the system communicate, and the general workflows followed by the various components.
+
+--
+
+1. how does it "observe outbound connections to Discord"?
+2. external namespaces should not have a custom prefix.  if a PEM provides a `weather` namespace, that should be accessible as just `weather.` _[...]_ ; if it has any mutable components, those should be accessible as `new.weather.` _[...]_ .
+3. other than the `var` namespace which is always mutable and is part of the variable environment, only mutable values from the namespaces in the read-only climate environment should be duplicated into the `new.` transactional environment.
+4. please provide non-socket-based alternatives to the IPC broker.  i won't necessarily override your choice, but i would like to see other options.  as additional information, this will all be running in a containerized environment, so functionality that is generally available in a containerized environment can be taken advantage of.
+5. with PEMs being independent processes from the PRM and core, it's possible for a ruleset to be pushed to the core that relies on information from PEMs that has not yet been provided and either fail execution or produce invalid results.  please provide a protocol to either eliminate or minimize the chance that this occurs, or recover from it.
+6. creating the climate description by joining all climate tags with `and` is awkward.  please join them together using natural English list rules, including the use of the Oxford comma when appropriate.
+7. the `reset` command should do nothing if passed no arguments.  instead, a `default` argument should cause the reset to the default state.
+8. as indicated, climate tags can contain spaces, so the `reset` syntax needs to handle that.

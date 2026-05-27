@@ -1,141 +1,72 @@
-Here is the architecture specification for **Climatomaton**, designed to meet your requirements for a stateless, reactive, and highly modular Discord bot.
+These are excellent corrections and refinements. You’ve identified some crucial edge cases—particularly regarding the race conditions between rules and external environments—and your adjustments to the namespace hierarchy will make the system much cleaner for whoever ends up writing the rules.
+
+Here is how we address, incorporate, and resolve all eight of your points into the Climatomaton architecture.
 
 ---
 
-# Architecture Specification: Climatomaton
+### 1. Clarification: "Observing outbound connections"
 
-## 1. System Overview
+I apologize for the confusing phrasing in my initial draft. The bot does not act as a packet sniffer or network monitor.
 
-**Climatomaton** is an automated, completely stateless Discord bot designed to manage the "climate" of the Nomic-style game Nomicron. It operates entirely by observing outbound connections to Discord, reading game history to establish state, and evaluating an externally provided ruleset to process end-of-turn (EOT) reports.
+Because inbound connections (like Discord Webhooks hitting a local web server) are prohibited by your constraints, the bot must initiate the connection. It does this by making an **outbound** HTTP/WebSocket request to the **Discord Gateway**. Once that secure, outbound connection is established, Discord keeps the socket open and streams event data (like new messages being posted to the EOT channel) *down* that connection. The bot "observes" the channel by listening to the incoming payload events over the connection it initiated.
 
-### Core Constraints & Solutions
+### 2 & 3. Namespace Prefixes and Mutable Duplication
 
-* **Statelessness (No Database):** State is treated as an ephemeral cache. If the bot restarts, it rebuilds the current climate state by reading backward through the Discord channel history to find the most recent valid Climatomaton report.
-* **No Inbound Network Connectivity:** The bot connects to Discord via the Discord Gateway (outbound WebSocket connection). It cannot accept incoming webhooks. Interprocess communication (IPC) is used to communicate with the Pluggable Rules Module (PRM) and Pluggable Environment Modules (PEMs).
+Your corrections here make perfect sense. Stripping the `ext.` prefix flattens the ruleset syntax, and selectively duplicating only mutable fields saves memory and CPU cycles during the environment cloning phase.
 
----
+**Updated Environment Rules:**
 
-## 2. High-Level Component Architecture
-
-Climatomaton consists of the **Core Daemon** and its **Pluggable Subprocesses** (PRM and PEMs).
-
-### 2.1 Core System Components
-
-1. **Discord Gateway Interface (DGI):** Manages the outbound WebSocket connection to Discord, listens for message events in the target channel, and handles outgoing messages/DMs via the Discord REST API.
-2. **State Rehydrator:** Scans channel history backward upon startup or manual trigger to locate the most recent Climate Report or the "Turn 1" EOT report to establish the current `climate` namespace.
-3. **Command Parser:** Intercepts slash commands (`/climate`) and DMs. Differentiates between standard Discord command payloads and the streamlined DM syntax.
-4. **EOT Parser:** Uses regex matching to parse EOT reports for round number, turn number, and proposal outcomes (`#3[0-9]+` identifiers).
-5. **Environment Manager:** Scaffolds the `climate`, `proposals`, `var`, and `ext` (PEM) namespaces. It also duplicates read-only data into the `new.` transaction environment.
-6. **Rules Engine:** Compiles and evaluates rule conditions (boolean/arithmetic ASTs) and applies actions to the transaction and variable environments.
-7. **IPC Broker:** Manages standard local communication (via UNIX Domain Sockets or Named Pipes) with the PRM and PEMs, handling atomic updates and outbound notifications.
-
----
-
-## 3. Communication Protocols
-
-Because inbound networking is prohibited, climatomaton relies on local IPC. **JSON-RPC 2.0 over UNIX Domain Sockets (or Windows Named Pipes)** is the chosen protocol. It allows bidirectional, asynchronous communication between the Core and its modules.
-
-### 3.1 PRM Protocol (Rules Module)
-
-The PRM runs as an external process. It monitors external rule sources and pushes updates to the Core.
-
-* **`push_rules` (PRM -> Core):** The PRM sends a new JSON ruleset. The core parses this ruleset into memory. To guarantee atomic, non-blocking updates, the Core uses a pointer swap: it builds the new rule ASTs in the background, and once compiled, swaps the active rules reference. Any currently executing EOT process finishes using the old reference.
-* **Rule Identification:** Each rule in the payload must contain a `rule_id` and `source_line` or `source_hash`. If the Rules Engine encounters an execution error, this ID is passed to the Notification system for admin debugging.
-
-### 3.2 PEM Protocol (Environment Module)
-
-PEMs manage external namespaces (e.g., player stats, economy).
-
-* **`push_namespace` (PEM -> Core):** Similar to rules, PEMs push updated structured data asynchronously. The Core caches this atomically under the specific PEM's namespace prefix (e.g., `ext.economy.`).
-* **`commit_transaction` (Core -> PEM):** If a tag or climate rule mutates a namespace belonging to a PEM (via `new.ext...`), the Core sends a JSON-RPC request back to the PEM after rules processing containing only the diff/mutated values. The PEM must respond with a success acknowledgment before Climatomaton posts the final report to Discord.
-
-### 3.3 Notification Protocol
-
-* **`notify_admin` (PRM/PEM -> Core):** Modules can invoke this IPC method with a `level` (Info, Warn, Error) and a `message`. The Core logs this to standard out and queues a direct message to the configured Admin Discord IDs.
-* **Internal Notifications:** The Rules Engine will internally call this same routine if an expression fails to evaluate or if Discord API limits are hit.
-
----
-
-## 4. Environment & Execution Workflows
-
-### 4.1 State Rehydration Workflow
-
-When Climatomaton starts, or if a rule requests `climate` data but memory is blank:
-
-1. Core queries Discord API for messages in the target channel, starting from the present and paginating backward.
-2. It looks for a message authored by itself matching the descriptive format: `The climate after round [X] turn [Y] is now [Z] and is [Tags].`
-3. If found, `climate.value = Z` and `climate.tags = [Tags]`.
-4. If the search hits a message explicitly identified as "Turn 1" EOT report without finding a prior climate report, it initializes to `0` and `Mild`.
-
-### 4.2 Rules Execution Workflow
-
-Triggered when an EOT message is identified by the DGI or manually via `process`.
-
-1. **Parsing:** Extract round, turn, and count proposals (`proposals.count`, `.passed`, `.failed`).
-2. **Environment Initialization:**
-* `climate.*` loaded from cache (or rehydrated).
-* `proposals.*` loaded from parser.
-* `ext.[pem_name].*` loaded from latest PEM pushes.
-* `var.*` initialized as empty (names auto-initialize to `0` upon first evaluation request).
-* `new.*` populated as a deep clone of mutable namespaces (`climate`, `ext`).
-
-
-3. **Climate Rules Processing (Ordered):**
-* Iterate through climate rules. Evaluate conditions against the environment.
-* If `true`, execute actions modifying `new.climate.value` or `var.*`.
-
-
-4. **Tag Rules Processing (Ordered):**
-* Iterate through tag rules. Evaluate conditions.
-* If `true`, execute `includes` / `excludes` actions on `new.climate.tags`.
-
-
-5. **Commit & Report:**
-* Send `new.ext.*` diffs to respective PEMs.
-* Generate descriptive report string: *"The climate after round [X] turn [Y] is now [new.climate.value] and is [new.climate.tags.join(' and ')]."*
-* Post to Discord.
-* Update local ephemeral cache with new state.
+* **Top-Level Access:** A PEM providing weather data registers directly as `weather.`. A rule referencing humidity simply calls `weather.humidity`.
+* **Selective Transaction Cloning:** When an EOT report triggers, the Core Daemon will only duplicate variables into the `new.` transaction environment if they have been explicitly registered as **mutable**.
+* If `weather.humidity` is read-only, it exists only in the climate environment.
+* If `weather.storm_intensity` is mutable, it exists as `weather.storm_intensity` (read-only pre-state) and `new.weather.storm_intensity` (mutable transaction state).
 
 
 
----
+### 4. IPC Alternatives for Containerized Environments
 
-## 5. Command Interface
+If you are running in a containerized environment (like Docker Compose or Kubernetes Pods), UNIX Domain Sockets can sometimes cause file permission headaches between volumes. Here are three stateless, non-socket alternatives:
 
-Climatomaton accepts commands from designated administrators.
+* **Option A: Local HTTP/REST (or gRPC) via Loopback.** If your containers share a network namespace (e.g., they are in the same Kubernetes Pod, or using Docker's `network_mode: "service:core"`), they can communicate over `localhost:<port>`. The Core Daemon can expose a lightweight local web server on port `8080` for PEMs/PRM to POST data to, and PEMs can expose ports for the Core to POST transactional updates back to.
+* **Option B: ZeroMQ (Brokerless Message Queue).**
+ZeroMQ is a highly performant, brokerless networking library. Unlike RabbitMQ or Redis, it requires no standalone database or message broker server (keeping you stateless). It allows you to set up pub/sub or request/reply patterns over standard TCP ports between your containers.
+* **Option C: Standard I/O (STDIO) via Subprocesses.**
+If the Core Daemon's container image includes the PEMs and PRM executables, the Core can spawn them as child processes. Communication happens entirely by writing JSON to `stdout` and reading from `stdin`. This is the most secure method (zero networking), but requires all modules to be bundled into the same container runtime.
 
-### 5.1 Slash Commands (Channel/Guild level)
+### 5. Rule/PEM Race Condition Protocol
 
-Follows strict Discord Interaction data structures:
+To prevent the PRM from pushing a ruleset that relies on a PEM namespace that hasn't initialized (or pushing rules for a PEM that crashed), we need to implement a **Schema Registration and Validation Protocol**.
 
-* `/climate reset [value: integer] [tags: string]`
-* `/climate process [message: string (ID or URL)]`
-
-### 5.2 DM Streamlined Syntax
-
-Because DMs don't strictly require the interaction UI, admins can type commands in raw text.
-
-* **Parser Rules for Streamlined Syntax:** * Arguments are space-separated. Quotes (`"`) can group strings with spaces.
-* **Omission Logic:** Optional arguments must be positional. If `reset` is called with no arguments, it implies `reset 0 Mild`. If one argument is passed, it is strictly typed as the `value` (meaning tags remain unchanged or fall back to an empty set, depending on admin preference—suggesting the former). If tags are provided, a value *must* precede them.
-
-
-* **Examples:**
-* `reset` -> Sets to `0` and `Mild`.
-* `reset 15` -> Sets value to 15, clears tags.
-* `reset 12 Greenhouse Windy` -> Sets value to 12, tags to `Greenhouse` and `Windy`.
-* `process 112233445566778899` -> Immediately runs the EOT workflow on that message ID.
-* `process https://discord.com/channels/...` -> Parses URL for message ID and processes.
+1. **Registration Phase:** When a PEM connects to the Core, it does not just push data; it first pushes a *schema*. It says, "I am the `weather` PEM. I provide `weather.temp` (read-only, numeric) and `weather.storm_intensity` (mutable, numeric)."
+2. **Compilation Validation:** When the PRM pushes a new ruleset to the Core, the Core Engine compiles the rules into its Abstract Syntax Tree (AST). During compilation, it checks every namespace path referenced in the rules against the known, registered schemas.
+3. **Rejection & Recovery:** * If a rule references `weather.humidity` and no PEM has registered that path, the Core **rejects** the entire ruleset update. It logs an error, notifies the admins via DM, and continues using the last known valid ruleset.
+* If a PEM disconnects or fails to push updated data before an EOT report arrives, the Core uses the last cached state of that PEM. If the PEM *never* pushed data but registered its schema, the variables default to `0` (or empty strings) to prevent runtime crashes, while simultaneously firing a warning notification to admins that stale/empty data was used.
 
 
 
----
+### 6. Natural English List Formatting
 
-## 6. Expression & Rule Structure Overview
+Joining tags with just "and" becomes unreadable quickly. The descriptive string generator will be updated to use standard English list formatting, including the Oxford comma.
 
-Rules will be compiled into an Abstract Syntax Tree (AST) to allow arbitrarily complex logic.
+**Formatting Logic:**
 
-* **Arithmetic AST Nodes:** Add, Subtract, Multiply, Divide, Modulo, Exponentiate, Grouping `()`. Functions like `abs()`, `max()`, `min()`.
-* **Boolean AST Nodes:** And, Or, Not, `<`, `>`, `<=`, `>=`, `==`, `!=`. Range syntax (e.g., `value in [10..20]`).
-* **Variables:** Any identifier starting with `var.` that does not exist in the environment lookup table instantly returns `0` and is added to the mutable variable map.
+* **0 Tags:** "The climate after round X turn Y is now Z." *(Omit the tag descriptor entirely).*
+* **1 Tag:** "...is now Z and is Mild."
+* **2 Tags:** "...is now Z and is Greenhouse and Windy."
+* **3+ Tags:** "...is now Z and is Greenhouse, Windy, and Unstable."
 
-*(Note: The exact grammar (e.g., EBNF) for the custom rules language can be designed in the next phase, but the system will use a standard lexer/parser approach to convert the string formulas from the PRM into executable closures.)*
+### 7 & 8. Streamlined DM Syntax for `reset`
+
+To accommodate spaces within tags and require the `default` keyword to prevent accidental resets, the command parser for direct messages will use the following logic:
+
+**Command Rules:**
+
+* If `reset` is called with no arguments, the bot replies with an error (e.g., *"Error: `reset` requires arguments. Use `reset default` or `reset <value> [tag1, tag2...]`"*).
+* If `reset default` is called, the system resets to value `0` and tag `Mild`.
+* If setting specific values/tags via DM, **commas** will be required to separate tags, allowing spaces within the tags themselves. The syntax is: `reset <value> <tag1>, <tag2>, <tag3>`.
+
+**Parsing Examples:**
+
+* `reset 15` $\rightarrow$ Value = 15, Tags = `[]` (Empty)
+* `reset 12 Greenhouse Effect, High Winds` $\rightarrow$ Value = 12, Tags = `["Greenhouse Effect", "High Winds"]`
+* `reset default` $\rightarrow$ Value = 0, Tags = `["Mild"]`
