@@ -1,0 +1,57 @@
+Prompting for Climatomaton design and architecture.
+Using Gemini's "Flash Extended" model (used to be "thinking" model I think)
+
+----
+Prompt v2.0
+
+I need a Discord 'bot and automated system that will maintain something called the "climate" based on messages seen in a specific channel of a specific Discord server where reports are published for the state of the game Nomicron.
+
+The "climate" consists of two parts:  A numeric value, and a set of zero or more "tags" (short strings) used to describe the climate.  The initial climate is the value `0` and the single tag `Mild`.
+
+The climate is updated each time an "end of turn" report is posted to the Discord channel.  The update process consists of running an ordered set of "climate rules" that determine how the climate value changes, then running an ordered set of "tag rules" that identify tags to be included in or excluded from the climate tags, and finally reporting the new climate back to the same Discord channel.
+
+The end-of-turn report includes, among other things, the Nomicron round number and turn number.  When the climate report is posted to the Discord channel, it must identify the round number and turn number that caused the climate update and report the new climate value and climate tags in some "decriptive" form (e.g. "The climate after round 4 turn 2 is now 12 and is Greenhouse and Windy.")
+
+The end-of-turn report also includes the passed or failed status of all ballot items voted on during the completed turn.  Some of those ballot items, identified by their reference code beginning with a `#` number sign followed by the digit `3`, are called "proposals", and are captured in summary form for use in rules processing.
+
+Climate rules and tag rules are both similarly formatted: they consist of a name; a set of conditions, all of which must be met for the rule to activate; and the actions that occur as a result of the rule activating.  For climate rules, the actions consist of modifying the climate value, while tag rules update which tags are included in the list of climate tags.
+
+Rules are processed in the context of a "climate environment", a "transaction environment", and a "variable environment".  An "environment" in this context is a set of top level "namespace" identifiers, each of which refers to a structured identifier-value data set, where the values can be numbers, lists of strings, or an embedded identifier-value data set.  Values within an environment are identified by a "namespace path", which is a `.`-separated list of identifiers.  The first `.`-separated identifier in a namespace path identifies which environment namespace is being referred to, and the subsequent `.`-separated identifiers traverse the structured data set to find a value.
+
+The "climate environment" is a read-only environment that contains the climate data as it existed before the rules were processed; a summary of the proposals from the end-of-turn report that triggered the rules processing, including `proposals.count`, `proposals.passed`, and `proposals.failed`, which are the total number of proposals that were voted on, the number of proposals that passed, and the number of proposals that failed, respectively; and any number of externally-defined namespaces, which will be discussed later.
+
+The "transaction environment" is a mutable environment, identified by a `new.` prefix to the namespace identifiers, which, in this initial design, contains only the climate data that is being modified by the climate rules and tag rules; the "transaction environment" climate data is initialized from the "climate environment" climate data.
+
+The "variable environment" is a flat set of mutable numeric variables with names within the `var.` top level namespace.  Names in the variable environment are not predefined; as soon as an expression or action references an undefined name in the variable environment, the name becomes defined with a value of 0.
+
+The conditions for both types of rules are boolean expressions that ultimately evaluate namespace paths in the environment.
+
+Actions in both climate and tag rules consist of a target namespace identifier in the transaction environment or variable environment, a mutate operation (`=`, `+=`, or `-=` for numeric values and `includes`, or `excludes` for tag lists), and either an arithmetic expression for numeric value operators or a list expression for tag list operators.
+
+Arithmetic expressions can be arbitrarily complex expressions consisting of the standard arithmetic operators (addition, subtraction, multiplication, division, modulo or remainder, and possibly exponentiation), literal values, namespace path references, some sort of function evaluation, and must support some form of grouping for precedence.
+
+Boolean expressions can be arbitrarily complex expressions consisting of the standard boolean operators (and, or, inversion), standard comparison operations between arithmetic expressions, some sort of function evaluation that accepts either boolean or arithmetic arguments and returns a boolean value, some form of grouping for precedence, and must support a concise syntax for comparing a value to a range of values.
+
+If additional namespaces are added to the transaction environment, then those namespaces must define how the values may be mutated by climate and/or tag rules, and if/how the mutated values are to be transmitted back to the source of the namespace.
+
+Climate rules and tag rules are defined externally to the climate management system; a pluggable rules module (PRM) will be used to fetch the externally-defined rules and make them available to the climate management system.  A protocol must be defined by which the rules are made available in a safe atomic fashion without interrupting any rules processing the climate maintenance system might be doing.  The PRM must identify each rule to the climate maintenance system in a way that the rule can be located by the system maintainers if there is an error in the rule or a failure while executing the rule.
+
+Externally-defined environment namespaces are managed by pluggable environment modules (PEMs).  Those PEMs are responsible for maintaining their own namespace data set in whatever manner is appropriate for them and making that namespace data set available to the climate maintenance system.  A protocol must be defined by which the namespace data sets are made available in a safe atomic fashion without interrupting any rules processing the climate maintenance system might be doing.
+
+In addition to the above, the 'Discord bot needs to be able to accept administrative commands from a given set of climate administrators in Discord.  These commands can be issued either by a DM to the bot user, or by the `/climate` command which the bot must register into the channel.  Initially, there will be two commands defined, `reset` and `process`, but additional commands will most likely need to be defined in the future.
+
+The `reset` command is used to reset either the climate value, the climate tags, or both to the values passed in arguments to the reset command, _or_ to reset both the climate value and tags to the initial climate.
+
+The `process` command is used to tell the climate maintenance system to immediately process a specific message passed in the process argument, either by message ID or the message URL copied out of the Discord UI.  If that message is an end-of-turn report, the climate maintenance system will do everything described above as if the report were newly posted.  Currently any other type of message is ignored.
+
+When commands are issued via the `/climate` Discord command, the arguments must follow Discord command conventions; when issued via DM from an administrator, the `/climate` prefix is not required, and the arguments _may_ follow the Discord command conventions or be presented in a more streamlined syntax.  If a more streamlined syntax is provided, the syntax must define how optional arguments are handled and whether or not optional arguments may be omitted if followed by other non-omitted arguments.
+
+The 'bot also needs to handle outgoing notifications to Discord.  When errors or important events happen, the climate maintenance system needs to log those notifications, of course, but they also need to be sent as Discord DMs to the list of climate administrators.  These errors and important events might come from the climate maintenance system itself or from the PRM or any of the PEMs, so a protocol must be defined by which the PRM and PEMs can inform the climate maintenance system of such notifications to be sent.
+
+There are two restrictions for this system:
+
+First, there can be no inbound network connectivity to the system.  This includes from the PRM or PEMs to the climate maintenance system.  All communication must either be through outbound network connections or through some other method of interprocess communication.
+
+Second, the system must be as stateless as possible.  No database system is allowed.  The state of the climate can be refreshed by looking at the history in the Discord channel and locating the most recently reported climate change that was posted without looking earlier than a "Turn 1" end-of-turn report.
+
+The first thing I want from you is an architecture document describing the overall system (which will be called "climatomaton"), the protocols by which the various components of the system communicate, and the general workflows followed by the various components.
