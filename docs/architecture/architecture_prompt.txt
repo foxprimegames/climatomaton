@@ -66,3 +66,10 @@ The first thing I want from you is an architecture document describing the overa
 6. creating the climate description by joining all climate tags with `and` is awkward.  please join them together using natural English list rules, including the use of the Oxford comma when appropriate.
 7. the `reset` command should do nothing if passed no arguments.  instead, a `default` argument should cause the reset to the default state.
 8. as indicated, climate tags can contain spaces, so the `reset` syntax needs to handle that.
+
+--
+
+1. i asked for non-socket-based alternatives to ipc, and you gave me two socket-based alternatives and one that tightly binds the core engine to the pluggable modules, meaning their latency in performing their work is added to the latency for the core engine to respond to an end of turn report.
+2. the core engine cannot assume a default value for PEM-provided namespaces; doing so will surely produce invalid results.  at the same time, we can't just ignore an end-of-turn report because we can't process the rules properly.  please provide solutions for this.
+3. for the command syntax, please indicate how optional arguments are handled, as i asked for in the original prompt.
+4. please reproduce the entire document, and then include your responses to the above issues after the end of the document.
