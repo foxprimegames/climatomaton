@@ -127,15 +127,15 @@ Upon startup, or if memory is cleared:
 2. Messages are passed to the `ClimateReport` object's `parse()` method.
 3. If a valid report is parsed successfully, the `climate` environment is populated with the corresponding round, turn, value, and tags.
 4. If the search hits a "Turn 1" EOT report first, it initializes to `0` and `Mild`.
-5. If any EOTs occurred between the last parsed climate report and the present, the system remains in its parsed state. It is up to climate administrators to manually calculate missing updates and apply them via the `reset` command.
+5. **Historical EOT Detection:** If the parser detects *any* end-of-turn reports that occurred *after* the most recently established climate report, the system cannot safely process them due to unknown historical rulesets. Instead, the Core Daemon will immediately transition to a **PAUSED** state and dispatch a high-priority `sys.notification` event. This alerts administrators to manually evaluate the game history and recover the state via the `reset` command before unpausing.
 
 ### 6.2 Handling Missing PEM Data
 
-If an EOT arrives, but the PRM rules rely on a PEM namespace that has not initialized or is missing data:
+If a **new, live** EOT arrives, but the PRM rules rely on a PEM namespace that has not initialized or is missing data:
 
-1. **Suspension:** The Core places the parsed EOT into the "Pending EOT" queue.
+1. **Suspension:** The Core places the parsed EOT into a temporary "Pending EOT" state.
 2. **Notification:** It fires a `sys.notification` event detailing the missing required PEM data.
-3. **Resolution:** Once the missing PEM writes its schema/data to the shared volume, the Core **restarts the processing of the EOT** from the beginning to ensure the newly provided data actually satisfies the missing keys and rules evaluation requirements.
+3. **Resolution:** Once the missing PEM writes its schema/data to the shared volume, the Core **restarts the processing of the pending EOT** from the beginning to ensure the newly provided data satisfies the rules evaluation requirements.
 
 ### 6.3 Rules Execution Workflow
 
@@ -206,27 +206,21 @@ Admins interact via a unified Discord slash command (`/climate`) or via direct m
 
 ## 8. Deployment Architecture Requirements
 
-While the specific hosting environment (e.g., Kubernetes, AWS ECS, Docker Compose, Nomad) is not yet defined, the deployment strategy will strictly utilize OCI-compliant containers (Docker). Any target environment must support the following base requirements:
+While the specific hosting environment is not yet defined, the deployment strategy will strictly utilize OCI-compliant containers. Any target environment must support the following base requirements:
 
 1. **Shared Volume Mounting:** The orchestration layer must support mounting a common, high-speed, POSIX-compliant shared volume across multiple containers (the Core Daemon, PRM, and PEMs) to facilitate the file-based IPC routing.
-2. **Environment Variable Injection:** Sensitive configurations (e.g., Discord Bot Tokens, Admin User IDs, Target Channel IDs) must be injected safely into the containers strictly via environment variables. The application code cannot assume the existence of, or rely on integration with, a specific secret management system (e.g., AWS Secrets Manager, HashiCorp Vault) at runtime.
+2. **Environment Variable Injection:** Sensitive configurations (e.g., Discord Bot Tokens, Admin User IDs, Target Channel IDs) must be injected safely into the containers strictly via environment variables. The running containers cannot rely on the existence of, or integration with, a secret management system at runtime.
 3. **Container Lifecycle & Health Checks:** The environment should be capable of automatically restarting failed subprocesses (PEMs/PRMs). The Core Daemon relies on external orchestration to keep the pluggable modules running if they crash.
-4. **Log Aggregation:** Because the Core Daemon writes all local observability data to `stdout`/`stderr`, the deployment environment must feature an agent or mechanism to capture, rotate, and aggregate standard output logs.
+4. **Log Aggregation:** Because the Core Daemon writes all local observability data to `stdout`/`stderr` using a native logger, the deployment environment must feature an agent or mechanism to capture, rotate, and aggregate standard output logs.
 5. **Graceful Shutdown Signals:** The environment must issue standard termination signals (`SIGTERM`) and provide a brief grace period. The Event Bus and Rules Engine require this to finalize any in-flight file writes and Discord network requests before exiting.
 
 ---
 
 ---
 
-### Discussion Points for Next Steps
+### Discussion Points for Review
 
-If you are satisfied with the high-level architecture, we are ready to transition into detailed component and module design documents. Here are a few points to decide how we proceed:
+Before moving on to the component-level design documents, I want to bring up two minor details that could cause friction later:
 
-1. **Component Sequencing:** Which component should we design first?
-* *Option A:* The **Internal Event Bus & Event Models** (this forms the backbone of the entire Core Daemon).
-* *Option B:* The **File-Based IPC Broker & Shared Objects** (this solidifies the exact JSON schemas and file I/O behavior).
-* *Option C:* The **Rules Engine & RuleAST** (often the most complex logic center).
-
-
-2. **Stateless Queues Check:** In Section 6.2, we mention a "Pending EOT" queue for when PEM data is missing. Because the system is stateless and has no database, if the Core Daemon crashes while an EOT is in this queue, the queue is wiped. Upon restart, the State Rehydrator will re-read the channel history, re-discover the EOT, and seamlessly re-queue it (assuming the PEM is still missing). This elegant self-healing is a major benefit of the stateless design, but I want to explicitly confirm that relying on the channel history as the sole source of truth for "pending" events aligns with your expectations.
-3. **Language/Framework Preferences:** As we move into design docs, do you have a specific programming language in mind for the Core Daemon (e.g., Go, Python, TypeScript, Rust)? Knowing this now can help tailor the design patterns (e.g., Goroutines vs Async/Await loops) to the target language.
+1. **Authorization / "Admin" Definition:** The document states that "Admins interact via a unified Discord slash command" and receive notifications. How exactly does the bot identify an Administrator? Are we mapping this to a specific Discord Role ID injected via environment variables, checking for server administration permissions, or relying on a hardcoded list of user IDs?
+2. **IPC File Validation:** Because we are using File-Based IPC via shared volumes, we are inherently trusting external processes (PRMs/PEMs) to write data. Should the Core IPC Broker enforce strict JSON schema validation and maximum file size limits *before* firing the internal events, to prevent a malfunctioning PEM from crashing the Core Daemon with a massive or malformed payload?

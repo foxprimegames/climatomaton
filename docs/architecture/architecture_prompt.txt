@@ -141,3 +141,15 @@ for the discussion points:
 3. we don't actually have to send log messages directly to stdout/stderr; we can also use a language-native logger to manage local logging.  however, to answer the question, the debug cache of log messages might be useful, but i'm not sure how useful.
 
 as always, please reproduce the document including the above feedback, then list issues or suggestions, if any, that need to be discussed.
+
+--
+
+for discussion point 1, this will be done in new chat conversations.
+
+for discussion point 2: what you're suggesting was explicitly forbidden 6 or 7 prompts ago.  because we do not know the ruleset in effect at a particular point in time, we cannot faithfully process the end-of-turn reports from the past.
+
+however, i do want to add one thing i thought of since that discussion:  if there _are_ any end-of-turn reports found later in the channel history than the most recent climate report, then the core engine should start up paused (and this should be announced to the administrators) so that the administrators can recover the state.
+
+for discussion point 3, this will be implemented in python 3, but that information should not be taken into account in the architecture document.
+
+as always, please reproduce the document including the above feedback, then list issues or suggestions, if any, that need to be discussed.
