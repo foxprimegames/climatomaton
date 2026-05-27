@@ -1,0 +1,13 @@
+----
+
+(Reworded thrice based on previous sessions trying to generate this design document, both of which turned into Gemini "Flash-lite" sessions without me noticing and thus reduced the previously detailed analysis and design to a few sugar-coated paragraphs.)
+
+Please analyze the attached architecture document, design documents list, and the design documents created so far according to that list.
+
+Given that context, it's time to create the core engine design document (called discord gateway & ingestion engine in the design documents list).
+
+This document must describe the organization of the logic into isolated, separable components, the communication between those components, and all data object types shared between components or between the core engine as a whole and other elements from the design documents.
+
+Data object types should be defined as fully isolated and encapsulated data objects making use of object oriented concepts.
+
+--
