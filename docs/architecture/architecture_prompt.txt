@@ -167,3 +167,13 @@ as always, please reproduce the document including the above feedback, then list
 i agree, purge in-flight transaction files upon startup.
 
 as always, please reproduce the document including the above feedback, then list issues or suggestions, if any, that need to be discussed.
+
+--
+
+point 1: testing will be performed against a staging or private testing-only Discord server.
+
+point 2: this should be part of the design document for the DGL and DAC.
+
+point 3: let's use a configuration file that can get mounted at a known location, since that's a standard deployment model.
+
+as always, please reproduce the document including the above feedback, then list issues or suggestions, if any, that need to be discussed.

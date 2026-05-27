@@ -25,8 +25,8 @@ Climatomaton consists of the **Core Daemon** and its **Pluggable Subprocesses** 
 
 ### 2.2 Core System Components
 
-1. **Discord Gateway Listener (DGL):** Maintains the outbound WebSocket connection for real-time channel monitoring. It acts strictly as an event producer, pushing raw payloads to the Internal Event Bus.
-2. **Discord API Client (DAC):** Handles all asynchronous HTTP REST operations, including sending messages, queueing DMs, and paginating channel history.
+1. **Discord Gateway Listener (DGL):** Maintains the outbound WebSocket connection for real-time channel monitoring. It acts strictly as an event producer, pushing raw payloads to the Internal Event Bus. Specific Discord intents and permissions required for this component will be detailed in the DGL design document.
+2. **Discord API Client (DAC):** Handles all asynchronous HTTP REST operations, including sending messages, queueing DMs, and paginating channel history. Specific OAuth2 scopes required for this component will be detailed in the DAC design document.
 3. **Internal Event Bus:** An in-memory Pub/Sub broker that routes all asynchronous events within the Core Daemon, decoupling all I/O operations from logic execution.
 4. **Command Parser:** Intercepts slash commands (`/climate`) and DMs. Differentiates between standard Discord command payloads and the streamlined DM syntax.
 5. **EOT Parser:** Receives potential end-of-turn reports, uses pattern matching to verify them, extracts the required game data into an `EOTSummary` object, and triggers the Rules Engine workflow.
@@ -80,8 +80,6 @@ Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by 
 
 ### 4.4 IPC File Validation & Schemas
 
-Because the IPC mechanism relies on external processes writing data to the shared volume, the Core Daemon must enforce structural integrity:
-
 * **Schemas:** PEMs are responsible for publishing and adhering to their own schemas. The PRM's compiled output must strictly follow a rule schema that will be defined in the PRM component design document and maintained as a static asset in the project.
 * **File Size Limits:** To prevent a malfunctioning module from crashing the Core Daemon via massive payloads, maximum file size limits may be required. These exact limits are left as an implementation detail, but they will vary by module type (e.g., PRM rule files may remain unlimited or have very high limits, while PEM environment objects will likely require lower, stricter caps).
 
@@ -93,32 +91,17 @@ To ensure a robust audit trail and timely administrative action without overwhel
 
 ### 5.1 Log Levels & Routing
 
-The system categorizes all log and observability events into standard severity levels:
-
-* **DEBUG & INFO:** Routine operations (e.g., heartbeats received, successful cache rehydration, parsed command detected).
-* *Routing:* Sent **only** to the local system log. (PEMs/PRMs route these directly to their own stdout; Core routes them internally to the logging manager).
-
-
-* **WARNING:** Non-fatal issues that require attention but do not halt execution (e.g., a PEM missed a heartbeat but hasn't expired, rate limit backoff triggered by Discord).
-* *Routing:* Sent to the local system log. Queued as a notification to Discord administrators (subject to rate limiting).
-
-
-* **ERROR & FATAL:** Critical failures that abort processing (e.g., network failure, unhandled rule execution exception, missing required PEM data for an EOT).
-* *Routing:* Sent to the local system log. Immediately dispatched as a high-priority notification to Discord administrators.
-
-
+* **DEBUG & INFO:** Routine operations (e.g., heartbeats received, successful cache rehydration). Routed **only** to the local system log. PEMs/PRMs output these directly to their own stdout; the Core routes them internally to the logging manager.
+* **WARNING:** Non-fatal issues requiring attention but not halting execution (e.g., missed PEM heartbeat). Routed to the local system log and queued as a notification to Discord administrators (subject to rate limiting).
+* **ERROR & FATAL:** Critical failures aborting processing (e.g., unhandled rule exception). Routed to the local system log and immediately dispatched as a high-priority notification to Discord administrators.
 
 ### 5.2 Local System Logging & Debug Cache
 
-The Logging & Observability Manager uses a language-native logger configured to output structured JSON to standard output/standard error (`stdout`/`stderr`). This ensures logs are highly portable and easily aggregated by any container orchestration platform.
-
-Additionally, the manager maintains a lightweight, in-memory **ring buffer** of the last N log events (e.g., 100 events). This cache provides a stateless mechanism for administrators to query recent system health directly via Discord (e.g., via a potential `/climate debug` command) without needing access to the host orchestration platform's logging dashboard.
+The Logging & Observability Manager uses a language-native logger configured to output structured JSON to standard output/standard error (`stdout`/`stderr`). This ensures logs are highly portable and easily aggregated by any container orchestration platform. Additionally, the manager maintains a lightweight, in-memory ring buffer of the last N log events (e.g., 100 events). This provides a stateless mechanism for administrators to query recent system health directly via Discord (e.g., via a potential `/climate debug` command) without accessing the host logging dashboard.
 
 ### 5.3 Notification Rate Limiting
 
-To prevent hitting Discord's API rate limits or spamming administrators during failure loops (e.g., a crashing PEM emitting continuous errors), the Logging Manager implements strict deduplication and throttling:
-
-* **Per-Source Rate Limiting:** Identical or highly similar warnings/errors from the same source (e.g., the same PEM or same internal function) are deduplicated and throttled. After an initial alert, subsequent identical alerts are suppressed for a cooldown period (e.g., 5-15 minutes), optionally sending a single "X similar errors occurred" summary after the cooldown.
+* **Per-Source Rate Limiting:** Identical or highly similar warnings/errors from the same source are deduplicated and throttled. After an initial alert, subsequent identical alerts are suppressed for a cooldown period, optionally sending a single summary message after the cooldown.
 * **Overall Rate Limiting:** A global token bucket or hard cap prevents the bot from dispatching more than a predefined maximum number of direct messages per minute, prioritizing `FATAL` over `WARNING` events if the queue fills.
 
 ---
@@ -127,15 +110,13 @@ To prevent hitting Discord's API rate limits or spamming administrators during f
 
 ### 6.1 State Rehydration & Startup Workflow
 
-Because historical rulesets are unknown, Climatomaton **does not** automatically process historical EOT reports during recovery.
-Upon startup, or if memory is cleared, the following sequence occurs:
+Because historical rulesets are unknown, Climatomaton **does not** automatically process historical EOT reports during recovery. Upon startup, or if memory is cleared, the following sequence occurs:
 
-1. **Stale IPC File Cleanup:** The IPC Broker explicitly purges all lingering, in-flight transaction files (e.g., `req_*`, `ack_*`, `.tmp`) from the shared volume to guarantee a clean slate and prevent the system from attempting to resume orphaned state operations left over from a prior hard crash.
-2. The State Rehydrator requests the DAC to fetch channel history, paginating backward.
-3. Messages are passed to the `ClimateReport` object's `parse()` method.
-4. If a valid report is parsed successfully, the `climate` environment is populated with the corresponding round, turn, value, and tags.
-5. If the search hits a "Turn 1" EOT report first, it initializes to `0` and `Mild`.
-6. **Historical EOT Detection:** If the parser detects *any* end-of-turn reports that occurred *after* the most recently established climate report, the system cannot safely process them due to unknown historical rulesets. Instead, the Core Daemon will immediately transition to a **PAUSED** state and dispatch a high-priority `sys.notification` event. This alerts administrators to manually evaluate the game history and recover the state via the `reset` command before unpausing.
+1. **Stale IPC File Cleanup:** The IPC Broker explicitly purges all lingering, in-flight transaction files (e.g., `req_*`, `ack_*`, `.tmp`) from the shared volume to guarantee a clean slate.
+2. **History Fetch:** The State Rehydrator requests the DAC to fetch channel history, paginating backward.
+3. **Parsing:** Messages are passed to the `ClimateReport` object's `parse()` method.
+4. **Initialization:** If a valid report is parsed successfully, the `climate` environment is populated. If the search hits a "Turn 1" EOT report first, it initializes to `0` and `Mild`.
+5. **Historical EOT Detection:** If the parser detects *any* end-of-turn reports that occurred *after* the most recently established climate report, the Core Daemon will immediately transition to a **PAUSED** state and dispatch a high-priority `sys.notification` event. Administrators must then manually evaluate the game history and recover the state via the `reset` command before unpausing.
 
 ### 6.2 Handling Missing PEM Data
 
@@ -143,30 +124,17 @@ If a **new, live** EOT arrives, but the PRM rules rely on a PEM namespace that h
 
 1. **Suspension:** The Core places the parsed EOT into a temporary "Pending EOT" state.
 2. **Notification:** It fires a `sys.notification` event detailing the missing required PEM data.
-3. **Resolution:** Once the missing PEM writes its schema/data to the shared volume, the Core **restarts the processing of the pending EOT** from the beginning to ensure the newly provided data satisfies the rules evaluation requirements.
+3. **Resolution:** Once the missing PEM writes its schema/data to the shared volume, the Core restarts the processing of the pending EOT from the beginning to ensure the newly provided data satisfies the rules evaluation requirements.
 
 ### 6.3 Rules Execution Workflow
 
 Triggered when a `game.eot_detected` event is received and all required PEM data is validated.
 
-1. **Environment Initialization:**
-* `climate.*`, `proposals.*`, and `{pem_namespace}.*` are loaded from cache.
-* `var.*` initialized (names auto-initialize to `0` upon first call).
-* `new.*` is populated as a clone of **only** the explicitly registered mutable fields.
-
-
-2. **Rules Processing:**
-* **Execution Constraints:** Rules are evaluated **strictly in numeric order**. Syntax requires spaces for keywords (e.g., "climate rule", "tag rule").
-* **Strict Error Handling:** If a namespace path resolution fails, or any other execution error occurs, **all rule processing is immediately aborted**. The failure is logged, and a `sys.notification` event is fired to alert administrators. No default values are ever assumed.
-* **Climate Rules:** Evaluate and mutate `new.climate.value`, `var.*`, or **any other mutable numeric field** mapped in `new.*`.
-* **Tag Rules:** Evaluate and mutate `new.climate.tags`, or **any other mutable tag-list field** mapped in `new.*`.
-
-
-3. **Commit & Report:**
-* Write `Transaction` diffs to `tx/` and wait for PEM ACKs asynchronously.
-* Use the `ClimateReport` object to generate the formatted string and fire a `network.outbound` event.
-
-
+1. **Environment Initialization:** `climate.*`, `proposals.*`, and `{pem_namespace}.*` are loaded from cache. `var.*` fields auto-initialize to `0` upon first call. `new.*` is populated as a clone of only the explicitly registered mutable fields.
+2. **Execution Constraints:** Rules are evaluated strictly in numeric order. Syntax strictly requires spaces for keywords (e.g., "climate rule", "tag rule").
+3. **Strict Error Handling:** If a namespace path resolution fails, or any other execution error occurs, all rule processing is immediately aborted. The failure is logged, a `sys.notification` event is fired to alert administrators, and no default values are assumed.
+4. **Mutations:** Climate rules mutate `new.climate.value`, `var.*`, or other mapped numeric fields. Tag rules mutate `new.climate.tags` or other mapped tag-list fields.
+5. **Commit & Report:** Transaction diffs are written to `tx/` awaiting asynchronous PEM ACKs. The `ClimateReport` object generates the formatted string, and a `network.outbound` event is fired.
 
 ### 6.4 Natural English List Formatting
 
@@ -183,34 +151,18 @@ When the `ClimateReport` object formats the string, it applies standard English 
 
 Admins interact via a unified Discord slash command (`/climate`) or via direct messages to the bot. For DMs, the specific sub-commands can be used directly without the slash prefix. Positional optional arguments can be omitted from right-to-left. To omit an earlier positional argument while providing a subsequent one, a placeholder (`-`) must be used. Tags are comma-separated.
 
-### 7.1 System Control Commands
+### 7.1 Command Listing
 
-* **`pause`**
-* Suspends automatic EOT processing. Any EOT reports posted to the channel while the system is paused are ignored, granting administrators time to manually calculate and apply rule updates.
+* **`pause`**: Suspends automatic EOT processing. Any EOT reports posted to the channel while paused are ignored, granting administrators time to manually calculate updates.
+* **`unpause`**: Resumes automatic EOT processing for any newly posted EOT reports.
+* **`reset [round] [turn] [value] [tags...]`**: Updates internal state. Calling without arguments returns an error.
+* **`reset default`**: Resets to Value `0`, Tags `["Mild"]`, with Round/Turn cleared or set to baseline. The `default` keyword is passed directly into the `value` argument position.
+* **`reset 4 2 15`**: Updates internal state to Round 4, Turn 2, Value 15. The current tags remain unchanged.
+* **`reset - - - Greenhouse Effect, High Winds`**: Round, Turn, and Value remain unchanged. Tags are replaced.
+* **`reset 5 1 12 Stable`**: State updated to Round 5, Turn 1, Value 12. Tags replaced with `["Stable"]`.
+* **`process <message>`**: Parses the target message (ID or URL) and runs the EOT workflow immediately.
 
-
-* **`unpause`**
-* Resumes automatic EOT processing for any newly posted EOT reports.
-
-
-
-### 7.2 Data Management Commands
-
-* **`reset [round] [turn] [value] [tags...]`**
-* *No arguments:* Returns an error.
-* `reset default` $\rightarrow$ Resets to Value `0`, Tags `["Mild"]`, with Round/Turn cleared or set to baseline. Note: `default` is passed directly into the `value` argument position.
-* `reset 4 2 15` $\rightarrow$ Updates internal state to Round 4, Turn 2, Value 15. The `tags` argument is omitted, so the current tags remain unchanged.
-* `reset - - - Greenhouse Effect, High Winds` $\rightarrow$ Round, Turn, and Value remain unchanged. Tags are replaced.
-* `reset 5 1 12 Stable` $\rightarrow$ State updated to Round 5, Turn 1, Value 12. Tags replaced with `["Stable"]`.
-
-
-* **`process <message>`**
-* *Required argument:* `<message>` (ID or URL).
-* Parses the target message and runs the EOT workflow immediately.
-
-
-
-### 7.3 Authorization
+### 7.2 Authorization
 
 The specific mechanism for identifying and authorizing Administrators (e.g., verifying against specific injected Discord Role IDs, Discord server permissions, or a hardcoded list of user IDs) is left as a design and implementation detail to be defined during component-level specification.
 
@@ -221,10 +173,12 @@ The specific mechanism for identifying and authorizing Administrators (e.g., ver
 While the specific hosting environment is not yet defined, the deployment strategy will strictly utilize OCI-compliant containers. Any target environment must support the following base requirements:
 
 1. **Shared Volume Mounting:** The orchestration layer must support mounting a common, high-speed, POSIX-compliant shared volume across multiple containers (the Core Daemon, PRM, and PEMs) to facilitate the file-based IPC routing.
-2. **Environment Variable Injection:** Sensitive configurations (e.g., Discord Bot Tokens, Admin User IDs, Target Channel IDs) must be injected safely into the containers strictly via environment variables. The running containers cannot rely on the existence of, or integration with, a secret management system at runtime.
-3. **Container Lifecycle & Health Checks:** The environment should be capable of automatically restarting failed subprocesses (PEMs/PRMs). The Core Daemon relies on external orchestration to keep the pluggable modules running if they crash.
-4. **Log Aggregation:** Because the Core Daemon writes all local observability data to `stdout`/`stderr` using a native logger, the deployment environment must feature an agent or mechanism to capture, rotate, and aggregate standard output logs.
-5. **Graceful Shutdown Signals:** The environment must issue standard termination signals (`SIGTERM`) and provide a brief grace period. The Event Bus and Rules Engine require this to finalize any in-flight file writes and Discord network requests before exiting.
+2. **Secrets Management:** Sensitive configurations (e.g., Discord Bot Tokens, Admin User IDs, Target Channel IDs) must be injected safely into the containers strictly via environment variables. The running containers cannot rely on the existence of, or integration with, a secret management system at runtime.
+3. **Configuration Management:** Non-secret application configurations (e.g., logging verbosity, maximum IPC file size limits, expected PEM modules) will be managed via a standard configuration file mounted at a known, fixed location within the container filesystem.
+4. **Container Lifecycle & Health Checks:** The environment should be capable of automatically restarting failed subprocesses (PEMs/PRMs). The Core Daemon relies on external orchestration to keep the pluggable modules running if they crash.
+5. **Log Aggregation:** Because the Core Daemon writes all local observability data to `stdout`/`stderr` using a native logger, the deployment environment must feature an agent or mechanism to capture, rotate, and aggregate standard output logs.
+6. **Graceful Shutdown Signals:** The environment must issue standard termination signals (`SIGTERM`) and provide a brief grace period to allow the Event Bus and Rules Engine to finalize any in-flight file writes and network requests before exiting.
+7. **Testing Environment:** Functional testing of the integrated system will be performed against a dedicated staging or private testing-only Discord server to ensure live Nomicron gameplay is completely isolated from development.
 
 ---
 
@@ -232,8 +186,6 @@ While the specific hosting environment is not yet defined, the deployment strate
 
 ### Issues & Suggestions for Discussion
 
-This architecture document appears quite comprehensive and stable. To wrap up the high-level architecture phase before transitioning into component specifications in subsequent conversations, here are a few final points that might need clarity:
+The high-level architecture looks complete and ready to serve as the foundation for the individual component design documents. Before we formally lock this and begin those new conversations, I have one minor operational suggestion to consider:
 
-1. **Testing Strategy / "Dry Run" Mode:** Because the bot heavily relies on reading state from Discord channel history and interacts with live channels, how do we handle functional testing? Do we need to architect a specific "dry run" or "sandbox" mode that mocks the Discord API layer, or will testing simply be performed against a dedicated, private Discord server setup for staging?
-2. **Bot Permissions & Intents:** To read historical messages on startup and monitor for real-time EOT updates, the bot will likely require the `MESSAGE_CONTENT` privileged intent, as well as `Read Message History` and `Send Messages` permissions. Should we explicitly document the required Discord OAuth2 scopes and Bot Intents in the Deployment Architecture section so that whoever sets up the Discord Developer Application knows exactly what to toggle?
-3. **Non-Secret Configuration Loading:** We established that secrets (tokens, admin IDs) will pass through environment variables. What is the preferred pattern for injecting non-secret configuration (e.g., logging verbosity, maximum IPC file size limits, specific PEM module names to expect)? Should these also be mandated as environment variables for simplicity, or would a generic `config.json` mounted into the container be preferable?
+* **Timezone Standardization:** Since the system relies on timestamped IPC logs (e.g., `logs/{timestamp}_{id}.json`) and outputs observability metrics, should the architecture mandate a standard internal timezone (such as UTC) across all containers to prevent clock skew issues, or should this be handled exclusively through the newly added configuration file?
