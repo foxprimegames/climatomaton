@@ -218,19 +218,31 @@ To decouple the PRM's source-language parser from the Core Daemon's execution en
 
 ### 5.3 Expression Nodes
 
-* **Literal Node:**
+Every expression node must declare a `"type"` to identify its structure.
+
+* **Literal Node:** Represents a hardcoded primitive value.
+  * `type`: Always `"literal"`.
+  * `datatype`: A string enum declaring the type (`"number"`, `"boolean"`, `"string"`, `"tag_list"`).
+  * `value`: The actual primitive value matching the datatype.
 
 ```json
 { "type": "literal", "datatype": "number", "value": 15 }
 ```
 
-* **Reference Node:**
+* **Reference Node:** Represents a dynamic lookup in an environment namespace.
+  * `type`: Always `"reference"`.
+  * `path`: A string representing the `NamespacePath` (e.g., `"climate.value"`).
 
 ```json
 { "type": "reference", "path": "climate.value" }
 ```
 
-* **Operator Node:**
+* **Operator Node:** Represents an evaluation using defined operators.
+  * `type`: Always `"operator"`.
+  * `op`: The string code for the operator (e.g., `"EXP"`, `"ADD"`, `"NOT"`).
+  * `right`: A required expression node representing the right-hand side of the operator (or the sole operand for unary prefix operators like `"NOT"`).
+  * `left`: An optional expression node representing the left-hand side of the operator (omitted for unary operators).
+
 
 ```json
 {
@@ -241,12 +253,15 @@ To decouple the PRM's source-language parser from the Core Daemon's execution en
 }
 ```
 
-* **Function Node:** Represents a method call. Requires a `"name"` string and an `"args"` array of expression nodes. *(See 5.5 for signature resolution)*.
+* **Function Node:** Represents a method or function call.
+  * `type`: Always `"function"`.
+  * `name`: A string containing the exact source name of the function (e.g., `"within"`).
+  * `args`: An array of expression nodes representing the ordered arguments.
 
 ```json
 {
   "type": "function",
-  "name": "within:nnns",
+  "name": "within",
   "args": [
     { "type": "reference", "path": "climate.value" },
     { "type": "literal", "datatype": "number", "value": 10 },
@@ -257,6 +272,12 @@ To decouple the PRM's source-language parser from the Core Daemon's execution en
 ```
 
 ### 5.4 Mutation Nodes (Actions)
+
+Mutations dictate state changes inside the `actions` array of a Rule Object.
+
+* `target`: A string representing the `NamespacePath` to mutate. Must target `new.*` or `var.*`.
+* `op`: The string code for the mutation operation (e.g., `"ADD_ASSIGN"`).
+* `expression`: An expression node evaluating to the modifier or new value.
 
 ```json
 {
@@ -270,18 +291,11 @@ To decouple the PRM's source-language parser from the Core Daemon's execution en
 }
 ```
 
-### 5.5 Function Signature Resolution (Name Mangling)
+### 5.5 Function Overload Resolution
 
-Because the rule language permits functions with the same name but different argument counts or types (function overloading), the JSON-IR requires the PRM parser to programmatically generate a unique name for the function node's `"name"` attribute.
+Because the PRM performs purely syntactic parsing and does not possess access to the external PEM schemas or internal Core schemas, it cannot statically determine the data types of `reference` nodes. Therefore, the PRM **does not** perform function signature resolution or name mangling.
 
-This is accomplished by appending the data types of the provided arguments directly to the function name, separated by a colon (`:`). The data types are abbreviated to single characters mirroring the `var` namespace prefixes:
-
-* `n` = Number
-* `b` = Boolean
-* `s` = String
-* `l` = Tag List
-
-The Core Engine registers and validates these specific, mangled signatures. For example, if a rule calls `within` with three numbers, the PRM parses the name as `within:nnn`. If it includes the optional bounds string, the PRM parses it as `within:nnns`. This guarantees explicit, unambiguous static type-checking within the Core Daemon.
+The PRM simply passes the raw function name (e.g., `"within"`) in the JSON-IR. The Core Daemon, which possesses the complete type map of all namespaces, analyzes the data types of the provided `"args"` during its proactive semantic validation pass. The Core Daemon is strictly responsible for dynamically resolving the correct overloaded function signature based on those evaluated argument types.
 
 ### 5.6 JSON Schema (Draft 2020-12)
 
@@ -361,7 +375,7 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
         "left": { "$ref": "#/$defs/expression" },
         "right": { "$ref": "#/$defs/expression" }
       },
-      "required": ["type", "op", "left"],
+      "required": ["type", "op", "right"],
       "additionalProperties": false
     },
     "function_node": {
@@ -370,7 +384,7 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
         "type": { "const": "function" },
         "name": { 
           "type": "string",
-          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*:[nbsl]+$" 
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$" 
         },
         "args": {
           "type": "array",
@@ -402,9 +416,10 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
 
 ### Discussion & Notes
 
-* **Markdown Formatting Fix:** The bolding asterisks in the Functions/Methods lists have been isolated completely outside the backticks representing the inline code (e.g., **`abs(n)`**). This ensures that standard Markdown parsers will consistently render the bolding without injecting artifacts into the code spans.
-* **Signature Resolution (Mangling):** Using single characters matches the existing environment prefix taxonomy and keeps the JSON-IR compact. Applying the colon (`:`) creates a clean barrier between the human-readable function name and the compiler-generated signature since a colon is not a valid identifier character in standard programming paradigms. I added a regex pattern `^[a-zA-Z_][a-zA-Z0-9_]*:[nbsl]+$` into the formal JSON schema to enforce this exact shape.
-* **JSON Schema 2020-12 Implementation:** The schema strictly defines the shape of the AST and utilizes `$defs` for compositional reuse. `additionalProperties: false` ensures that PRMs cannot sneak arbitrary or non-standard fields into the IR, which protects the Core Engine from encountering malformed instructions. Note that the schema strictly requires the `left` side for an operator, but leaves `right` optional to account for unary operators like `NOT`.
+* **Re: JSON Schema Bulk/Detail:** While JSON Schema can feel bulky, it is standard practice to include the formal definition within a system design document when defining a strict API boundary. Because the PRM and Core Daemon are entirely decoupled components (communicating strictly via file-based IPC), the schema acts as the definitive technical contract for developers building custom PRMs. It removes all ambiguity regarding payload structure.
+* **Function Overload Resolution (Name Mangling Removal):** I completely removed the name mangling implementation from Section 5.5 and replaced it with an explanation confirming that the Core Daemon is responsible for overload resolution dynamically. Because the PRM cannot reliably resolve the primitive types of arbitrary environment references, enforcing signature tracking at the PRM level is an anti-pattern. The Core Daemon now handles this naturally during its proactive static validation pass.
+* **Detailed Node Keys:** Section 5.3 was expanded to include specific, structured descriptions of what every key represents inside `literal`, `reference`, `operator`, and `function` nodes.
+* **Unary Operator Logic Shift:** The `operator` node definition and the formal JSON Schema were updated to make the `right` operand strictly required, while the `left` operand is optional. This natively supports prefix unary operators like `NOT` where the operand naturally follows the operator on the right-hand side.
 
 ### Consolidated List of Pending Architecture Document Updates
 
