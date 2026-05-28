@@ -36,3 +36,10 @@ provide the results as the language design document; place any comments or discu
 1. i realized that the entire language cannot be statically typechecked: the PEM schemas are not necessarily available to the PRM, nor are the schemas for the namespaces defined in the core engine itself (currently `climate` and `proposals`).  the PRM will therefore only be responsible for the pure syntactic parsing of the rules into the AST, and the core engine will need to have a symbolic/semantic evaluation pass and a static typechecking pass.
 2. since the static and semantic validation is now happening in the core engine, that a failure to process the end-of-turn report is a possible result of a validation error, and that the end-of-turn reports triggering rule executions are infrequent, the core engine should be loading and validating the rules as soon as it notices the rules file having been updated.  if this is not already specified in the architecture, please include a discussion note that it needs to be added to the architecture document.
 3. Please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.
+
+--
+
+1. your reformatting of the operators and functions have made them unusable as a reference or definition.  please reformat them back into lists so that each operator and each function can be quickly found and the signatures and functional descriptions of each easily identified.
+2. the core will have to re-evaluate the rules whenever it receives environment schemas from the PEMs.  given that i don't see anything in the architecture indicating when the core receives environment schemas and data from the PEMs, this definitely needs an architecture update.
+3. in your reformatting of the operators, you lost the exponentiation operator for numbers.
+4. As always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.
