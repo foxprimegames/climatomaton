@@ -10,10 +10,11 @@ Rules are authored in an externally defined source format. The Pluggable Rules M
 
 ### 1.2 Validation & Re-Evaluation Lifecycle
 
-To prevent validation errors from blocking the processing of infrequent end-of-turn (EOT) reports, the Core Daemon proactively validates the rule AST. The Core Daemon immediately executes a comprehensive semantic and static type-checking pass against all known internal and PEM schemas under two conditions:
+To prevent validation errors from blocking the processing of infrequent end-of-turn (EOT) reports, the Core Daemon proactively validates the rule AST. The Core Daemon immediately executes a comprehensive semantic and static type-checking pass against all known internal and PEM schemas under the following conditions:
 
-1. When the system detects that the rules file has been updated.
-2. Whenever the Core Daemon receives new or updated environment schemas from any registered PEM.
+1. When the system detects that the active rules file has been updated.
+2. When the Core Daemon receives new or updated environment schemas from any registered PEM.
+3. When an existing environment schema is deleted or deregistered (e.g., a PEM goes offline and its schema is removed).
 
 #### Rejection Before Execution Runtime
 
@@ -46,24 +47,24 @@ Represents floating-point or integer numeric values.
 
 #### Expression Operators
 
-* **`+`** (Addition): Adds two numeric values. Returns a Number.
-* **`-`** (Subtraction): Subtracts the right numeric value from the left. Returns a Number.
-* **`*`** (Multiplication): Multiplies two numeric values. Returns a Number.
-* **`/`** (Division): Divides the left numeric value by the right. Returns a Number. Triggers a strict failure if the divisor evaluates to `0`.
-* **`%`** (Modulo): Returns the remainder of division of the left numeric value by the right. Returns a Number.
-* ``**** (Exponentiation): Raises the left numeric value to the power of the right numeric value. Returns a Number.
-* **`==`** (Equality): Evaluates if two numeric values are equal. Returns a Boolean.
-* **`!=`** (Inequality): Evaluates if two numeric values are not equal. Returns a Boolean.
-* **`<`** (Less Than): Evaluates if the left value is strictly less than the right value. Returns a Boolean.
-* **`<=`** (Less Than or Equal): Evaluates if the left value is less than or equal to the right value. Returns a Boolean.
-* **`>`** (Greater Than): Evaluates if the left value is strictly greater than the right value. Returns a Boolean.
-* **`>=`** (Greater Than or Equal): Evaluates if the left value is greater than or equal to the right value. Returns a Boolean.
+* **Addition (`+`)**: Adds two numeric values. Returns a Number.
+* **Subtraction (`-`)**: Subtracts the right numeric value from the left. Returns a Number.
+* **Multiplication (`*`)**: Multiplies two numeric values. Returns a Number.
+* **Division (`/`)**: Divides the left numeric value by the right. Returns a Number. Triggers a strict failure if the divisor evaluates to `0`.
+* **Modulo (`%`)**: Returns the remainder of division of the left numeric value by the right. Returns a Number.
+* **Exponentiation (``)**: Raises the left numeric value to the power of the right numeric value. Returns a Number.
+* **Equality (`==`)**: Evaluates if two numeric values are equal. Returns a Boolean.
+* **Inequality (`!=`)**: Evaluates if two numeric values are not equal. Returns a Boolean.
+* **Less Than (`<`)**: Evaluates if the left value is strictly less than the right value. Returns a Boolean.
+* **Less Than or Equal (`<=`)**: Evaluates if the left value is less than or equal to the right value. Returns a Boolean.
+* **Greater Than (`>`)**: Evaluates if the left value is strictly greater than the right value. Returns a Boolean.
+* **Greater Than or Equal (`>=`)**: Evaluates if the left value is greater than or equal to the right value. Returns a Boolean.
 
 #### Mutation Operators
 
-* **`=`** (Assignment): Overwrites the target number variable or transaction field with the evaluated numeric expression result.
-* **`+=`** (Addition Assignment): Adds the evaluated numeric expression to the current value of the target field.
-* **`-=`** (Subtraction Assignment): Subtracts the evaluated numeric expression from the current value of the target field.
+* **Assignment (`=`)**: Overwrites the target number variable or transaction field with the evaluated numeric expression result.
+* **Addition Assignment (`+=`)**: Adds the evaluated numeric expression to the current value of the target field.
+* **Subtraction Assignment (`-=`)**: Subtracts the evaluated numeric expression from the current value of the target field.
 
 #### Functions / Methods
 
@@ -90,15 +91,15 @@ Represents true or false logic states.
 
 #### Expression Operators
 
-* **`and`** (Logical Conjunction): Evaluates to `true` if both left and right expressions are true. Returns a Boolean.
-* **`or`** (Logical Disjunction): Evaluates to `true` if either the left or right expression is true. Returns a Boolean.
-* **`not`** (Logical Negation): Unary operator that inverts the boolean value of the expression. Returns a Boolean.
-* **`==`** (Equality): Evaluates if two boolean states are identical. Returns a Boolean.
-* **`!=`** (Inequality): Evaluates if two boolean states are opposite. Returns a Boolean.
+* **Logical Conjunction (`and`)**: Evaluates to `true` if both left and right expressions are true. Returns a Boolean.
+* **Logical Disjunction (`or`)**: Evaluates to `true` if either the left or right expression is true. Returns a Boolean.
+* **Logical Negation (`not`)**: Unary operator that inverts the boolean value of the expression. Returns a Boolean.
+* **Equality (`==`)**: Evaluates if two boolean states are identical. Returns a Boolean.
+* **Inequality (`!=`)**: Evaluates if two boolean states are opposite. Returns a Boolean.
 
 #### Mutation Operators
 
-* **`=`** (Assignment): Overwrites the target boolean variable or transaction field with the evaluated boolean expression result.
+* **Assignment (`=`)**: Overwrites the target boolean variable or transaction field with the evaluated boolean expression result.
 
 ### 2.3 String
 
@@ -112,13 +113,13 @@ Represents a sequence of characters.
 
 #### Expression Operators
 
-* **`+`** (Concatenation): Joins two string expressions sequentially together. Returns a String.
-* **`==`** (Equality): Evaluates if two strings contain the exact same character sequence. Returns a Boolean.
-* **`!=`** (Inequality): Evaluates if two strings differ in character sequence. Returns a Boolean.
+* **Concatenation (`+`)**: Joins two string expressions sequentially together. Returns a String.
+* **Equality (`==`)**: Evaluates if two strings contain the exact same character sequence. Returns a Boolean.
+* **Inequality (`!=`)**: Evaluates if two strings differ in character sequence. Returns a Boolean.
 
 #### Mutation Operators
 
-* **`=`** (Assignment): Overwrites the target string variable or transaction field with the evaluated string expression result.
+* **Assignment (`=`)**: Overwrites the target string variable or transaction field with the evaluated string expression result.
 
 #### Functions / Methods
 
@@ -136,14 +137,14 @@ Represents a mathematical set of unique string tags, preserving insertion order.
 
 #### Expression Operators
 
-* **`==`** (Equality): Evaluates if two lists contain the exact same unique tags, regardless of ordering. Returns a Boolean.
-* **`!=`** (Inequality): Evaluates if there is any mismatch of unique tags between the two lists. Returns a Boolean.
+* **Equality (`==`)**: Evaluates if two lists contain the exact same unique tags, regardless of ordering. Returns a Boolean.
+* **Inequality (`!=`)**: Evaluates if there is any mismatch of unique tags between the two lists. Returns a Boolean.
 
 #### Mutation Operators
 
-* **`=`** (Assignment): Overwrites the target tag list variable or transaction field completely with a new tag list.
-* **`includes`** (Set Union): Appends elements to the target list if they do not already exist. Accepts a single String expression or a Tag List expression.
-* **`excludes`** (Set Difference): Removes elements from the target list if they exist. Accepts a single String expression or a Tag List expression.
+* **Assignment (`=`)**: Overwrites the target tag list variable or transaction field completely with a new tag list.
+* **Set Union (`includes`)**: Appends elements to the target list if they do not already exist. Accepts a single String expression or a Tag List expression.
+* **Set Difference (`excludes`)**: Removes elements from the target list if they exist. Accepts a single String expression or a Tag List expression.
 
 #### Functions / Methods
 
@@ -194,8 +195,8 @@ Actions mutate data in either the `new.*` or `var.*` namespaces. An action consi
 
 ### Discussion & Notes
 
-* **Markdown Rendering Workaround:** Markdown parser logic was indeed stripping the unescaped `` string from the operator text block by interpreting it as an empty bold markdown tag (`****`). Placing it explicitly inside a code fence block (````) successfully guarantees that it renders accurately as the numeric exponentiation operator node.
-* **Standard Escaping Rules:** The addition of the standard double-backslash (`\\`) escape resolution matches conventions found in standard compilers, making it clear for both rule authors and the parser engineer how to safely inject characters.
+* **Markdown Rendering Fix for Exponentiation:** You are entirely correct; the markdown engine was likely eagerly parsing the double asterisks as an empty bold block, even within inline code ticks, depending on the exact sequence of characters around it. I have reformatted the entire Operator list so that the English name (e.g., **Exponentiation**) leads the bullet point, completely preventing the parser from swallowing the operator symbol.
+* **Re-Evaluation on Schema Deletion:** Added! This is a critical edge case. If a PEM is removed or crashes and its schema file expires/is deleted by the IPC broker, the Core Daemon must immediately re-validate the ruleset. If the active ruleset depends on that now-missing PEM, it must fail validation and trigger the administrator alert.
 
 ---
 
@@ -204,11 +205,11 @@ Actions mutate data in either the `new.*` or `var.*` namespaces. An action consi
 The following items represent design changes established during this language specification sequence that require formal updates to the main **Climatomaton Architecture Specification**:
 
 1. **Core Daemon Immediate Validation Pass (Section 4.1 Update):** * *Current State:* Section 4.1 says the Core Daemon loads rules and checks them on a broad loop.
-* *Required Change:* Update to specify that the Core Daemon must actively monitor the rules folder using a file-watcher loop. The core must proactively parse and type-check incoming JSON AST files *immediately upon modification* rather than waiting for an EOT report arrival.
+* *Required Change:* Update to specify that the Core Daemon must actively monitor the rules folder *and* the schemas folder using a file-watcher loop. The core must proactively parse and type-check incoming JSON AST files immediately upon modification of the rules file, **or** whenever a PEM schema is added, updated, or deleted.
 
 
 2. **Validation Error Recovery Policy (Section 4.1 & 2.2 Update):**
-* *Required Change:* Detail the "Last-Known-Good" (LKG) fallback strategy. If a newly watched rule file fails semantic/static verification, the Core Daemon must not crash or drop the previous ruleset. It must drop the file change, log the validation trace, issue an admin alert, and keep processing utilizing the prior working version.
+* *Required Change:* Detail the "Last-Known-Good" (LKG) fallback strategy. If a newly watched rule file fails semantic/static verification (or if an environment change suddenly renders the active rules invalid), the Core Daemon must not crash or drop the previous working state. It must drop the file change (or halt if a critical PEM vanished), log the validation trace, issue an admin alert, and keep processing utilizing the prior working version if possible.
 
 
 3. **PEM Schema Exchange & Registration Cadence (Section 4.2 Update):**

@@ -57,3 +57,10 @@ provide the results as the language design document; place any comments or discu
 2. please define what is meant by the ruleset being "rejected before execution runtime".
 3. if `\` is used to insert a quote in a quoted string, how does one insert a `\` in a quoted string?
 4. As always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.  please also include any previous notes about needed updates to the architecture document.
+
+--
+
+1. you are still missing the exponentiation operator in the list of operators for number types.  you had already been placing it in code fence blocks, so that obviously does not help.
+2. please add to the architecture discussion that the core engine needs to do the rules load-and-validate check _both_ when the rules are updated _and_ when the PEM schema files are updated.
+3. you might want to add a deleted environment schema to the conditions for re-evaluating the rules.
+4. As always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.  please also include any previous notes about needed updates to the architecture document.
