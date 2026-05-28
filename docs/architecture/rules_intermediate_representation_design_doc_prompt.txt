@@ -17,3 +17,16 @@ i want to extend the definition of the variable namespace to allow for booleans,
 then refine the rest of the requirements based on the type definitions provided.
 
 provide the results as the language design document; place any comments or discussion after the end of the document itself.
+
+--
+
+1. since there are boolean variables, the Climate Rules should be able to mutate boolean data as well.
+2. you include a `within` operator in section 4.1; that should be defined in the operators that can act on numbers.  it could also be defined as a function on a number (e.g. `within(n, lo, hi)`).  in either case, i would like to make it so `within` can handle, at a minimum, both `lo < n < hi` and `lo <= n <= hi`; if possible to do cleanly, i would also like to handle the other two cases of `lo < n <= hi` and `lo <= n < hi`.
+3. i thought the architecture specified that rules were written in json, but i guess json is only used for the representation of the rules when passed to the core engine.  this means the PRM will be responsible for compiling rules in whatever source form they exist (which could theoretically already be json) into an AST that can be represented in json to be passed to the core engine.
+4. should there be functions that convert numbers to strings or (try to) convert strings to numbers?
+5. the tag list mutations should work either on a single string or on a tag list type - e.g. `climate.tags includes ["raining", "lightning"]`
+6. tag lists should be able to be assigned to a literal tag list, not just mutated using includes and excludes.
+7. the `var.` namespace is not listed in the introduction to section 3.
+8. because of the more general purpose actions now being allowed, it will not be possible to statically protect the climate tags from being mutated by climate rule actions, nor protect the climate value or other environment values from being mutated by the tag rule actions.  this, then, becomes a _convention_ that must be described in the design document so that it can be added to the language guide.
+9. because the typing is static, the type checking can be done when the rules are compiled into the AST form; the core engine should not need to do any static validation of the rules.
+10. Please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.
