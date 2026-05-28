@@ -37,7 +37,7 @@ Represents floating-point or integer numeric values.
 
 * **Literal Representation:** Standard digits, optional negative sign, optional decimal (e.g., `42`, `-15`, `3.14`).
 
-#### Operators
+#### Expression Operators
 
 * **`+`** (Addition): Adds two numeric values. Returns a Number.
 * **`-`** (Subtraction): Subtracts the right numeric value from the left. Returns a Number.
@@ -52,6 +52,12 @@ Represents floating-point or integer numeric values.
 * **`>`** (Greater Than): Evaluates if the left value is strictly greater than the right value. Returns a Boolean.
 * **`>=`** (Greater Than or Equal): Evaluates if the left value is greater than or equal to the right value. Returns a Boolean.
 
+#### Mutation Operators
+
+* **`=`** (Assignment): Overwrites the target number variable or transaction field with the evaluated numeric expression result.
+* **`+=`** (Addition Assignment): Adds the evaluated numeric expression to the current value of the target field.
+* **` -=`** (Subtraction Assignment): Subtracts the evaluated numeric expression from the current value of the target field.
+
 #### Functions / Methods
 
 * **`abs(n)`**: Returns the absolute value of the numeric expression `n`.
@@ -60,11 +66,13 @@ Represents floating-point or integer numeric values.
 * **`max(n1, n2, ...)`**: Accepts an arbitrary number of numeric arguments and returns the highest value.
 * **`clamp(n, min_val, max_val)`**: Constrains `n` so it does not fall below `min_val` or exceed `max_val`. Returns a Number.
 * **`within(n, lo, hi, [bounds])`**: Evaluates whether `n` falls within the range between `lo` and `hi`. The optional `bounds` parameter accepts a string literal defining inclusivity boundaries:
-  * `"[]"` (Default): Inclusive/Inclusive ($lo \le n \le hi$)
-  * `"()"`: Exclusive/Exclusive ($lo < n < hi$)
-  * `"[)"`: Inclusive/Exclusive ($lo \le n < hi$)
-  * `"(]"`: Exclusive/Inclusive ($lo < n \le hi$)
-  * Returns a Boolean.
+* `"[]"` (Default): Inclusive/Inclusive ($lo \le n \le hi$)
+* `"()"`: Exclusive/Exclusive ($lo < n < hi$)
+* `"[)"`: Inclusive/Exclusive ($lo \le n < hi$)
+* `"(]"`: Exclusive/Inclusive ($lo < n \le hi$)
+* Returns a Boolean.
+
+
 * **`to_string(n)`**: Converts the numeric value `n` to its literal string representation. Returns a String.
 
 ### 2.2 Boolean
@@ -73,26 +81,32 @@ Represents true or false logic states.
 
 * **Literal Representation:** `true`, `false`.
 
-#### Operators
+#### Expression Operators
 
 * **`and`** (Logical Conjunction): Evaluates to `true` if both left and right expressions are true. Returns a Boolean.
 * **`or`** (Logical Disjunction): Evaluates to `true` if either the left or right expression is true. Returns a Boolean.
 * **`not`** (Logical Negation): Unary operator that inverts the boolean value of the expression. Returns a Boolean.
 * **`==`** (Equality): Evaluates if two boolean states are identical. Returns a Boolean.
 * **`!=`** (Inequality): Evaluates if two boolean states are opposite. Returns a Boolean.
+
+#### Mutation Operators
+
 * **`=`** (Assignment): Overwrites the target boolean variable or transaction field with the evaluated boolean expression result.
 
 ### 2.3 String
 
 Represents a sequence of characters.
 
-* **Literal Representation:** Text enclosed in double or single quotes (e.g., `"Mild"`, `'Greenhouse'`).
+* **Literal Representation:** Text enclosed in double (`"`) or single (`'`) quotes (e.g., `"Mild"`, `'Greenhouse'`). To include a quote character of the same type inside the string literal itself, it must be escaped using a backslash character (e.g., `"The engine reported: \"Anomalous Warmth\""` or `'It\'s a critical state'`).
 
-#### Operators
+#### Expression Operators
 
 * **`+`** (Concatenation): Joins two string expressions sequentially together. Returns a String.
 * **`==`** (Equality): Evaluates if two strings contain the exact same character sequence. Returns a Boolean.
 * **`!=`** (Inequality): Evaluates if two strings differ in character sequence. Returns a Boolean.
+
+#### Mutation Operators
+
 * **`=`** (Assignment): Overwrites the target string variable or transaction field with the evaluated string expression result.
 
 #### Functions / Methods
@@ -109,10 +123,13 @@ Represents a mathematical set of unique string tags, preserving insertion order.
 
 * **Literal Representation:** A comma-separated list of string literals enclosed in square brackets (e.g., `["Mild", "Windy"]`, `[]`).
 
-#### Operators
+#### Expression Operators
 
 * **`==`** (Equality): Evaluates if two lists contain the exact same unique tags, regardless of ordering. Returns a Boolean.
 * **`!=`** (Inequality): Evaluates if there is any mismatch of unique tags between the two lists. Returns a Boolean.
+
+#### Mutation Operators
+
 * **`=`** (Assignment): Overwrites the target tag list variable or transaction field completely with a new tag list.
 * **`includes`** (Set Union): Appends elements to the target list if they do not already exist. Accepts a single String expression or a Tag List expression.
 * **`excludes`** (Set Difference): Removes elements from the target list if they exist. Accepts a single String expression or a Tag List expression.
@@ -158,12 +175,7 @@ Conditions are boolean expressions. A rule activates only if all condition state
 
 ### 4.2 Actions
 
-Actions mutate data in either the `new.*` or `var.*` namespaces. An action consists of a target path, an assignment/mutation operator, and an expression.
-
-* **Numeric Actions:** Use `=`, `+=`, or `-=` (e.g., `new.climate.value += (var.n.modifier * 2)`).
-* **Boolean Actions:** Use `=` (e.g., `var.b.flag_triggered = true`).
-* **String Actions:** Use `=` (e.g., `var.s.report_prefix = "Extreme "`).
-* **Tag List Actions:** Use `=`, `includes`, or `excludes` (e.g., `new.climate.tags includes "Windy"`, `new.climate.tags excludes ["Mild", "Stable"]`).
+Actions mutate data in either the `new.*` or `var.*` namespaces. An action consists of a target path, a mutation operator, and an expression.
 
 ---
 
@@ -171,6 +183,7 @@ Actions mutate data in either the `new.*` or `var.*` namespaces. An action consi
 
 ### Discussion & Notes
 
-* **Architecture Document Update (PEM Schema Exchange Cadence):** The current Climatomaton Architecture Specification (Section 4.2, Shared Volume Contracts / IPC) establishes that PEMs write environment data to files, but it does *not* define when or how those PEMs expose their **data type schemas** to the Core Daemon. For the Core Daemon to execute its static type-checking pass accurately, it needs to know what fields and types exist under each `{pem_namespace}.*`. The architecture specification must be updated to include a registration protocol—either a JSON Schema file written to a known shared folder by each PEM upon initialization, or a fixed schema declaration protocol handled when the Core Daemon spins up.
-* **Reactive Validation Triggers:** Section 1.2 formalized that the type-checking pass is a multi-trigger lifecycle event. The engine doesn't wait for a turn to end to check for errors; it proactively monitors both the active rule file and the directory of PEM schemas, updating its execution readiness state immediately upon any configuration change.
-* **Restored Reference Design:** Section 2 has been restored to an explicit, definition-oriented layout. Every operator and function now sits on its own line item detailing its explicit parameter structure, behavior, and output type, creating an actionable implementation checklist for building the parser and interpreter logic. Exponentiation (``) has been verified and correctly placed under the number primitives list.
+* **Exponentiation Fully Restored:** The `` operator has its own fully itemized block under Section 2.1's Expression Operators now, guaranteeing it won't be overlooked in parser implementation.
+* **Operator Bifurcation:** Separating the operators into *Expression Operators* (side-effect-free evaluations returning a value) and *Mutation Operators* (state altering) significantly clarifies how the AST should handle execution semantics. Conditions are strictly limited to evaluating *Expression Operators*, while Actions require a *Mutation Operator* at their top-level node.
+* **String Escape Syntax:** Adding explicit backslash (`\`) escape tracking under literal representation prevents edge cases where rule writers need to output quotes or nested phrasing within natural language strings sent to Discord.
+* **AST Validation Mapping:** Now that we have this exact breakdown of expressions and mutations, the Core Daemon's semantic validator can easily enforce rule syntax safety: any mutation operator targeted at a read-only namespace path (`climate.`, `proposals.`, or unauthorized PEM variables) will instantly fail validation during the dynamic reload phase.

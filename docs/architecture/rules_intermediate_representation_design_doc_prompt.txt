@@ -43,3 +43,10 @@ provide the results as the language design document; place any comments or discu
 2. the core will have to re-evaluate the rules whenever it receives environment schemas from the PEMs.  given that i don't see anything in the architecture indicating when the core receives environment schemas and data from the PEMs, this definitely needs an architecture update.
 3. in your reformatting of the operators, you lost the exponentiation operator for numbers.
 4. As always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.
+
+--
+
+1. you are still missing the exponentiation operator in the list of operators for number types.
+2. the literal representation for strings does not indicate how a quote of the same type as the enclosing quotes can be included in the string literal.
+3. please separate the operators into expression operators and mutation operators.
+4. As always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.
