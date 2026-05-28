@@ -37,7 +37,7 @@ If at any point during execution a rule attempts to resolve an undefined namespa
 
 The rule language supports four distinct primitives. All operations, parameters, and return types are strongly typed. To guarantee standardized interpretation across any language or parser, the JSON-IR utilizes standardized short-word keywords for all operators rather than symbols.
 
-Note: For functions, both the function call syntax (e.g., `has(list, tag)`) and the method call syntax (e.g., `list.has(tag)`) are provided below for source-language design flexibility. The JSON-IR format remains identical regardless of the source language syntax chosen.
+Note: For functions, both the function call syntax and the method call syntax are provided below for source-language design flexibility. The JSON-IR format remains identical regardless of the source language syntax chosen.
 
 ### 2.1 Number
 
@@ -68,18 +68,18 @@ Represents floating-point or integer numeric values.
 
 #### Functions / Methods
 
-* **`abs(n)` / `n.abs()**`: Returns the absolute value of the numeric expression `n`.
-* **`round(n, [precision])` / `n.round([precision])**`: Rounds `n` to the nearest integer, or to a specified integer `precision` decimal places.
-* **`min(n1, n2, ...)` / `n1.min(n2, ...)**`: Accepts an arbitrary number of numeric arguments and returns the lowest value.
-* **`max(n1, n2, ...)` / `n1.max(n2, ...)**`: Accepts an arbitrary number of numeric arguments and returns the highest value.
-* **`clamp(n, min_val, max_val)` / `n.clamp(min_val, max_val)**`: Constrains `n` so it does not fall below `min_val` or exceed `max_val`. Returns a Number.
-* **`within(n, lo, hi, [bounds])` / `n.within(lo, hi, [bounds])**`: Evaluates whether `n` falls within the range between `lo` and `hi`. The optional `bounds` parameter accepts a string literal defining inclusivity boundaries:
+* **`abs(n)`** / **`n.abs()`**: Returns the absolute value of the numeric expression `n`.
+* **`round(n, [precision])`** / **`n.round([precision])`**: Rounds `n` to the nearest integer, or to a specified integer `precision` decimal places.
+* **`min(n1, n2, ...)`** / **`n1.min(n2, ...)`**: Accepts an arbitrary number of numeric arguments and returns the lowest value.
+* **`max(n1, n2, ...)`** / **`n1.max(n2, ...)`**: Accepts an arbitrary number of numeric arguments and returns the highest value.
+* **`clamp(n, min_val, max_val)`** / **`n.clamp(min_val, max_val)`**: Constrains `n` so it does not fall below `min_val` or exceed `max_val`. Returns a Number.
+* **`within(n, lo, hi, [bounds])`** / **`n.within(lo, hi, [bounds])`**: Evaluates whether `n` falls within the range between `lo` and `hi`. The optional `bounds` parameter accepts a string literal defining inclusivity boundaries:
   * `"[]"` (Default): Inclusive/Inclusive ($lo \le n \le hi$)
   * `"()"`: Exclusive/Exclusive ($lo < n < hi$)
   * `"[)"`: Inclusive/Exclusive ($lo \le n < hi$)
   * `"(]"`: Exclusive/Inclusive ($lo < n \le hi$)
   * Returns a Boolean.
-* **`to_string(n)` / `n.to_string()**`: Converts the numeric value `n` to its literal string representation. Returns a String.
+* **`to_string(n)`** / **`n.to_string()`**: Converts the numeric value `n` to its literal string representation. Returns a String.
 
 ### 2.2 Boolean
 
@@ -119,11 +119,11 @@ Represents a sequence of characters.
 
 #### Functions / Methods
 
-* **`length(s)` / `s.length()**`: Returns the total character count of the string `s`. Returns a Number.
-* **`contains(s, substring)` / `s.contains(substring)**`: Evaluates whether the exact text sequence `substring` exists within string `s`. Returns a Boolean.
-* **`starts_with(s, prefix)` / `s.starts_with(prefix)**`: Evaluates whether string `s` begins with the exact text sequence `prefix`. Returns a Boolean.
-* **`ends_with(s, suffix)` / `s.ends_with(suffix)**`: Evaluates whether string `s` ends with the exact text sequence `suffix`. Returns a Boolean.
-* **`to_number(s)` / `s.to_number()**`: Parses a string representation of digits into a valid numeric value. Returns a Number. Triggers a strict failure abort if `s` contains characters that cannot form a valid integer or float.
+* **`length(s)`** / **`s.length()`**: Returns the total character count of the string `s`. Returns a Number.
+* **`contains(s, substring)`** / **`s.contains(substring)`**: Evaluates whether the exact text sequence `substring` exists within string `s`. Returns a Boolean.
+* **`starts_with(s, prefix)`** / **`s.starts_with(prefix)`**: Evaluates whether string `s` begins with the exact text sequence `prefix`. Returns a Boolean.
+* **`ends_with(s, suffix)`** / **`s.ends_with(suffix)`**: Evaluates whether string `s` ends with the exact text sequence `suffix`. Returns a Boolean.
+* **`to_number(s)`** / **`s.to_number()`**: Parses a string representation of digits into a valid numeric value. Returns a Number. Triggers a strict failure abort if `s` contains characters that cannot form a valid integer or float.
 
 ### 2.4 Tag List
 
@@ -144,11 +144,11 @@ Represents a mathematical set of unique string tags, preserving insertion order.
 
 #### Functions / Methods
 
-* **`length(list)` / `list.length()**`: Returns the total count of unique tags currently in `list`. Returns a Number.
-* **`has(list, tag)` / `list.has(tag)**`: Evaluates whether the single string expression `tag` is present within `list`. Returns a Boolean.
-* **`has_any(list, tag_list)` / `list.has_any(tag_list)**`: Evaluates whether at least one tag inside the expression `tag_list` is present within `list`. Returns a Boolean.
-* **`has_all(list, tag_list)` / `list.has_all(tag_list)**`: Evaluates whether every tag inside the expression `tag_list` is present within `list`. Returns a Boolean.
-* **`is_empty(list)` / `list.is_empty()**`: Evaluates whether the list contains zero elements. Returns a Boolean.
+* **`length(list)`** / **`list.length()`**: Returns the total count of unique tags currently in `list`. Returns a Number.
+* **`has(list, tag)`** / **`list.has(tag)`**: Evaluates whether the single string expression `tag` is present within `list`. Returns a Boolean.
+* **`has_any(list, tag_list)`** / **`list.has_any(tag_list)`**: Evaluates whether at least one tag inside the expression `tag_list` is present within `list`. Returns a Boolean.
+* **`has_all(list, tag_list)`** / **`list.has_all(tag_list)`**: Evaluates whether every tag inside the expression `tag_list` is present within `list`. Returns a Boolean.
+* **`is_empty(list)`** / **`list.is_empty()`**: Evaluates whether the list contains zero elements. Returns a Boolean.
 
 ---
 
@@ -246,7 +246,7 @@ To decouple the PRM's source-language parser from the Core Daemon's execution en
 ```json
 {
   "type": "function",
-  "name": "within_number_number_number_string",
+  "name": "within:nnns",
   "args": [
     { "type": "reference", "path": "climate.value" },
     { "type": "literal", "datatype": "number", "value": 10 },
@@ -272,9 +272,129 @@ To decouple the PRM's source-language parser from the Core Daemon's execution en
 
 ### 5.5 Function Signature Resolution (Name Mangling)
 
-Because the rule language permits functions with the same name but different argument counts or argument types (function overloading), the JSON-IR requires the PRM parser to programmatically generate a unique name for the function node's `"name"` attribute.
+Because the rule language permits functions with the same name but different argument counts or types (function overloading), the JSON-IR requires the PRM parser to programmatically generate a unique name for the function node's `"name"` attribute.
 
-This is accomplished by appending the data types of the provided arguments directly to the function name (name mangling). The Core Engine registers and validates these specific, mangled signatures. For example, if a rule calls `within` with three numbers, the PRM parses the name as `within_number_number_number`. If it includes the optional bounds string, the PRM parses it as `within_number_number_number_string`. This guarantees explicit, unambiguous static type-checking within the Core Daemon.
+This is accomplished by appending the data types of the provided arguments directly to the function name, separated by a colon (`:`). The data types are abbreviated to single characters mirroring the `var` namespace prefixes:
+
+* `n` = Number
+* `b` = Boolean
+* `s` = String
+* `l` = Tag List
+
+The Core Engine registers and validates these specific, mangled signatures. For example, if a rule calls `within` with three numbers, the PRM parses the name as `within:nnn`. If it includes the optional bounds string, the PRM parses it as `within:nnns`. This guarantees explicit, unambiguous static type-checking within the Core Daemon.
+
+### 5.6 JSON Schema (Draft 2020-12)
+
+This formally defines the validation constraints for the JSON-IR payload sent from the PRM to the Core Daemon.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://climatomaton.nomicron.org/schemas/json-ir.json",
+  "title": "Climatomaton JSON-IR",
+  "description": "JSON Intermediate Representation for Climatomaton Rules",
+  "type": "object",
+  "properties": {
+    "climate_rules": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/rule" }
+    },
+    "tag_rules": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/rule" }
+    }
+  },
+  "required": ["climate_rules", "tag_rules"],
+  "additionalProperties": false,
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "conditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/expression" }
+        },
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/mutation" }
+        }
+      },
+      "required": ["name", "conditions", "actions"],
+      "additionalProperties": false
+    },
+    "expression": {
+      "type": "object",
+      "oneOf": [
+        { "$ref": "#/$defs/literal_node" },
+        { "$ref": "#/$defs/reference_node" },
+        { "$ref": "#/$defs/operator_node" },
+        { "$ref": "#/$defs/function_node" }
+      ]
+    },
+    "literal_node": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "literal" },
+        "datatype": { "enum": ["number", "boolean", "string", "tag_list"] },
+        "value": {}
+      },
+      "required": ["type", "datatype", "value"],
+      "additionalProperties": false
+    },
+    "reference_node": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "reference" },
+        "path": { "type": "string" }
+      },
+      "required": ["type", "path"],
+      "additionalProperties": false
+    },
+    "operator_node": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "operator" },
+        "op": { 
+          "enum": ["ADD", "SUB", "MUL", "DIV", "MOD", "EXP", "EQ", "NEQ", "LT", "LTE", "GT", "GTE", "AND", "OR", "NOT", "CONCAT"] 
+        },
+        "left": { "$ref": "#/$defs/expression" },
+        "right": { "$ref": "#/$defs/expression" }
+      },
+      "required": ["type", "op", "left"],
+      "additionalProperties": false
+    },
+    "function_node": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "function" },
+        "name": { 
+          "type": "string",
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*:[nbsl]+$" 
+        },
+        "args": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/expression" }
+        }
+      },
+      "required": ["type", "name", "args"],
+      "additionalProperties": false
+    },
+    "mutation": {
+      "type": "object",
+      "properties": {
+        "target": { "type": "string" },
+        "op": {
+          "enum": ["ASSIGN", "ADD_ASSIGN", "SUB_ASSIGN", "INCLUDES", "EXCLUDES"]
+        },
+        "expression": { "$ref": "#/$defs/expression" }
+      },
+      "required": ["target", "op", "expression"],
+      "additionalProperties": false
+    }
+  }
+}
+```
 
 ---
 
@@ -282,9 +402,9 @@ This is accomplished by appending the data types of the provided arguments direc
 
 ### Discussion & Notes
 
-* **Generic Namespace Path Implementation:** As incorporated into Section 3, the `NamespacePath` definition has been generalized as a generic series of dot-separated identifiers. The `climate` and `proposals` prefixes are explicitly recognized internal paths, but the logic naturally extends to any arbitrary prefix supplied by a schema, ensuring strict adherence to the system's modular, pluggable nature.
-* **Function and Method Syntax Parity:** Section 2 was successfully updated to display both standard function call syntax and method call syntax. This approach explicitly unblocks PRM source language designers who may prefer object-oriented dot-notation without demanding any structural change to the underlying JSON-IR implementation.
-* **Operator Standardisation:** The JSON-IR expression node operations have all been mapped to standard short-word strings (e.g., `EXP`, `ADD_ASSIGN`, `CONCAT`). This completely eliminates any symbol escaping complexity that might arise during JSON serialization.
+* **Markdown Formatting Fix:** The bolding asterisks in the Functions/Methods lists have been isolated completely outside the backticks representing the inline code (e.g., **`abs(n)`**). This ensures that standard Markdown parsers will consistently render the bolding without injecting artifacts into the code spans.
+* **Signature Resolution (Mangling):** Using single characters matches the existing environment prefix taxonomy and keeps the JSON-IR compact. Applying the colon (`:`) creates a clean barrier between the human-readable function name and the compiler-generated signature since a colon is not a valid identifier character in standard programming paradigms. I added a regex pattern `^[a-zA-Z_][a-zA-Z0-9_]*:[nbsl]+$` into the formal JSON schema to enforce this exact shape.
+* **JSON Schema 2020-12 Implementation:** The schema strictly defines the shape of the AST and utilizes `$defs` for compositional reuse. `additionalProperties: false` ensures that PRMs cannot sneak arbitrary or non-standard fields into the IR, which protects the Core Engine from encountering malformed instructions. Note that the schema strictly requires the `left` side for an operator, but leaves `right` optional to account for unary operators like `NOT`.
 
 ### Consolidated List of Pending Architecture Document Updates
 
@@ -293,5 +413,5 @@ The following items represent design changes established during the rule languag
 1. **Core Daemon Immediate Validation Pass:** Update Section 4.1 to specify that the Core Daemon must actively monitor the rules folder and the schemas folder. It must proactively parse and type-check incoming JSON-IR files immediately upon modification of the rules file, or whenever a PEM schema is added, updated, or deleted.
 2. **Validation Error Recovery Policy:** Update the architecture to reflect the exact fallback strategies:
    * **LKG Fallback:** If a newly watched JSON-IR file fails semantic/static verification, the Core Daemon discards it, retains the prior working version, logs the trace, and issues an admin alert.
-   * **PAUSED Fallback (New):** If an environment change (like a PEM deletion) renders the active rules invalid, there is no "last-known-good" ruleset to fall back to. The Core Daemon must immediately drop into a **PAUSED** state, halt EOT reporting, and notify the administrators.
+   * **PAUSED Fallback:** If an environment change (like a PEM deletion) renders the active rules invalid, there is no "last-known-good" ruleset to fall back to. The Core Daemon must immediately drop into a **PAUSED** state, halt EOT reporting, and notify the administrators.
 3. **PEM Schema Exchange & Registration Cadence:** Establish an initialization file contract (updating Section 4.2) where every registered PEM must write a static schema description file (e.g., `{pem_namespace}.schema.json`) to the shared IPC volume. The Core Daemon reads these files on startup and during dynamic reloads to successfully construct the type-checking reference map required for validating JSON-IR expressions. This section should also note the implementation of wildcard path matching to streamline heavily nested module schemas.

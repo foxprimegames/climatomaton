@@ -86,3 +86,10 @@ given the uploaded architecture document, the original prompts that generated it
 4. in section 3, please include a section discussing the requirement for PEM schemas and their definition of static types for the PEM environment data.  Please include some mechanism to allow the schema to not have to explicitly list every data type for every single namespace path.
 5. we have functions with the same name that take different argument types and possibly different argument counts.  the internal representation of these functions will need some way for the parser to programmatically create a unique name that represents the functions with their different signatures, and the core engine will need to validate that the functions with those signatures are valid.  Note, this means functions with optional arguments will need valid signatures with and without the optional arguments.
 6. As always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.  please also include any previous notes about needed updates to the architecture document.
+
+--
+
+1. In the list of functions for each type, you have misformatted the markdown formatting of the paired names, placing the end-bold `**` markup inside the end of the code quote for the method representation.  Please fix this.
+2. In section 5.5, the name+signature is too long.  since we already have the `var` namespace prefix that uses single letters to represent the types, please use single letters here.  also, use a non-valid-identifier character to separate the name from the signature (e.g. `within:nnns`)
+3. please include a formal JSON Schema 2020-12 definition of the internal representation at the end of section 5.
+4. As always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.  please also include any previous notes about needed updates to the architecture document.
