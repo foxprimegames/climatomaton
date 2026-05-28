@@ -64,3 +64,12 @@ provide the results as the language design document; place any comments or discu
 2. please add to the architecture discussion that the core engine needs to do the rules load-and-validate check _both_ when the rules are updated _and_ when the PEM schema files are updated.
 3. you might want to add a deleted environment schema to the conditions for re-evaluating the rules.
 4. As always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.  please also include any previous notes about needed updates to the architecture document.
+
+--
+
+1. still no exponentiation operator.  this is what i see:
+   ```
+   * **Exponentiation (``)**: Raises the left numeric value to the power of the right numeric value. Returns a Number.
+   ```
+2. assuming you can figure out how to get the exponentiation operator included in the output, we need to work on the AST or evaluation tree format used to pass the rules from the PRM to the core engine.  i think i'd prefer to veer away from the "AST" terminology, as that might restrict how PRM parsers can be written.  i'm not sure "evaluation tree" is a "thing"; i think what i'm talking about is an intermediate code format or something like that.  please come up with the right term, and create a section to define what that intermediate form is, specify its syntax, and define the representation used for the intermediate format to be passed from the PRM to the core engine.
+3. As always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.  please also include any previous notes about needed updates to the architecture document.

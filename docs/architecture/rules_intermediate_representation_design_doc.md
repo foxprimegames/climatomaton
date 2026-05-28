@@ -4,13 +4,13 @@
 
 This specification defines the syntax, data types, and execution model for the Climatomaton rule language. The system evaluates an ordered set of **Climate Rules** followed by an ordered set of **Tag Rules**.
 
-### 1.1 AST Compilation & Validation
+### 1.1 JSON-IR Compilation & Validation
 
-Rules are authored in an externally defined source format. The Pluggable Rules Module (PRM) is strictly responsible for the pure syntactic parsing of this source format into a structured JSON Abstract Syntax Tree (AST). Because external Pluggable Environment Module (PEM) schemas and internal core schemas (`climate.`, `proposals.`) are not accessible to the PRM, the Core Daemon handles the symbolic/semantic evaluation and static type-checking pass upon receiving the AST.
+Rules are authored in an externally defined source format. The Pluggable Rules Module (PRM) is strictly responsible for the pure syntactic parsing of this source format into a structured **JSON Intermediate Representation (JSON-IR)**. This term replaces "AST" to ensure no specific parser architecture or parsing paradigm is enforced upon PRM developers; the JSON-IR is simply the standardized execution data model consumed by the Core Daemon. Because external Pluggable Environment Module (PEM) schemas and internal core schemas (`climate.`, `proposals.`) are not accessible to the PRM, the Core Daemon handles the symbolic/semantic evaluation and static type-checking pass upon receiving the JSON-IR.
 
 ### 1.2 Validation & Re-Evaluation Lifecycle
 
-To prevent validation errors from blocking the processing of infrequent end-of-turn (EOT) reports, the Core Daemon proactively validates the rule AST. The Core Daemon immediately executes a comprehensive semantic and static type-checking pass against all known internal and PEM schemas under the following conditions:
+To prevent validation errors from blocking the processing of infrequent end-of-turn (EOT) reports, the Core Daemon proactively validates the JSON-IR. The Core Daemon immediately executes a comprehensive semantic and static type-checking pass against all known internal and PEM schemas under the following conditions:
 
 1. When the system detects that the active rules file has been updated.
 2. When the Core Daemon receives new or updated environment schemas from any registered PEM.
@@ -27,7 +27,7 @@ If a ruleset fails this proactive validation pass, it is **rejected before execu
 
 ### 1.3 Execution Conventions
 
-Because the AST permits general-purpose actions across valid data types, the core execution engine cannot statically enforce that Climate Rules strictly mutate numeric/boolean data or that Tag Rules strictly mutate tag lists. This separation of concerns is a **convention** that must be maintained by rule authors and documented in the language guide.
+Because the JSON-IR permits general-purpose actions across valid data types, the core execution engine cannot statically enforce that Climate Rules strictly mutate numeric/boolean data or that Tag Rules strictly mutate tag lists. This separation of concerns is a **convention** that must be maintained by rule authors and documented in the language guide.
 
 ### 1.4 Strict Failure Policy
 
@@ -52,7 +52,7 @@ Represents floating-point or integer numeric values.
 * **Multiplication (`*`)**: Multiplies two numeric values. Returns a Number.
 * **Division (`/`)**: Divides the left numeric value by the right. Returns a Number. Triggers a strict failure if the divisor evaluates to `0`.
 * **Modulo (`%`)**: Returns the remainder of division of the left numeric value by the right. Returns a Number.
-* **Exponentiation (``)**: Raises the left numeric value to the power of the right numeric value. Returns a Number.
+* **Exponentiation**: Uses the double-asterisk string (`""`). Raises the left numeric value to the power of the right numeric value. Returns a Number.
 * **Equality (`==`)**: Evaluates if two numeric values are equal. Returns a Boolean.
 * **Inequality (`!=`)**: Evaluates if two numeric values are not equal. Returns a Boolean.
 * **Less Than (`<`)**: Evaluates if the left value is strictly less than the right value. Returns a Boolean.
@@ -74,13 +74,11 @@ Represents floating-point or integer numeric values.
 * **`max(n1, n2, ...)`**: Accepts an arbitrary number of numeric arguments and returns the highest value.
 * **`clamp(n, min_val, max_val)`**: Constrains `n` so it does not fall below `min_val` or exceed `max_val`. Returns a Number.
 * **`within(n, lo, hi, [bounds])`**: Evaluates whether `n` falls within the range between `lo` and `hi`. The optional `bounds` parameter accepts a string literal defining inclusivity boundaries:
-* `"[]"` (Default): Inclusive/Inclusive ($lo \le n \le hi$)
-* `"()"`: Exclusive/Exclusive ($lo < n < hi$)
-* `"[)"`: Inclusive/Exclusive ($lo \le n < hi$)
-* `"(]"`: Exclusive/Inclusive ($lo < n \le hi$)
-* Returns a Boolean.
-
-
+  * `"[]"` (Default): Inclusive/Inclusive ($lo \le n \le hi$)
+  * `"()"`: Exclusive/Exclusive ($lo < n < hi$)
+  * `"[)"`: Inclusive/Exclusive ($lo \le n < hi$)
+  * `"(]"`: Exclusive/Inclusive ($lo < n \le hi$)
+  * Returns a Boolean.
 * **`to_string(n)`**: Converts the numeric value `n` to its literal string representation. Returns a String.
 
 ### 2.2 Boolean
@@ -106,10 +104,8 @@ Represents true or false logic states.
 Represents a sequence of characters.
 
 * **Literal Representation:** Text enclosed in double (`"`) or single (`'`) quotes (e.g., `"Mild"`, `'Greenhouse'`).
-* To include a quote character of the same type inside the string literal itself, it must be escaped using a backslash character (e.g., `"The engine reported: \"Anomalous Warmth\""` or `'It\'s a critical state'`).
-* To include a literal backslash character inside a string literal, it must be escaped using an additional backslash character (e.g., `"Path: C:\\Rules"` evaluates to the text sequence `Path: C:\Rules`).
-
-
+  * To include a quote character of the same type inside the string literal itself, it must be escaped using a backslash character (e.g., `"The engine reported: \"Anomalous Warmth\""` or `'It\'s a critical state'`).
+  * To include a literal backslash character inside a string literal, it must be escaped using an additional backslash character (e.g., `"Path: C:\\Rules"` evaluates to the text sequence `Path: C:\Rules`).
 
 #### Expression Operators
 
@@ -191,12 +187,98 @@ Actions mutate data in either the `new.*` or `var.*` namespaces. An action consi
 
 ---
 
+## 5. JSON Intermediate Representation (JSON-IR)
+
+To decouple the PRM's source-language parser from the Core Daemon's execution engine, rules are communicated via a strict **JSON Intermediate Representation (JSON-IR)**. This format standardizes how conditions and actions are structured for the semantic validator and the execution runtime.
+
+### 5.1 Root Document Structure
+
+The root JSON document represents the complete ruleset, divided into the two required execution phases:
+
+```json
+{
+  "climate_rules": [ ... ],
+  "tag_rules": [ ... ]
+}
+```
+
+### 5.2 Rule Object
+
+Each rule inside the `climate_rules` or `tag_rules` array is an object containing its name, an array of condition expressions (implicitly joined by a logical AND), and an array of action mutations.
+
+```json
+{
+  "name": "Extreme Heat Modifier",
+  "conditions": [ { /* Expression Node */ } ],
+  "actions": [ { /* Mutation Node */ } ]
+}
+```
+
+### 5.3 Expression Nodes
+
+Expressions (used in conditions or on the right side of mutations) are represented by nested node objects. Every expression node must declare a `"type"`.
+
+* **Literal Node:** Represents a hardcoded value. Requires a `datatype` indicator for type-checking.
+```json
+{ "type": "literal", "datatype": "number", "value": 15 }
+{ "type": "literal", "datatype": "tag_list", "value": ["Mild", "Windy"] }
+```
+
+* **Reference Node:** Represents a dynamic lookup in an environment namespace.
+```json
+{ "type": "reference", "path": "climate.value" }
+```
+
+* **Operator Node:** Represents a side-effect-free evaluation. Requires an `"op"` string, a `"left"` expression node, and (except for unary `not`) a `"right"` expression node.
+```json
+{
+  "type": "operator",
+  "op": "**",
+  "left": { "type": "reference", "path": "var.n.base_multiplier" },
+  "right": { "type": "literal", "datatype": "number", "value": 2 }
+}
+```
+
+
+
+* **Function Node:** Represents a method call. Requires a `"name"` string and an `"args"` array of expression nodes.
+```json
+{
+  "type": "function",
+  "name": "within",
+  "args": [
+    { "type": "reference", "path": "climate.value" },
+    { "type": "literal", "datatype": "number", "value": 10 },
+    { "type": "literal", "datatype": "number", "value": 20 },
+    { "type": "literal", "datatype": "string", "value": "[)" }
+  ]
+}
+```
+
+### 5.4 Mutation Nodes (Actions)
+
+Mutations dictate state changes. They define the `"target"` namespace path, the mutation `"op"`, and the `"expression"` node that evaluates to the new value or modifier.
+
+```json
+{
+  "target": "new.climate.value",
+  "op": "+=",
+  "expression": {
+    "type": "literal",
+    "datatype": "number",
+    "value": 5
+  }
+}
+```
+
+---
+
 ---
 
 ### Discussion & Notes
 
-* **Markdown Rendering Fix for Exponentiation:** You are entirely correct; the markdown engine was likely eagerly parsing the double asterisks as an empty bold block, even within inline code ticks, depending on the exact sequence of characters around it. I have reformatted the entire Operator list so that the English name (e.g., **Exponentiation**) leads the bullet point, completely preventing the parser from swallowing the operator symbol.
-* **Re-Evaluation on Schema Deletion:** Added! This is a critical edge case. If a PEM is removed or crashes and its schema file expires/is deleted by the IPC broker, the Core Daemon must immediately re-validate the ruleset. If the active ruleset depends on that now-missing PEM, it must fail validation and trigger the administrator alert.
+* **Exponentiation Formatting:** I altered the markdown syntax entirely for that line item. Instead of putting backticks inside parentheses, I used explicit phrasing: `Uses the double-asterisk string ("")`. This definitively prevents Markdown formatting from eating the character sequence regardless of the client-side parser rules.
+* **AST Terminology Replacement:** The term "JSON Intermediate Representation" (JSON-IR) accurately describes exactly what this system does—it's an intermediate execution model decoupled from how the human-readable text was originally written. I built Section 5 to give concrete, easily adaptable JSON schemas for literals, references, operations, and function calls. This design allows PRMs to be built in Python, Rust, Node, etc., as long as they can stringify their parsed data into this JSON schema.
 
 ---
 
@@ -204,14 +286,11 @@ Actions mutate data in either the `new.*` or `var.*` namespaces. An action consi
 
 The following items represent design changes established during this language specification sequence that require formal updates to the main **Climatomaton Architecture Specification**:
 
-1. **Core Daemon Immediate Validation Pass (Section 4.1 Update):** * *Current State:* Section 4.1 says the Core Daemon loads rules and checks them on a broad loop.
-* *Required Change:* Update to specify that the Core Daemon must actively monitor the rules folder *and* the schemas folder using a file-watcher loop. The core must proactively parse and type-check incoming JSON AST files immediately upon modification of the rules file, **or** whenever a PEM schema is added, updated, or deleted.
-
-
+1. **Core Daemon Immediate Validation Pass (Section 4.1 Update):**
+   * *Current State:* Section 4.1 says the Core Daemon loads rules and checks them on a broad loop.
+   * *Required Change:* Update to specify that the Core Daemon must actively monitor the rules folder *and* the schemas folder using a file-watcher loop. The core must proactively parse and type-check incoming JSON-IR files immediately upon modification of the rules file, **or** whenever a PEM schema is added, updated, or deleted.
 2. **Validation Error Recovery Policy (Section 4.1 & 2.2 Update):**
-* *Required Change:* Detail the "Last-Known-Good" (LKG) fallback strategy. If a newly watched rule file fails semantic/static verification (or if an environment change suddenly renders the active rules invalid), the Core Daemon must not crash or drop the previous working state. It must drop the file change (or halt if a critical PEM vanished), log the validation trace, issue an admin alert, and keep processing utilizing the prior working version if possible.
-
-
+   * *Required Change:* Detail the "Last-Known-Good" (LKG) fallback strategy. If a newly watched JSON-IR file fails semantic/static verification (or if an environment change suddenly renders the active rules invalid, such as a PEM deletion), the Core Daemon must not crash or drop the previous working state. It must drop the file change (or halt execution readiness if a critical PEM vanished), log the validation trace, issue an admin alert, and keep processing utilizing the prior working version if possible.
 3. **PEM Schema Exchange & Registration Cadence (Section 4.2 Update):**
-* *Current State:* Section 4.2 governs the writing of data to shared volumes by PEMs but lacks an explicit data typing or schema declaration contract.
-* *Required Change:* Establish an initialization file contract where every registered PEM must write a static schema description file (e.g., `{pem_namespace}.schema.json`) to the shared IPC volume during its boot phase. The Core Daemon reads these files on startup and during dynamic reloads to successfully construct the type-checking reference map required for validating rule AST expressions.
+   * *Current State:* Section 4.2 governs the writing of data to shared volumes by PEMs but lacks an explicit data typing or schema declaration contract.
+   * *Required Change:* Establish an initialization file contract where every registered PEM must write a static schema description file (e.g., `{pem_namespace}.schema.json`) to the shared IPC volume during its boot phase. The Core Daemon reads these files on startup and during dynamic reloads to successfully construct the type-checking reference map required for validating JSON-IR expressions.
