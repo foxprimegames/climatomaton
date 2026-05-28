@@ -15,7 +15,14 @@ To prevent validation errors from blocking the processing of infrequent end-of-t
 1. When the system detects that the rules file has been updated.
 2. Whenever the Core Daemon receives new or updated environment schemas from any registered PEM.
 
-If a ruleset fails this validation pass, it is rejected before execution runtime.
+#### Rejection Before Execution Runtime
+
+If a ruleset fails this proactive validation pass, it is **rejected before execution runtime**. This means:
+
+* The invalid ruleset is completely discarded and never applied to any runtime context.
+* The Core Daemon retains its current in-memory, Last-Known-Good (LKG) valid ruleset to ensure continuous, uninterrupted processing of game data.
+* The system generates a high-severity log entry containing the exact validation or type-checking error.
+* The system emits a `sys.notification` event to alert administrators via the Discord interaction channel that the new ruleset is broken and was ignored.
 
 ### 1.3 Execution Conventions
 
@@ -56,7 +63,7 @@ Represents floating-point or integer numeric values.
 
 * **`=`** (Assignment): Overwrites the target number variable or transaction field with the evaluated numeric expression result.
 * **`+=`** (Addition Assignment): Adds the evaluated numeric expression to the current value of the target field.
-* **` -=`** (Subtraction Assignment): Subtracts the evaluated numeric expression from the current value of the target field.
+* **`-=`** (Subtraction Assignment): Subtracts the evaluated numeric expression from the current value of the target field.
 
 #### Functions / Methods
 
@@ -97,7 +104,11 @@ Represents true or false logic states.
 
 Represents a sequence of characters.
 
-* **Literal Representation:** Text enclosed in double (`"`) or single (`'`) quotes (e.g., `"Mild"`, `'Greenhouse'`). To include a quote character of the same type inside the string literal itself, it must be escaped using a backslash character (e.g., `"The engine reported: \"Anomalous Warmth\""` or `'It\'s a critical state'`).
+* **Literal Representation:** Text enclosed in double (`"`) or single (`'`) quotes (e.g., `"Mild"`, `'Greenhouse'`).
+* To include a quote character of the same type inside the string literal itself, it must be escaped using a backslash character (e.g., `"The engine reported: \"Anomalous Warmth\""` or `'It\'s a critical state'`).
+* To include a literal backslash character inside a string literal, it must be escaped using an additional backslash character (e.g., `"Path: C:\\Rules"` evaluates to the text sequence `Path: C:\Rules`).
+
+
 
 #### Expression Operators
 
@@ -183,7 +194,23 @@ Actions mutate data in either the `new.*` or `var.*` namespaces. An action consi
 
 ### Discussion & Notes
 
-* **Exponentiation Fully Restored:** The `` operator has its own fully itemized block under Section 2.1's Expression Operators now, guaranteeing it won't be overlooked in parser implementation.
-* **Operator Bifurcation:** Separating the operators into *Expression Operators* (side-effect-free evaluations returning a value) and *Mutation Operators* (state altering) significantly clarifies how the AST should handle execution semantics. Conditions are strictly limited to evaluating *Expression Operators*, while Actions require a *Mutation Operator* at their top-level node.
-* **String Escape Syntax:** Adding explicit backslash (`\`) escape tracking under literal representation prevents edge cases where rule writers need to output quotes or nested phrasing within natural language strings sent to Discord.
-* **AST Validation Mapping:** Now that we have this exact breakdown of expressions and mutations, the Core Daemon's semantic validator can easily enforce rule syntax safety: any mutation operator targeted at a read-only namespace path (`climate.`, `proposals.`, or unauthorized PEM variables) will instantly fail validation during the dynamic reload phase.
+* **Markdown Rendering Workaround:** Markdown parser logic was indeed stripping the unescaped `` string from the operator text block by interpreting it as an empty bold markdown tag (`****`). Placing it explicitly inside a code fence block (````) successfully guarantees that it renders accurately as the numeric exponentiation operator node.
+* **Standard Escaping Rules:** The addition of the standard double-backslash (`\\`) escape resolution matches conventions found in standard compilers, making it clear for both rule authors and the parser engineer how to safely inject characters.
+
+---
+
+### Consolidated List of Pending Architecture Document Updates
+
+The following items represent design changes established during this language specification sequence that require formal updates to the main **Climatomaton Architecture Specification**:
+
+1. **Core Daemon Immediate Validation Pass (Section 4.1 Update):** * *Current State:* Section 4.1 says the Core Daemon loads rules and checks them on a broad loop.
+* *Required Change:* Update to specify that the Core Daemon must actively monitor the rules folder using a file-watcher loop. The core must proactively parse and type-check incoming JSON AST files *immediately upon modification* rather than waiting for an EOT report arrival.
+
+
+2. **Validation Error Recovery Policy (Section 4.1 & 2.2 Update):**
+* *Required Change:* Detail the "Last-Known-Good" (LKG) fallback strategy. If a newly watched rule file fails semantic/static verification, the Core Daemon must not crash or drop the previous ruleset. It must drop the file change, log the validation trace, issue an admin alert, and keep processing utilizing the prior working version.
+
+
+3. **PEM Schema Exchange & Registration Cadence (Section 4.2 Update):**
+* *Current State:* Section 4.2 governs the writing of data to shared volumes by PEMs but lacks an explicit data typing or schema declaration contract.
+* *Required Change:* Establish an initialization file contract where every registered PEM must write a static schema description file (e.g., `{pem_namespace}.schema.json`) to the shared IPC volume during its boot phase. The Core Daemon reads these files on startup and during dynamic reloads to successfully construct the type-checking reference map required for validating rule AST expressions.

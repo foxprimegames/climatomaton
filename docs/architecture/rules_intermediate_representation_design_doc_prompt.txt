@@ -50,3 +50,10 @@ provide the results as the language design document; place any comments or discu
 2. the literal representation for strings does not indicate how a quote of the same type as the enclosing quotes can be included in the string literal.
 3. please separate the operators into expression operators and mutation operators.
 4. As always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.
+
+--
+
+1. you are still missing the exponentiation operator in the list of operators for number types.  it's possible that it is being stripped as part of your markup processing.
+2. please define what is meant by the ruleset being "rejected before execution runtime".
+3. if `\` is used to insert a quote in a quoted string, how does one insert a `\` in a quoted string?
+4. As always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.  please also include any previous notes about needed updates to the architecture document.
