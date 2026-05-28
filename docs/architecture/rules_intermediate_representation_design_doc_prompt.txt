@@ -5,3 +5,15 @@ based on the uploaded architecture document and original prompts that generated 
 the requirements for the climate rules and tag rules are in the first prompt included in the prompts file.
 
 To start with, please restate those requirements as the start of the language design document.  please place any comments or discussion after the end of the document itself.
+
+--
+
+we need to add a new type of data (a string) and refine the definitions for the existing types (number, tag list, and the implied boolean type).  for each type, we need to know how the type is represented as a literal, what operators can be applied to the type, and what functions (or methods) are defined for the type.
+
+you already have a good list of the operations for booleans and for numbers.  please come up with suggestions, based on how the types are used in the rules, for what operations should be applicable for strings and tag lists, and please come up with suggested functions (methods) for each type based on how they are used.
+
+i want to extend the definition of the variable namespace to allow for booleans, strings, or tag lists to be stored in addition to numbers.  please come up with a way for those to be strongly typed and statically type-checked by the rules parser.
+
+then refine the rest of the requirements based on the type definitions provided.
+
+provide the results as the language design document; place any comments or discussion after the end of the document itself.
