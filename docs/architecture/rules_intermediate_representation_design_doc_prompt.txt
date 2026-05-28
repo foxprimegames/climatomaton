@@ -1,0 +1,7 @@
+----
+
+based on the uploaded architecture document and original prompts that generated it, we need to generate a design document for the "language" (aka JSON schema) used for climate rules and tag rules.
+
+the requirements for the climate rules and tag rules are in the first prompt included in the prompts file.
+
+To start with, please restate those requirements as the start of the language design document.  please place any comments or discussion after the end of the document itself.
