@@ -6,7 +6,7 @@ This specification defines the syntax, data types, and execution model for the C
 
 ### 1.1 JSON-IR Compilation & Validation
 
-Rules are authored in an externally defined source format. The Pluggable Rules Module (PRM) is strictly responsible for the pure syntactic parsing of this source format into a structured **JSON Intermediate Representation (JSON-IR)**. This term replaces "AST" to ensure no specific parser architecture or parsing paradigm is enforced upon PRM developers; the JSON-IR is simply the standardized execution data model consumed by the Core Daemon. Because external Pluggable Environment Module (PEM) schemas and internal core schemas (`climate.`, `proposals.`) are not accessible to the PRM, the Core Daemon handles the symbolic/semantic evaluation and static type-checking pass upon receiving the JSON-IR.
+Rules are authored in an externally defined source format. The Pluggable Rules Module (PRM) is strictly responsible for the pure syntactic parsing of this source format into a structured **JSON Intermediate Representation (JSON-IR)**. The JSON-IR is the standardized execution data model consumed by the Core Daemon. Because external Pluggable Environment Module (PEM) schemas and internal core schemas are not accessible to the PRM, the Core Daemon handles the symbolic/semantic evaluation and static type-checking pass upon receiving the JSON-IR.
 
 ### 1.2 Validation & Re-Evaluation Lifecycle
 
@@ -16,14 +16,12 @@ To prevent validation errors from blocking the processing of infrequent end-of-t
 2. When the Core Daemon receives new or updated environment schemas from any registered PEM.
 3. When an existing environment schema is deleted or deregistered (e.g., a PEM goes offline and its schema is removed).
 
-#### Rejection Before Execution Runtime
+#### Rejection Before Execution Runtime & State Fallback
 
-If a ruleset fails this proactive validation pass, it is **rejected before execution runtime**. This means:
+If a ruleset fails this proactive validation pass, it is **rejected before execution runtime**. The exact fallback behavior depends on the trigger of the failure:
 
-* The invalid ruleset is completely discarded and never applied to any runtime context.
-* The Core Daemon retains its current in-memory, Last-Known-Good (LKG) valid ruleset to ensure continuous, uninterrupted processing of game data.
-* The system generates a high-severity log entry containing the exact validation or type-checking error.
-* The system emits a `sys.notification` event to alert administrators via the Discord interaction channel that the new ruleset is broken and was ignored.
+* **Ruleset Update Failure:** If the failure is due to a newly pushed, invalid ruleset, the invalid ruleset is completely discarded. The Core Daemon retains its current in-memory, Last-Known-Good (LKG) valid ruleset to ensure continuous, uninterrupted processing of game data. The system logs the exact validation error and emits a `sys.notification` event to alert administrators.
+* **Schema Modification/Deletion Failure:** If an environment schema changes or is deleted causing previously-defined environment namespace paths to no longer exist, the existing rules suddenly fail validation. In this case, there is no LKG version. The fallback is to immediately place the system into a **PAUSED** mode. The system halts all EOT report processing and dispatches a high-severity `sys.notification` to administrators detailing the broken dependencies and the paused state.
 
 ### 1.3 Execution Conventions
 
@@ -31,13 +29,15 @@ Because the JSON-IR permits general-purpose actions across valid data types, the
 
 ### 1.4 Strict Failure Policy
 
-If at any point during execution a rule attempts to resolve an undefined namespace path, performs an invalid operation (e.g., a failed type conversion or mismatched type operation), or encounters any other execution error, **all rule processing is immediately aborted**. The system logs the specific failure, alerts administrators, and discards all pending transactions. No default values are ever assumed.
+If at any point during execution a rule attempts to resolve an undefined namespace path, performs an invalid operation (e.g., a failed type conversion), or encounters any other execution error, **all rule processing is immediately aborted**. The system logs the specific failure, alerts administrators, and discards all pending transactions. No default values are ever assumed.
 
 ---
 
 ## 2. Type System & Operations
 
-The rule language supports four distinct primitives. All operations, parameters, and return types are strongly typed.
+The rule language supports four distinct primitives. All operations, parameters, and return types are strongly typed. To guarantee standardized interpretation across any language or parser, the JSON-IR utilizes standardized short-word keywords for all operators rather than symbols.
+
+Note: For functions, both the function call syntax (e.g., `has(list, tag)`) and the method call syntax (e.g., `list.has(tag)`) are provided below for source-language design flexibility. The JSON-IR format remains identical regardless of the source language syntax chosen.
 
 ### 2.1 Number
 
@@ -47,39 +47,39 @@ Represents floating-point or integer numeric values.
 
 #### Expression Operators
 
-* **Addition (`+`)**: Adds two numeric values. Returns a Number.
-* **Subtraction (`-`)**: Subtracts the right numeric value from the left. Returns a Number.
-* **Multiplication (`*`)**: Multiplies two numeric values. Returns a Number.
-* **Division (`/`)**: Divides the left numeric value by the right. Returns a Number. Triggers a strict failure if the divisor evaluates to `0`.
-* **Modulo (`%`)**: Returns the remainder of division of the left numeric value by the right. Returns a Number.
-* **Exponentiation**: Uses the double-asterisk string (`""`). Raises the left numeric value to the power of the right numeric value. Returns a Number.
-* **Equality (`==`)**: Evaluates if two numeric values are equal. Returns a Boolean.
-* **Inequality (`!=`)**: Evaluates if two numeric values are not equal. Returns a Boolean.
-* **Less Than (`<`)**: Evaluates if the left value is strictly less than the right value. Returns a Boolean.
-* **Less Than or Equal (`<=`)**: Evaluates if the left value is less than or equal to the right value. Returns a Boolean.
-* **Greater Than (`>`)**: Evaluates if the left value is strictly greater than the right value. Returns a Boolean.
-* **Greater Than or Equal (`>=`)**: Evaluates if the left value is greater than or equal to the right value. Returns a Boolean.
+* **Addition (`ADD`)**: Adds two numeric values. Returns a Number.
+* **Subtraction (`SUB`)**: Subtracts the right numeric value from the left. Returns a Number.
+* **Multiplication (`MUL`)**: Multiplies two numeric values. Returns a Number.
+* **Division (`DIV`)**: Divides the left numeric value by the right. Returns a Number. Triggers a strict failure if the divisor evaluates to `0`.
+* **Modulo (`MOD`)**: Returns the remainder of division of the left numeric value by the right. Returns a Number.
+* **Exponentiation (`EXP`)**: Raises the left numeric value to the power of the right numeric value. Returns a Number.
+* **Equality (`EQ`)**: Evaluates if two numeric values are equal. Returns a Boolean.
+* **Inequality (`NEQ`)**: Evaluates if two numeric values are not equal. Returns a Boolean.
+* **Less Than (`LT`)**: Evaluates if the left value is strictly less than the right value. Returns a Boolean.
+* **Less Than or Equal (`LTE`)**: Evaluates if the left value is less than or equal to the right value. Returns a Boolean.
+* **Greater Than (`GT`)**: Evaluates if the left value is strictly greater than the right value. Returns a Boolean.
+* **Greater Than or Equal (`GTE`)**: Evaluates if the left value is greater than or equal to the right value. Returns a Boolean.
 
 #### Mutation Operators
 
-* **Assignment (`=`)**: Overwrites the target number variable or transaction field with the evaluated numeric expression result.
-* **Addition Assignment (`+=`)**: Adds the evaluated numeric expression to the current value of the target field.
-* **Subtraction Assignment (`-=`)**: Subtracts the evaluated numeric expression from the current value of the target field.
+* **Assignment (`ASSIGN`)**: Overwrites the target number variable or transaction field with the evaluated numeric expression result.
+* **Addition Assignment (`ADD_ASSIGN`)**: Adds the evaluated numeric expression to the current value of the target field.
+* **Subtraction Assignment (`SUB_ASSIGN`)**: Subtracts the evaluated numeric expression from the current value of the target field.
 
 #### Functions / Methods
 
-* **`abs(n)`**: Returns the absolute value of the numeric expression `n`.
-* **`round(n, [precision])`**: Rounds `n` to the nearest integer, or to a specified integer `precision` decimal places.
-* **`min(n1, n2, ...)`**: Accepts an arbitrary number of numeric arguments and returns the lowest value.
-* **`max(n1, n2, ...)`**: Accepts an arbitrary number of numeric arguments and returns the highest value.
-* **`clamp(n, min_val, max_val)`**: Constrains `n` so it does not fall below `min_val` or exceed `max_val`. Returns a Number.
-* **`within(n, lo, hi, [bounds])`**: Evaluates whether `n` falls within the range between `lo` and `hi`. The optional `bounds` parameter accepts a string literal defining inclusivity boundaries:
+* **`abs(n)` / `n.abs()**`: Returns the absolute value of the numeric expression `n`.
+* **`round(n, [precision])` / `n.round([precision])**`: Rounds `n` to the nearest integer, or to a specified integer `precision` decimal places.
+* **`min(n1, n2, ...)` / `n1.min(n2, ...)**`: Accepts an arbitrary number of numeric arguments and returns the lowest value.
+* **`max(n1, n2, ...)` / `n1.max(n2, ...)**`: Accepts an arbitrary number of numeric arguments and returns the highest value.
+* **`clamp(n, min_val, max_val)` / `n.clamp(min_val, max_val)**`: Constrains `n` so it does not fall below `min_val` or exceed `max_val`. Returns a Number.
+* **`within(n, lo, hi, [bounds])` / `n.within(lo, hi, [bounds])**`: Evaluates whether `n` falls within the range between `lo` and `hi`. The optional `bounds` parameter accepts a string literal defining inclusivity boundaries:
   * `"[]"` (Default): Inclusive/Inclusive ($lo \le n \le hi$)
   * `"()"`: Exclusive/Exclusive ($lo < n < hi$)
   * `"[)"`: Inclusive/Exclusive ($lo \le n < hi$)
   * `"(]"`: Exclusive/Inclusive ($lo < n \le hi$)
   * Returns a Boolean.
-* **`to_string(n)`**: Converts the numeric value `n` to its literal string representation. Returns a String.
+* **`to_string(n)` / `n.to_string()**`: Converts the numeric value `n` to its literal string representation. Returns a String.
 
 ### 2.2 Boolean
 
@@ -89,41 +89,41 @@ Represents true or false logic states.
 
 #### Expression Operators
 
-* **Logical Conjunction (`and`)**: Evaluates to `true` if both left and right expressions are true. Returns a Boolean.
-* **Logical Disjunction (`or`)**: Evaluates to `true` if either the left or right expression is true. Returns a Boolean.
-* **Logical Negation (`not`)**: Unary operator that inverts the boolean value of the expression. Returns a Boolean.
-* **Equality (`==`)**: Evaluates if two boolean states are identical. Returns a Boolean.
-* **Inequality (`!=`)**: Evaluates if two boolean states are opposite. Returns a Boolean.
+* **Logical Conjunction (`AND`)**: Evaluates to `true` if both left and right expressions are true. Returns a Boolean.
+* **Logical Disjunction (`OR`)**: Evaluates to `true` if either the left or right expression is true. Returns a Boolean.
+* **Logical Negation (`NOT`)**: Unary operator that inverts the boolean value of the expression. Returns a Boolean.
+* **Equality (`EQ`)**: Evaluates if two boolean states are identical. Returns a Boolean.
+* **Inequality (`NEQ`)**: Evaluates if two boolean states are opposite. Returns a Boolean.
 
 #### Mutation Operators
 
-* **Assignment (`=`)**: Overwrites the target boolean variable or transaction field with the evaluated boolean expression result.
+* **Assignment (`ASSIGN`)**: Overwrites the target boolean variable or transaction field with the evaluated boolean expression result.
 
 ### 2.3 String
 
 Represents a sequence of characters.
 
-* **Literal Representation:** Text enclosed in double (`"`) or single (`'`) quotes (e.g., `"Mild"`, `'Greenhouse'`).
-  * To include a quote character of the same type inside the string literal itself, it must be escaped using a backslash character (e.g., `"The engine reported: \"Anomalous Warmth\""` or `'It\'s a critical state'`).
-  * To include a literal backslash character inside a string literal, it must be escaped using an additional backslash character (e.g., `"Path: C:\\Rules"` evaluates to the text sequence `Path: C:\Rules`).
+* **Literal Representation:** Text enclosed in double (`"`) or single (`'`) quotes.
+  * To include a quote character of the same type inside the string literal itself, it must be escaped using a backslash character (`\`).
+  * To include a literal backslash character inside a string literal, it must be escaped using an additional backslash character (`\\`).
 
 #### Expression Operators
 
-* **Concatenation (`+`)**: Joins two string expressions sequentially together. Returns a String.
-* **Equality (`==`)**: Evaluates if two strings contain the exact same character sequence. Returns a Boolean.
-* **Inequality (`!=`)**: Evaluates if two strings differ in character sequence. Returns a Boolean.
+* **Concatenation (`CONCAT`)**: Joins two string expressions sequentially together. Returns a String.
+* **Equality (`EQ`)**: Evaluates if two strings contain the exact same character sequence. Returns a Boolean.
+* **Inequality (`NEQ`)**: Evaluates if two strings differ in character sequence. Returns a Boolean.
 
 #### Mutation Operators
 
-* **Assignment (`=`)**: Overwrites the target string variable or transaction field with the evaluated string expression result.
+* **Assignment (`ASSIGN`)**: Overwrites the target string variable or transaction field with the evaluated string expression result.
 
 #### Functions / Methods
 
-* **`length(s)`**: Returns the total character count of the string `s`. Returns a Number.
-* **`contains(s, substring)`**: Evaluates whether the exact text sequence `substring` exists within string `s`. Returns a Boolean.
-* **`starts_with(s, prefix)`**: Evaluates whether string `s` begins with the exact text sequence `prefix`. Returns a Boolean.
-* **`ends_with(s, suffix)`**: Evaluates whether string `s` ends with the exact text sequence `suffix`. Returns a Boolean.
-* **`to_number(s)`**: Parses a string representation of digits into a valid numeric value. Returns a Number. Triggers a strict failure abort if `s` contains characters that cannot form a valid integer or float.
+* **`length(s)` / `s.length()**`: Returns the total character count of the string `s`. Returns a Number.
+* **`contains(s, substring)` / `s.contains(substring)**`: Evaluates whether the exact text sequence `substring` exists within string `s`. Returns a Boolean.
+* **`starts_with(s, prefix)` / `s.starts_with(prefix)**`: Evaluates whether string `s` begins with the exact text sequence `prefix`. Returns a Boolean.
+* **`ends_with(s, suffix)` / `s.ends_with(suffix)**`: Evaluates whether string `s` ends with the exact text sequence `suffix`. Returns a Boolean.
+* **`to_number(s)` / `s.to_number()**`: Parses a string representation of digits into a valid numeric value. Returns a Number. Triggers a strict failure abort if `s` contains characters that cannot form a valid integer or float.
 
 ### 2.4 Tag List
 
@@ -133,43 +133,49 @@ Represents a mathematical set of unique string tags, preserving insertion order.
 
 #### Expression Operators
 
-* **Equality (`==`)**: Evaluates if two lists contain the exact same unique tags, regardless of ordering. Returns a Boolean.
-* **Inequality (`!=`)**: Evaluates if there is any mismatch of unique tags between the two lists. Returns a Boolean.
+* **Equality (`EQ`)**: Evaluates if two lists contain the exact same unique tags, regardless of ordering. Returns a Boolean.
+* **Inequality (`NEQ`)**: Evaluates if there is any mismatch of unique tags between the two lists. Returns a Boolean.
 
 #### Mutation Operators
 
-* **Assignment (`=`)**: Overwrites the target tag list variable or transaction field completely with a new tag list.
-* **Set Union (`includes`)**: Appends elements to the target list if they do not already exist. Accepts a single String expression or a Tag List expression.
-* **Set Difference (`excludes`)**: Removes elements from the target list if they exist. Accepts a single String expression or a Tag List expression.
+* **Assignment (`ASSIGN`)**: Overwrites the target tag list variable or transaction field completely with a new tag list.
+* **Set Union (`INCLUDES`)**: Appends elements to the target list if they do not already exist. Accepts a single String expression or a Tag List expression.
+* **Set Difference (`EXCLUDES`)**: Removes elements from the target list if they exist. Accepts a single String expression or a Tag List expression.
 
 #### Functions / Methods
 
-* **`length(list)`**: Returns the total count of unique tags currently in `list`. Returns a Number.
-* **`has(list, tag)`**: Evaluates whether the single string expression `tag` is present within `list`. Returns a Boolean.
-* **`has_any(list, tag_list)`**: Evaluates whether at least one tag inside the expression `tag_list` is present within `list`. Returns a Boolean.
-* **`has_all(list, tag_list)`**: Evaluates whether every tag inside the expression `tag_list` is present within `list`. Returns a Boolean.
-* **`is_empty(list)`**: Evaluates whether the list contains zero elements. Returns a Boolean.
+* **`length(list)` / `list.length()**`: Returns the total count of unique tags currently in `list`. Returns a Number.
+* **`has(list, tag)` / `list.has(tag)**`: Evaluates whether the single string expression `tag` is present within `list`. Returns a Boolean.
+* **`has_any(list, tag_list)` / `list.has_any(tag_list)**`: Evaluates whether at least one tag inside the expression `tag_list` is present within `list`. Returns a Boolean.
+* **`has_all(list, tag_list)` / `list.has_all(tag_list)**`: Evaluates whether every tag inside the expression `tag_list` is present within `list`. Returns a Boolean.
+* **`is_empty(list)` / `list.is_empty()**`: Evaluates whether the list contains zero elements. Returns a Boolean.
 
 ---
 
 ## 3. Environments and Static Typing
 
-Rules execute against contextual data sets accessed via `.`-separated identifiers. The Core Daemon utilizes these specific namespace prefixes and registered schemas to perform semantic analysis and type checking.
+Rules execute against contextual data sets accessed via a `NamespacePath`. A `NamespacePath` is a generic series of `.`-separated identifiers. The first identifier dictates the environment namespace, and subsequent identifiers traverse the structured data set.
 
 * **`climate.*` (Read-Only):** The historical baseline state prior to rule execution.
-* **`proposals.*` (Read-Only):** Summary of EOT data (e.g., `proposals.count`, `proposals.passed`).
+* **`proposals.*` (Read-Only):** Summary of EOT data.
 * **`{pem_namespace}.*` (Read-Only):** Externally provided data modules.
-* **`new.*` (Mutable):** The transaction environment initialized from `climate.*` and mutable PEM keys.
+* **`new.*` (Mutable):** The transaction environment initialized from explicitly registered mutable fields.
 * **`var.*` (Mutable):** A flat set of ephemeral variables that persist only for the duration of a single rule execution cycle.
 
 ### 3.1 The Variable Environment (`var.`) & Strong Typing
 
-To satisfy the requirement that variables are **not predefined** while guaranteeing **static type-checking** during the Core Daemon's validation pass, the `var.` namespace utilizes **Type Partitioning via Prefixes**. The identifier path itself explicitly dictates the data type:
+To satisfy the requirement that variables are not predefined while guaranteeing static type-checking during the Core Daemon's validation pass, the `var.` namespace utilizes **Type Partitioning via Prefixes**. The identifier path explicitly dictates the data type:
 
 * **`var.n.*` (Numbers):** Auto-initializes to `0`.
 * **`var.b.*` (Booleans):** Auto-initializes to `false`.
 * **`var.s.*` (Strings):** Auto-initializes to `""` (empty string).
 * **`var.l.*` (Tag Lists):** Auto-initializes to `[]` (empty list).
+
+### 3.2 PEM Schemas & Environment Typing
+
+Because the Core Engine performs the semantic and type validation of rules, it must understand the data types present in external namespaces. Every PEM must provide a corresponding static schema file (e.g., `{pem_namespace}.schema.json`) mapping its namespace paths to their primitive types.
+
+To prevent schemas from becoming excessively verbose for highly nested data, the schema definitions support wildcard pattern mapping. For example, a PEM schema might declare `weather.regions.*.temp` as a `Number`, which informs the Core Engine that any identifier matching that generic path pattern during rule evaluation is strongly typed as a Number.
 
 ---
 
@@ -189,11 +195,9 @@ Actions mutate data in either the `new.*` or `var.*` namespaces. An action consi
 
 ## 5. JSON Intermediate Representation (JSON-IR)
 
-To decouple the PRM's source-language parser from the Core Daemon's execution engine, rules are communicated via a strict **JSON Intermediate Representation (JSON-IR)**. This format standardizes how conditions and actions are structured for the semantic validator and the execution runtime.
+To decouple the PRM's source-language parser from the Core Daemon's execution engine, rules are communicated via a strict **JSON-IR**.
 
 ### 5.1 Root Document Structure
-
-The root JSON document represents the complete ruleset, divided into the two required execution phases:
 
 ```json
 {
@@ -203,8 +207,6 @@ The root JSON document represents the complete ruleset, divided into the two req
 ```
 
 ### 5.2 Rule Object
-
-Each rule inside the `climate_rules` or `tag_rules` array is an object containing its name, an array of condition expressions (implicitly joined by a logical AND), and an array of action mutations.
 
 ```json
 {
@@ -216,36 +218,35 @@ Each rule inside the `climate_rules` or `tag_rules` array is an object containin
 
 ### 5.3 Expression Nodes
 
-Expressions (used in conditions or on the right side of mutations) are represented by nested node objects. Every expression node must declare a `"type"`.
+* **Literal Node:**
 
-* **Literal Node:** Represents a hardcoded value. Requires a `datatype` indicator for type-checking.
 ```json
 { "type": "literal", "datatype": "number", "value": 15 }
-{ "type": "literal", "datatype": "tag_list", "value": ["Mild", "Windy"] }
 ```
 
-* **Reference Node:** Represents a dynamic lookup in an environment namespace.
+* **Reference Node:**
+
 ```json
 { "type": "reference", "path": "climate.value" }
 ```
 
-* **Operator Node:** Represents a side-effect-free evaluation. Requires an `"op"` string, a `"left"` expression node, and (except for unary `not`) a `"right"` expression node.
+* **Operator Node:**
+
 ```json
 {
   "type": "operator",
-  "op": "**",
+  "op": "EXP",
   "left": { "type": "reference", "path": "var.n.base_multiplier" },
   "right": { "type": "literal", "datatype": "number", "value": 2 }
 }
 ```
 
+* **Function Node:** Represents a method call. Requires a `"name"` string and an `"args"` array of expression nodes. *(See 5.5 for signature resolution)*.
 
-
-* **Function Node:** Represents a method call. Requires a `"name"` string and an `"args"` array of expression nodes.
 ```json
 {
   "type": "function",
-  "name": "within",
+  "name": "within_number_number_number_string",
   "args": [
     { "type": "reference", "path": "climate.value" },
     { "type": "literal", "datatype": "number", "value": 10 },
@@ -257,12 +258,10 @@ Expressions (used in conditions or on the right side of mutations) are represent
 
 ### 5.4 Mutation Nodes (Actions)
 
-Mutations dictate state changes. They define the `"target"` namespace path, the mutation `"op"`, and the `"expression"` node that evaluates to the new value or modifier.
-
 ```json
 {
   "target": "new.climate.value",
-  "op": "+=",
+  "op": "ADD_ASSIGN",
   "expression": {
     "type": "literal",
     "datatype": "number",
@@ -271,26 +270,28 @@ Mutations dictate state changes. They define the `"target"` namespace path, the 
 }
 ```
 
+### 5.5 Function Signature Resolution (Name Mangling)
+
+Because the rule language permits functions with the same name but different argument counts or argument types (function overloading), the JSON-IR requires the PRM parser to programmatically generate a unique name for the function node's `"name"` attribute.
+
+This is accomplished by appending the data types of the provided arguments directly to the function name (name mangling). The Core Engine registers and validates these specific, mangled signatures. For example, if a rule calls `within` with three numbers, the PRM parses the name as `within_number_number_number`. If it includes the optional bounds string, the PRM parses it as `within_number_number_number_string`. This guarantees explicit, unambiguous static type-checking within the Core Daemon.
+
 ---
 
 ---
 
 ### Discussion & Notes
 
-* **Exponentiation Formatting:** I altered the markdown syntax entirely for that line item. Instead of putting backticks inside parentheses, I used explicit phrasing: `Uses the double-asterisk string ("")`. This definitively prevents Markdown formatting from eating the character sequence regardless of the client-side parser rules.
-* **AST Terminology Replacement:** The term "JSON Intermediate Representation" (JSON-IR) accurately describes exactly what this system does—it's an intermediate execution model decoupled from how the human-readable text was originally written. I built Section 5 to give concrete, easily adaptable JSON schemas for literals, references, operations, and function calls. This design allows PRMs to be built in Python, Rust, Node, etc., as long as they can stringify their parsed data into this JSON schema.
-
----
+* **Generic Namespace Path Implementation:** As incorporated into Section 3, the `NamespacePath` definition has been generalized as a generic series of dot-separated identifiers. The `climate` and `proposals` prefixes are explicitly recognized internal paths, but the logic naturally extends to any arbitrary prefix supplied by a schema, ensuring strict adherence to the system's modular, pluggable nature.
+* **Function and Method Syntax Parity:** Section 2 was successfully updated to display both standard function call syntax and method call syntax. This approach explicitly unblocks PRM source language designers who may prefer object-oriented dot-notation without demanding any structural change to the underlying JSON-IR implementation.
+* **Operator Standardisation:** The JSON-IR expression node operations have all been mapped to standard short-word strings (e.g., `EXP`, `ADD_ASSIGN`, `CONCAT`). This completely eliminates any symbol escaping complexity that might arise during JSON serialization.
 
 ### Consolidated List of Pending Architecture Document Updates
 
-The following items represent design changes established during this language specification sequence that require formal updates to the main **Climatomaton Architecture Specification**:
+The following items represent design changes established during the rule language specification sequence that require formal updates to the main **Climatomaton Architecture Specification**:
 
-1. **Core Daemon Immediate Validation Pass (Section 4.1 Update):**
-   * *Current State:* Section 4.1 says the Core Daemon loads rules and checks them on a broad loop.
-   * *Required Change:* Update to specify that the Core Daemon must actively monitor the rules folder *and* the schemas folder using a file-watcher loop. The core must proactively parse and type-check incoming JSON-IR files immediately upon modification of the rules file, **or** whenever a PEM schema is added, updated, or deleted.
-2. **Validation Error Recovery Policy (Section 4.1 & 2.2 Update):**
-   * *Required Change:* Detail the "Last-Known-Good" (LKG) fallback strategy. If a newly watched JSON-IR file fails semantic/static verification (or if an environment change suddenly renders the active rules invalid, such as a PEM deletion), the Core Daemon must not crash or drop the previous working state. It must drop the file change (or halt execution readiness if a critical PEM vanished), log the validation trace, issue an admin alert, and keep processing utilizing the prior working version if possible.
-3. **PEM Schema Exchange & Registration Cadence (Section 4.2 Update):**
-   * *Current State:* Section 4.2 governs the writing of data to shared volumes by PEMs but lacks an explicit data typing or schema declaration contract.
-   * *Required Change:* Establish an initialization file contract where every registered PEM must write a static schema description file (e.g., `{pem_namespace}.schema.json`) to the shared IPC volume during its boot phase. The Core Daemon reads these files on startup and during dynamic reloads to successfully construct the type-checking reference map required for validating JSON-IR expressions.
+1. **Core Daemon Immediate Validation Pass:** Update Section 4.1 to specify that the Core Daemon must actively monitor the rules folder and the schemas folder. It must proactively parse and type-check incoming JSON-IR files immediately upon modification of the rules file, or whenever a PEM schema is added, updated, or deleted.
+2. **Validation Error Recovery Policy:** Update the architecture to reflect the exact fallback strategies:
+   * **LKG Fallback:** If a newly watched JSON-IR file fails semantic/static verification, the Core Daemon discards it, retains the prior working version, logs the trace, and issues an admin alert.
+   * **PAUSED Fallback (New):** If an environment change (like a PEM deletion) renders the active rules invalid, there is no "last-known-good" ruleset to fall back to. The Core Daemon must immediately drop into a **PAUSED** state, halt EOT reporting, and notify the administrators.
+3. **PEM Schema Exchange & Registration Cadence:** Establish an initialization file contract (updating Section 4.2) where every registered PEM must write a static schema description file (e.g., `{pem_namespace}.schema.json`) to the shared IPC volume. The Core Daemon reads these files on startup and during dynamic reloads to successfully construct the type-checking reference map required for validating JSON-IR expressions. This section should also note the implementation of wildcard path matching to streamline heavily nested module schemas.
