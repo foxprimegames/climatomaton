@@ -170,3 +170,9 @@ as always, please process the above issues into the language design document and
 4. please update the PEM schema exchange description in the pending architecture updates to refer the details to the PEM design documents, unless those details need to be kept at the architecture document level.
 
 as always, please process the above issues into the language design document and display that document; place any comments, new issues, other discussion points, or question after the end of the document itself.  please also include any previous notes about needed updates to the architecture document, after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
+
+--
+
+in the PEM Schema Exchange section of the pending architecture updates, do not talk about pattern matching constraints, since that is part of the specification that will be defined in the design document.  just say that the structure, syntax, and semantics of the schema files will be defined there.
+
+as always, please process the above issues into the language design document and display that document; place any comments, new issues, other discussion points, or question after the end of the document itself.  please also include any previous notes about needed updates to the architecture document, after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.

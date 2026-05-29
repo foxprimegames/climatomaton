@@ -449,9 +449,8 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
 
 ### Discussion Points & Notes
 
-* **Formatting Revisions:** The nested list structure for the `within` function arguments and the Architecture Document's fallback policies have been restored for improved readability.
-* **Markdown Math Replacements:** All LaTeX delimiters (`$`) have been purged from the document. The numeric boundary equations are now rendered in monospace inline code blocks using standard Unicode logic symbols (e.g., `≤`).
-* **Schema Decentralization:** The architecture document updates now correctly defer the exact internal logic of the PEM schema structure directly to the forthcoming PEM Design Document, limiting the scope of the architecture changes solely to establishing the IPC file contract.
+* **Architecture Update Scope:** The details about the PEM schema structure have been successfully relocated out of the architecture specification updates. The architecture-level contract now simply mandates the existence and purpose of the `.schema.json` file on the IPC volume, cleanly delegating the definition of its internals to the PEM design document.
+* **Next Steps:** With the JSON-IR syntax and static type constraints settled in this document, we have everything we need to start either the Rules Engine Design Document or the Pluggable Environment Module (PEM) Design Document. Both will rely on the foundations established here.
 
 ---
 
@@ -465,7 +464,7 @@ The following items reflect architecture modifications driven by ongoing languag
 2. **Validation Error Recovery Policy:** Update the architecture to reflect the exact fallback strategies:
    * **LKG Fallback:** If a newly watched JSON-IR file fails semantic/static verification, the Core Daemon discards it, retains the prior working version, logs the trace, and issues an admin alert.
    * **PAUSED Fallback:** If an environment change (like a PEM deletion) renders the active rules invalid, there is no "last-known-good" ruleset to fall back to. The Core Daemon must immediately drop into a **PAUSED** state, halt EOT reporting, and notify the administrators.
-3. **PEM Schema Exchange & Registration Cadence:** Establish an initialization file contract (updating Section 4.2) where every registered PEM must write a static schema description file (e.g., `{pem_namespace}.schema.json`) to the shared IPC volume. The Core Daemon reads these files on startup and during dynamic reloads to successfully construct the type-checking reference map required for validating JSON-IR expressions. The specific structure, syntax, and pattern matching constraints of these schema files are defined in the **Pluggable Environment Module (PEM) Design Document**.
+3. **PEM Schema Exchange & Registration Cadence:** Establish an initialization file contract (updating Section 4.2) where every registered PEM must write a static schema description file (e.g., `{pem_namespace}.schema.json`) to the shared IPC volume. The Core Daemon reads these files on startup and during dynamic reloads to successfully construct the type-checking reference map required for validating JSON-IR expressions. The specific structure, syntax, and semantics of these schema files are defined in the **Pluggable Environment Module (PEM) Design Document**.
 
 #### Pluggable Environment Module (PEM) Design Document
 
