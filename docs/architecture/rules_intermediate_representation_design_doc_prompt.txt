@@ -161,3 +161,12 @@ as always, please process the above issues into the language design document and
 3. please add the PEM design document to the pending updates list :) we have to define the exact syntax and semantics of the schema file, including how the pattern matching format is passed along.
 
 as always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points after the end of the document itself.  please also include any previous notes about needed updates to the architecture document, after any comments, new issues, or discussion points.  finally, please avoid any trailing spaces in your output.
+
+--
+
+1. please restore the prior description of the `within` function using a nested list for the `bounds` parameter.
+2. similarly, please restore the prior description of the Validation Error Recovery Policy in the pending updates for the architecture document.
+3. please replace all latex / math expressions (surrounded by `$`) with standard markdown expressions.  for symbols such as less-than-or-equal-to and others, you can either use the standard ASCII representation (e.g. `<=`) or the unicode glyph (`≤`).  the math expressions can be rendered in code blocks or italics, whichever conforms to regular practices and fits best within the document.
+4. please update the PEM schema exchange description in the pending architecture updates to refer the details to the PEM design documents, unless those details need to be kept at the architecture document level.
+
+as always, please process the above issues into the language design document and display that document; place any comments, new issues, other discussion points, or question after the end of the document itself.  please also include any previous notes about needed updates to the architecture document, after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.

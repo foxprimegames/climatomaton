@@ -75,7 +75,12 @@ Represents floating-point or integer numeric values. The specific memory limits 
 * **`min(n1, n2, ...)`** / **`n1.min(n2, ...)`**: Accepts an arbitrary number of numeric arguments and returns the lowest value.
 * **`max(n1, n2, ...)`** / **`n1.max(n2, ...)`**: Accepts an arbitrary number of numeric arguments and returns the highest value.
 * **`clamp(n, min_val, max_val)`** / **`n.clamp(min_val, max_val)`**: Constrains `n` so it does not fall below `min_val` or exceed `max_val`. Returns a Number.
-* **`within(n, lo, hi, [bounds])`** / **`n.within(lo, hi, [bounds])`**: Evaluates whether `n` falls within the range between `lo` and `hi`. The optional `bounds` parameter accepts a string literal defining inclusivity boundaries: `"[]"` (Default) for Inclusive/Inclusive ($lo \le n \le hi$), `"()"` for Exclusive/Exclusive ($lo < n < hi$), `"[)"` for Inclusive/Exclusive ($lo \le n < hi$), or `"(]"` for Exclusive/Inclusive ($lo < n \le hi$). Returns a Boolean.
+* **`within(n, lo, hi, [bounds])`** / **`n.within(lo, hi, [bounds])`**: Evaluates whether `n` falls within the range between `lo` and `hi`. The optional `bounds` parameter accepts a string literal defining inclusivity boundaries:
+  * `"[]"` (Default): Inclusive/Inclusive (`lo ≤ n ≤ hi`)
+  * `"()"`: Exclusive/Exclusive (`lo < n < hi`)
+  * `"[)"`: Inclusive/Exclusive (`lo ≤ n < hi`)
+  * `"(]"`: Exclusive/Inclusive (`lo < n ≤ hi`)
+  * Returns a Boolean.
 * **`to_string(n)`** / **`n.to_string()`**: Converts the numeric value `n` to its literal string representation. Returns a String.
 
 ### 2.2 Boolean
@@ -442,10 +447,11 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
 
 ---
 
-### Discussion Points & New Issues
+### Discussion Points & Notes
 
-* **Delegating Schema Responsibilities:** Shifting the detailed schema definitions entirely to the PEM Design Document is a solid architectural decision. It keeps the Language Specification strictly focused on operations and JSON-IR, while standardizing how external plugins communicate their data footprints in their own dedicated space.
-* **Variable Depth Restriction:** Making the one-level identifier restriction explicit for the `var` namespace ensures rule authors cannot accidentally (or purposefully) attempt to build complex, nested object trees in memory during a single execution cycle, enforcing the ephemeral and flat nature of transaction variables.
+* **Formatting Revisions:** The nested list structure for the `within` function arguments and the Architecture Document's fallback policies have been restored for improved readability.
+* **Markdown Math Replacements:** All LaTeX delimiters (`$`) have been purged from the document. The numeric boundary equations are now rendered in monospace inline code blocks using standard Unicode logic symbols (e.g., `≤`).
+* **Schema Decentralization:** The architecture document updates now correctly defer the exact internal logic of the PEM schema structure directly to the forthcoming PEM Design Document, limiting the scope of the architecture changes solely to establishing the IPC file contract.
 
 ---
 
@@ -456,8 +462,10 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
 The following items reflect architecture modifications driven by ongoing language updates that must be synchronized into the main **Climatomaton Architecture Specification**:
 
 1. **Core Daemon Immediate Validation Pass:** Update Section 4.1 to specify that the Core Daemon must actively monitor the rules folder and the schemas folder. It must proactively parse and type-check incoming JSON-IR files immediately upon modification of the rules file, or whenever a PEM schema is added, updated, or deleted.
-2. **Validation Error Recovery Policy:** Update the architecture to reflect the exact fallback strategies. For **LKG Fallback**, if a newly watched JSON-IR file fails semantic/static verification, the Core Daemon discards it, retains the prior working version, logs the trace, and issues an admin alert. For **PAUSED Fallback**, if an environment change (like a PEM deletion) renders the active rules invalid, there is no "last-known-good" ruleset to fall back to; the Core Daemon must immediately drop into a **PAUSED** state, halt EOT reporting, and notify the administrators.
-3. **PEM Schema Exchange & Registration Cadence:** Establish an initialization file contract (updating Section 4.2) where every registered PEM must write a static schema description file (e.g., `{pem_namespace}.schema.json`) to the shared IPC volume. This schema maps namespace paths to their primitive types and supports pattern mapping to prevent excessive verbosity for highly nested data. The schema must also explicitly indicate which form of pattern matching it utilizes. The Core Daemon reads these files on startup and during dynamic reloads to successfully construct the type-checking reference map required for validating JSON-IR expressions.
+2. **Validation Error Recovery Policy:** Update the architecture to reflect the exact fallback strategies:
+   * **LKG Fallback:** If a newly watched JSON-IR file fails semantic/static verification, the Core Daemon discards it, retains the prior working version, logs the trace, and issues an admin alert.
+   * **PAUSED Fallback:** If an environment change (like a PEM deletion) renders the active rules invalid, there is no "last-known-good" ruleset to fall back to. The Core Daemon must immediately drop into a **PAUSED** state, halt EOT reporting, and notify the administrators.
+3. **PEM Schema Exchange & Registration Cadence:** Establish an initialization file contract (updating Section 4.2) where every registered PEM must write a static schema description file (e.g., `{pem_namespace}.schema.json`) to the shared IPC volume. The Core Daemon reads these files on startup and during dynamic reloads to successfully construct the type-checking reference map required for validating JSON-IR expressions. The specific structure, syntax, and pattern matching constraints of these schema files are defined in the **Pluggable Environment Module (PEM) Design Document**.
 
 #### Pluggable Environment Module (PEM) Design Document
 
