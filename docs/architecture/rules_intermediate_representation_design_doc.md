@@ -166,10 +166,10 @@ Rules execute against contextual data sets accessed via a `NamespacePath`. A `Na
 
 ### 3.1 The Variable Environment (`var.`) & Strong Typing
 
-To satisfy the requirement that variables are not predefined while guaranteeing static type-checking during the Core Daemon's validation pass, the `var.` namespace utilizes **Type Partitioning via Prefixes**. The identifier path explicitly dictates the data type:
+To satisfy the requirement that variables are not predefined while guaranteeing static type-checking during the Core Daemon's validation pass, the `var.` namespace utilizes **Type Partitioning via Prefixes**. The identifier path explicitly dictates the data type, restricting the wildcard (`*`) to exactly one level of identifier:
 
-* **`var.n.*` (Numbers):** Auto-initializes to `0`.
-* **`var.b.*` (Booleans):** Auto-initializes to `false`.
+* **`var.n.*` (Numbers):** Auto-initializes to `0` (e.g., `var.n.counter`, but not `var.n.player.counter`).
+* **`var.b.*` (Booleans):** Auto-initializes to `false` (e.g., `var.b.is_active`).
 * **`var.s.*` (Strings):** Auto-initializes to `""` (empty string).
 * **`var.l.*` (Tag Lists):** Auto-initializes to `[]` (empty list).
 
@@ -177,7 +177,7 @@ To satisfy the requirement that variables are not predefined while guaranteeing 
 
 Because the Core Engine performs the semantic and type validation of rules, it must understand the data types present in external namespaces. Every PEM must provide a corresponding static schema file (e.g., `{pem_namespace}.schema.json`) mapping its namespace paths to their primitive types.
 
-To prevent schemas from becoming excessively verbose for highly nested data, the schema definitions support pattern mapping (implementation specific) allowing parent nodes to strongly type child values dynamically.
+To prevent schemas from becoming excessively verbose for highly nested data, the schema definitions support pattern mapping allowing parent nodes to strongly type child values dynamically. Every PEM schema file must explicitly indicate which form of pattern matching it utilizes (e.g., declaring a property like `"pattern_type": "glob"` or `"pattern_type": "regex"`) so the Core Engine can properly compile the paths into its dynamic type registry.
 
 ---
 
@@ -449,15 +449,16 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
 
 ---
 
-## Discussion Points & New Issues
+### Discussion Points & New Issues
 
-* **Apology & Clarification:** You are entirely correct—the question regarding wildcard matching at the end of the previous response was my own query aimed at gathering clarification for the ongoing design, not something you asked. I apologize for the confusion!
-* **Markdown Formatting for Double-Asterisks:** I have noted your suggestion for using split backticks (`*` `*`) to force rendering if needed. Standard markdown syntax usually handles ```` safely when enclosed properly, but the split method is a reliable fallback if environment parsers get aggressive.
-* **Regex vs. Glob for Pattern Matching:** Since you actively prefer Regex over Glob, we will formalize the architecture to use standard Regex for PEM schema mapping rather than reverting to a restrictive Glob system. This gives you the full flexibility you prefer while keeping the language document focused strictly on the language itself rather than the core engine's parser.
+* **AST Depth Clarification:** The language design explicitly leaves out an AST depth constraint. However, it's worth noting that if the Core Engine is developed in Python, you may eventually need to enforce a practical recursion limit inside the Engine itself to prevent `RecursionError` stack overflows during the Visitor evaluation, even if the language specification technically allows arbitrary depth.
+* **Variable Namespaces (`var.`):** The decision to restrict `var` namespaces to a single level of identifiers (e.g., `var.n.counter`) neatly sidesteps the need for dynamically creating or inferring complex nested object structures during execution, keeping memory allocation clean and predictable.
 
 ---
 
-## Consolidated List of Pending Architecture Document Updates
+### Pending Updates for Other Documents
+
+#### Climatomaton Architecture Specification
 
 The following items reflect architecture modifications driven by ongoing language updates that must be synchronized into the main **Climatomaton Architecture Specification**:
 
@@ -466,4 +467,13 @@ The following items reflect architecture modifications driven by ongoing languag
    * **LKG Fallback:** If a newly watched JSON-IR file fails semantic/static verification, the Core Daemon discards it, retains the prior working version, logs the trace, and issues an admin alert.
    * **PAUSED Fallback:** If an environment change (like a PEM deletion) renders the active rules invalid, there is no "last-known-good" ruleset to fall back to. The Core Daemon must immediately drop into a **PAUSED** state, halt EOT reporting, and notify the administrators.
 3. **PEM Schema Exchange & Registration Cadence:** Establish an initialization file contract (updating Section 4.2) where every registered PEM must write a static schema description file (e.g., `{pem_namespace}.schema.json`) to the shared IPC volume. The Core Daemon reads these files on startup and during dynamic reloads to successfully construct the type-checking reference map required for validating JSON-IR expressions.
-4. **PEM Schema Path Matching via Regex:** Detail in the Core Engine documentation that PEM schema matching will utilize regular expressions (Regex) rather than simple glob paths. This ensures full capability for wildcarding, range matching (`[]`, `[^]`), and robust multi-level path abstractions within the dynamic type registry.
+4. **PEM Schema Path Matching Specifications:** Detail in the Core Engine documentation that PEM schema matching will support explicitly declared pattern matching types (such as Glob or standard Regex). For ease of internal processing, the Core Engine will translate any schema leveraging Glob patterns into standard Regex representations upon loading them into the dynamic type registry.
+
+#### Rules Engine Design Document
+
+The following items reflect the required internal compiler and execution logic that must be detailed in the upcoming **Rules Engine Design Document**:
+
+1. **Dynamic Type Registry Initialization:** The engine must construct a master `TypeMap` at runtime by scanning and flattening the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. This includes parsing the explicit `"pattern_type"` declarations and dynamically translating any glob paths into resolving regex patterns.
+2. **Static Type Checking & Semantic Analysis (Visitor Pattern):** The engine must implement a proactive compiler frontend pattern (a Node Visitor architecture) that traverses the JSON-IR AST prior to active execution. This visitor infers types bottom-up, enforces operator and function constraints (e.g., preventing a `MOD` operation on a string), and guarantees no implicit type coercion is taking place. If an undefined symbol or type mismatch is found, it throws an error bound to the `source` tracking string and aborts the ruleset load.
+
+Should we proceed with formalizing the human-readable source language syntax next, or dive straight into drafting the Rules Engine Design Document?

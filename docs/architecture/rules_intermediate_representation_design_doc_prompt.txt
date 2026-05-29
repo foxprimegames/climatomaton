@@ -142,3 +142,14 @@ to answer the other points raised:
 * yes, let's formalize short-circuit evaluation for `AND` and `OR`; please include that in the description of those operators.
 
 as always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points after the end of the document itself.  please also include any previous notes about needed updates to the architecture document, after any comments, new issues, or discussion points.  finally, please avoid any trailing spaces in your output.
+
+--
+
+some additional clarifications:
+
+1. please rename the "consolidated list of pending architecture document updates" to something about pending updates for other documents.
+2. please add to that list the upcoming rules engine design document, and include the note from your previous update about the static type checking and semantic analysis logic.
+3. since the wildcard question was in regards to pem schema documents, let's instead provide a way for a particular pem schema file to indicate which form of wildcard matching that schema is using.  in the rules engine, glob-style patterns can easily be transformed into regex patterns.
+4. in the `var` namespace, please be explicit that only one level of identifier is allowed for the `*` wildcard within each type-specific sub-namespace (but please word that using the same language as the rest of that section).
+
+as always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points after the end of the document itself.  please also include any previous notes about needed updates to the architecture document, after any comments, new issues, or discussion points.  finally, please avoid any trailing spaces in your output.
