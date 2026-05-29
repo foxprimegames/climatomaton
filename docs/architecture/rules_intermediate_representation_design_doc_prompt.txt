@@ -122,6 +122,8 @@ given the uploaded architecture document, the original prompts that generated it
 
 --
 
-okay, i think the internal representation looks good.  next up:  how would you design the static type checking and semantic analysis logic?
+next question:  is the design document for the rules language the right place to design the static type checking and semantic analysis, or should that go into the design document for the rules engine itself?
+
+in any case, what other items do you think should be discussed in the rules language design document?
 
 Please DON'T modify the language design document as a result of the above question; just re-display the document, then place any comments, new issues, or other discussion points issues after the end of the document itself.  please also include any previous notes about needed updates to the architecture document.  finally, please avoid any trailing spaces in your output.
