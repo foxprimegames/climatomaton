@@ -153,3 +153,11 @@ some additional clarifications:
 4. in the `var` namespace, please be explicit that only one level of identifier is allowed for the `*` wildcard within each type-specific sub-namespace (but please word that using the same language as the rest of that section).
 
 as always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points after the end of the document itself.  please also include any previous notes about needed updates to the architecture document, after any comments, new issues, or discussion points.  finally, please avoid any trailing spaces in your output.
+
+--
+
+1. please move the description of the content of the PEM schema from section 3.2 to the "pem schema exchange" part of the pending architecture document updates.  in section 3.2, just say something like the type checking and semantic validation of rules involving PEM namespace paths is done in accordance with the PEM's published schema as defined by the PEM design document (but use language similar to the other language in that overall section).
+2. please update the rules engine design document notes with the same language.  the rules engine design document will depend on the PEM design document and its definition of the schema file.
+3. please add the PEM design document to the pending updates list :) we have to define the exact syntax and semantics of the schema file, including how the pattern matching format is passed along.
+
+as always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points after the end of the document itself.  please also include any previous notes about needed updates to the architecture document, after any comments, new issues, or discussion points.  finally, please avoid any trailing spaces in your output.

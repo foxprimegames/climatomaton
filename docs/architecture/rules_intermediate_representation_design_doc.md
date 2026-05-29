@@ -75,12 +75,7 @@ Represents floating-point or integer numeric values. The specific memory limits 
 * **`min(n1, n2, ...)`** / **`n1.min(n2, ...)`**: Accepts an arbitrary number of numeric arguments and returns the lowest value.
 * **`max(n1, n2, ...)`** / **`n1.max(n2, ...)`**: Accepts an arbitrary number of numeric arguments and returns the highest value.
 * **`clamp(n, min_val, max_val)`** / **`n.clamp(min_val, max_val)`**: Constrains `n` so it does not fall below `min_val` or exceed `max_val`. Returns a Number.
-* **`within(n, lo, hi, [bounds])`** / **`n.within(lo, hi, [bounds])`**: Evaluates whether `n` falls within the range between `lo` and `hi`. The optional `bounds` parameter accepts a string literal defining inclusivity boundaries:
-  * `"[]"` (Default): Inclusive/Inclusive ($lo \le n \le hi$)
-  * `"()"`: Exclusive/Exclusive ($lo < n < hi$)
-  * `"[)"`: Inclusive/Exclusive ($lo \le n < hi$)
-  * `"(]"`: Exclusive/Inclusive ($lo < n \le hi$)
-  * Returns a Boolean.
+* **`within(n, lo, hi, [bounds])`** / **`n.within(lo, hi, [bounds])`**: Evaluates whether `n` falls within the range between `lo` and `hi`. The optional `bounds` parameter accepts a string literal defining inclusivity boundaries: `"[]"` (Default) for Inclusive/Inclusive ($lo \le n \le hi$), `"()"` for Exclusive/Exclusive ($lo < n < hi$), `"[)"` for Inclusive/Exclusive ($lo \le n < hi$), or `"(]"` for Exclusive/Inclusive ($lo < n \le hi$). Returns a Boolean.
 * **`to_string(n)`** / **`n.to_string()`**: Converts the numeric value `n` to its literal string representation. Returns a String.
 
 ### 2.2 Boolean
@@ -175,9 +170,7 @@ To satisfy the requirement that variables are not predefined while guaranteeing 
 
 ### 3.2 PEM Schemas & Environment Typing
 
-Because the Core Engine performs the semantic and type validation of rules, it must understand the data types present in external namespaces. Every PEM must provide a corresponding static schema file (e.g., `{pem_namespace}.schema.json`) mapping its namespace paths to their primitive types.
-
-To prevent schemas from becoming excessively verbose for highly nested data, the schema definitions support pattern mapping allowing parent nodes to strongly type child values dynamically. Every PEM schema file must explicitly indicate which form of pattern matching it utilizes (e.g., declaring a property like `"pattern_type": "glob"` or `"pattern_type": "regex"`) so the Core Engine can properly compile the paths into its dynamic type registry.
+Because the Core Engine performs the semantic and type validation of rules, it must understand the data types present in external namespaces. The type checking and semantic validation of rules involving PEM namespace paths are executed in strict accordance with the PEM's published schema, as defined by the Pluggable Environment Module (PEM) Design Document.
 
 ---
 
@@ -451,8 +444,8 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
 
 ### Discussion Points & New Issues
 
-* **AST Depth Clarification:** The language design explicitly leaves out an AST depth constraint. However, it's worth noting that if the Core Engine is developed in Python, you may eventually need to enforce a practical recursion limit inside the Engine itself to prevent `RecursionError` stack overflows during the Visitor evaluation, even if the language specification technically allows arbitrary depth.
-* **Variable Namespaces (`var.`):** The decision to restrict `var` namespaces to a single level of identifiers (e.g., `var.n.counter`) neatly sidesteps the need for dynamically creating or inferring complex nested object structures during execution, keeping memory allocation clean and predictable.
+* **Delegating Schema Responsibilities:** Shifting the detailed schema definitions entirely to the PEM Design Document is a solid architectural decision. It keeps the Language Specification strictly focused on operations and JSON-IR, while standardizing how external plugins communicate their data footprints in their own dedicated space.
+* **Variable Depth Restriction:** Making the one-level identifier restriction explicit for the `var` namespace ensures rule authors cannot accidentally (or purposefully) attempt to build complex, nested object trees in memory during a single execution cycle, enforcing the ephemeral and flat nature of transaction variables.
 
 ---
 
@@ -463,17 +456,18 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
 The following items reflect architecture modifications driven by ongoing language updates that must be synchronized into the main **Climatomaton Architecture Specification**:
 
 1. **Core Daemon Immediate Validation Pass:** Update Section 4.1 to specify that the Core Daemon must actively monitor the rules folder and the schemas folder. It must proactively parse and type-check incoming JSON-IR files immediately upon modification of the rules file, or whenever a PEM schema is added, updated, or deleted.
-2. **Validation Error Recovery Policy:** Update the architecture to reflect the exact fallback strategies:
-   * **LKG Fallback:** If a newly watched JSON-IR file fails semantic/static verification, the Core Daemon discards it, retains the prior working version, logs the trace, and issues an admin alert.
-   * **PAUSED Fallback:** If an environment change (like a PEM deletion) renders the active rules invalid, there is no "last-known-good" ruleset to fall back to. The Core Daemon must immediately drop into a **PAUSED** state, halt EOT reporting, and notify the administrators.
-3. **PEM Schema Exchange & Registration Cadence:** Establish an initialization file contract (updating Section 4.2) where every registered PEM must write a static schema description file (e.g., `{pem_namespace}.schema.json`) to the shared IPC volume. The Core Daemon reads these files on startup and during dynamic reloads to successfully construct the type-checking reference map required for validating JSON-IR expressions.
-4. **PEM Schema Path Matching Specifications:** Detail in the Core Engine documentation that PEM schema matching will support explicitly declared pattern matching types (such as Glob or standard Regex). For ease of internal processing, the Core Engine will translate any schema leveraging Glob patterns into standard Regex representations upon loading them into the dynamic type registry.
+2. **Validation Error Recovery Policy:** Update the architecture to reflect the exact fallback strategies. For **LKG Fallback**, if a newly watched JSON-IR file fails semantic/static verification, the Core Daemon discards it, retains the prior working version, logs the trace, and issues an admin alert. For **PAUSED Fallback**, if an environment change (like a PEM deletion) renders the active rules invalid, there is no "last-known-good" ruleset to fall back to; the Core Daemon must immediately drop into a **PAUSED** state, halt EOT reporting, and notify the administrators.
+3. **PEM Schema Exchange & Registration Cadence:** Establish an initialization file contract (updating Section 4.2) where every registered PEM must write a static schema description file (e.g., `{pem_namespace}.schema.json`) to the shared IPC volume. This schema maps namespace paths to their primitive types and supports pattern mapping to prevent excessive verbosity for highly nested data. The schema must also explicitly indicate which form of pattern matching it utilizes. The Core Daemon reads these files on startup and during dynamic reloads to successfully construct the type-checking reference map required for validating JSON-IR expressions.
+
+#### Pluggable Environment Module (PEM) Design Document
+
+The following items reflect the required plugin specifications that must be detailed in the upcoming **Pluggable Environment Module Design Document**:
+
+1. **Schema File Syntax & Semantics:** Define the exact JSON structure, syntax, and semantics of the `{pem_namespace}.schema.json` file. This includes standardizing how namespace paths are mapped to primitive types and explicitly defining how the pattern matching format (e.g., Glob or Regex declarations) is passed along to the Core Engine for parsing.
 
 #### Rules Engine Design Document
 
 The following items reflect the required internal compiler and execution logic that must be detailed in the upcoming **Rules Engine Design Document**:
 
-1. **Dynamic Type Registry Initialization:** The engine must construct a master `TypeMap` at runtime by scanning and flattening the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. This includes parsing the explicit `"pattern_type"` declarations and dynamically translating any glob paths into resolving regex patterns.
+1. **Dynamic Type Registry Initialization:** The engine must construct a master `TypeMap` at runtime by scanning and flattening the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. The exact parsing and translation logic depends entirely on the schema definition provided in the PEM Design Document, which will dictate how paths and pattern matching formats are declared and subsequently translated into resolving regex patterns within the registry.
 2. **Static Type Checking & Semantic Analysis (Visitor Pattern):** The engine must implement a proactive compiler frontend pattern (a Node Visitor architecture) that traverses the JSON-IR AST prior to active execution. This visitor infers types bottom-up, enforces operator and function constraints (e.g., preventing a `MOD` operation on a string), and guarantees no implicit type coercion is taking place. If an undefined symbol or type mismatch is found, it throws an error bound to the `source` tracking string and aborts the ruleset load.
-
-Should we proceed with formalizing the human-readable source language syntax next, or dive straight into drafting the Rules Engine Design Document?
