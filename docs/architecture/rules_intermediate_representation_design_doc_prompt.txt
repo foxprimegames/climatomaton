@@ -101,3 +101,11 @@ given the uploaded architecture document, the original prompts that generated it
 3. whether or not we keep the json schema in the design document, i'd like to have each node definition include more information about what the value of each key actually is.  For example, for an operator node, the `op` is the string code for the operator, `left` is an optional expression for the left hand side of the operator, and `right` is the required expression for the right hand side of the operator.
 4. as shown in the previous example, for unary operators, it makes more sense to me that the right hand side of the expression be required (since the unary operators _almost_ always are on the left hand side of their operand).
 5. As always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.  please also include any previous notes about needed updates to the architecture document.
+
+--
+
+1. there is no need for a "function overload resolution" section when there is no function overload resolution occurring.
+2. for all nodes in the JSON-IR, please include a `kind` key that indicates the node type (this replaces the `type` key for those nodes that have it).  `kind` was chosen so that the keys in each node type can be represented as fields in a data type without possibly colliding with common reserved keywords.
+3. instead of having a textual description of the keys and values (which i know i asked for), instead use the (non-json-compliant) comment format that you used in the 5.2 "rule object" example.  do this for every key/value please.
+4. in all the node examples, please use the multi-line JSON format.
+5. As always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.  please also include any previous notes about needed updates to the architecture document.  finally, please avoid any trailing spaces in your output.

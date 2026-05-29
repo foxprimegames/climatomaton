@@ -201,8 +201,16 @@ To decouple the PRM's source-language parser from the Core Daemon's execution en
 
 ```json
 {
-  "climate_rules": [ ... ],
-  "tag_rules": [ ... ]
+  "climate_rules": [ // Ordered array of rule objects executed first
+    {
+      /* Rule Object */
+    }
+  ],
+  "tag_rules": [ // Ordered array of rule objects executed second
+    {
+      /* Rule Object */
+    }
+  ]
 }
 ```
 
@@ -210,63 +218,87 @@ To decouple the PRM's source-language parser from the Core Daemon's execution en
 
 ```json
 {
-  "name": "Extreme Heat Modifier",
-  "conditions": [ { /* Expression Node */ } ],
-  "actions": [ { /* Mutation Node */ } ]
+  "name": "Extreme Heat Modifier", // A string defining the identifier for the rule
+  "conditions": [ // An array of expression nodes evaluating to a boolean (implicitly ANDed)
+    {
+      /* Expression Node */
+    }
+  ],
+  "actions": [ // An array of mutation nodes to apply if all conditions are met
+    {
+      /* Mutation Node */
+    }
+  ]
 }
 ```
 
 ### 5.3 Expression Nodes
 
-Every expression node must declare a `"type"` to identify its structure.
+Every expression node must declare a `"kind"` to identify its structural type.
 
 * **Literal Node:** Represents a hardcoded primitive value.
-  * `type`: Always `"literal"`.
-  * `datatype`: A string enum declaring the type (`"number"`, `"boolean"`, `"string"`, `"tag_list"`).
-  * `value`: The actual primitive value matching the datatype.
-
-```json
-{ "type": "literal", "datatype": "number", "value": 15 }
-```
-
-* **Reference Node:** Represents a dynamic lookup in an environment namespace.
-  * `type`: Always `"reference"`.
-  * `path`: A string representing the `NamespacePath` (e.g., `"climate.value"`).
-
-```json
-{ "type": "reference", "path": "climate.value" }
-```
-
-* **Operator Node:** Represents an evaluation using defined operators.
-  * `type`: Always `"operator"`.
-  * `op`: The string code for the operator (e.g., `"EXP"`, `"ADD"`, `"NOT"`).
-  * `right`: A required expression node representing the right-hand side of the operator (or the sole operand for unary prefix operators like `"NOT"`).
-  * `left`: An optional expression node representing the left-hand side of the operator (omitted for unary operators).
-
 
 ```json
 {
-  "type": "operator",
-  "op": "EXP",
-  "left": { "type": "reference", "path": "var.n.base_multiplier" },
-  "right": { "type": "literal", "datatype": "number", "value": 2 }
+  "kind": "literal", // Always "literal" to identify this node structure
+  "datatype": "number", // The primitive type: "number", "boolean", "string", or "tag_list"
+  "value": 15 // The actual primitive value matching the declared datatype
+}
+```
+
+* **Reference Node:** Represents a dynamic lookup in an environment namespace.
+
+```json
+{
+  "kind": "reference", // Always "reference" to identify this node structure
+  "path": "climate.value" // A string representing the generic NamespacePath
+}
+```
+
+* **Operator Node:** Represents an evaluation using defined operators.
+
+```json
+{
+  "kind": "operator", // Always "operator" to identify this node structure
+  "op": "EXP", // The string code for the operator
+  "left": { // Optional expression node representing the left-hand side (omitted for unary operators)
+    "kind": "reference",
+    "path": "var.n.base_multiplier"
+  },
+  "right": { // Required expression node representing the right-hand side (or sole operand for unary operators)
+    "kind": "literal",
+    "datatype": "number",
+    "value": 2
+  }
 }
 ```
 
 * **Function Node:** Represents a method or function call.
-  * `type`: Always `"function"`.
-  * `name`: A string containing the exact source name of the function (e.g., `"within"`).
-  * `args`: An array of expression nodes representing the ordered arguments.
 
 ```json
 {
-  "type": "function",
-  "name": "within",
-  "args": [
-    { "type": "reference", "path": "climate.value" },
-    { "type": "literal", "datatype": "number", "value": 10 },
-    { "type": "literal", "datatype": "number", "value": 20 },
-    { "type": "literal", "datatype": "string", "value": "[)" }
+  "kind": "function", // Always "function" to identify this node structure
+  "name": "within", // A string containing the exact source name of the function
+  "args": [ // An array of expression nodes representing the ordered arguments
+    {
+      "kind": "reference",
+      "path": "climate.value"
+    },
+    {
+      "kind": "literal",
+      "datatype": "number",
+      "value": 10
+    },
+    {
+      "kind": "literal",
+      "datatype": "number",
+      "value": 20
+    },
+    {
+      "kind": "literal",
+      "datatype": "string",
+      "value": "[)"
+    }
   ]
 }
 ```
@@ -275,29 +307,19 @@ Every expression node must declare a `"type"` to identify its structure.
 
 Mutations dictate state changes inside the `actions` array of a Rule Object.
 
-* `target`: A string representing the `NamespacePath` to mutate. Must target `new.*` or `var.*`.
-* `op`: The string code for the mutation operation (e.g., `"ADD_ASSIGN"`).
-* `expression`: An expression node evaluating to the modifier or new value.
-
 ```json
 {
-  "target": "new.climate.value",
-  "op": "ADD_ASSIGN",
-  "expression": {
-    "type": "literal",
+  "target": "new.climate.value", // A string representing the NamespacePath to mutate (must target new.* or var.*)
+  "op": "ADD_ASSIGN", // The string code for the mutation operation
+  "expression": { // An expression node evaluating to the modifier or new value
+    "kind": "literal",
     "datatype": "number",
     "value": 5
   }
 }
 ```
 
-### 5.5 Function Overload Resolution
-
-Because the PRM performs purely syntactic parsing and does not possess access to the external PEM schemas or internal Core schemas, it cannot statically determine the data types of `reference` nodes. Therefore, the PRM **does not** perform function signature resolution or name mangling.
-
-The PRM simply passes the raw function name (e.g., `"within"`) in the JSON-IR. The Core Daemon, which possesses the complete type map of all namespaces, analyzes the data types of the provided `"args"` during its proactive semantic validation pass. The Core Daemon is strictly responsible for dynamically resolving the correct overloaded function signature based on those evaluated argument types.
-
-### 5.6 JSON Schema (Draft 2020-12)
+### 5.5 JSON Schema (Draft 2020-12)
 
 This formally defines the validation constraints for the JSON-IR payload sent from the PRM to the Core Daemon.
 
@@ -349,39 +371,39 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
     "literal_node": {
       "type": "object",
       "properties": {
-        "type": { "const": "literal" },
+        "kind": { "const": "literal" },
         "datatype": { "enum": ["number", "boolean", "string", "tag_list"] },
         "value": {}
       },
-      "required": ["type", "datatype", "value"],
+      "required": ["kind", "datatype", "value"],
       "additionalProperties": false
     },
     "reference_node": {
       "type": "object",
       "properties": {
-        "type": { "const": "reference" },
+        "kind": { "const": "reference" },
         "path": { "type": "string" }
       },
-      "required": ["type", "path"],
+      "required": ["kind", "path"],
       "additionalProperties": false
     },
     "operator_node": {
       "type": "object",
       "properties": {
-        "type": { "const": "operator" },
+        "kind": { "const": "operator" },
         "op": { 
           "enum": ["ADD", "SUB", "MUL", "DIV", "MOD", "EXP", "EQ", "NEQ", "LT", "LTE", "GT", "GTE", "AND", "OR", "NOT", "CONCAT"] 
         },
         "left": { "$ref": "#/$defs/expression" },
         "right": { "$ref": "#/$defs/expression" }
       },
-      "required": ["type", "op", "right"],
+      "required": ["kind", "op", "right"],
       "additionalProperties": false
     },
     "function_node": {
       "type": "object",
       "properties": {
-        "type": { "const": "function" },
+        "kind": { "const": "function" },
         "name": { 
           "type": "string",
           "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$" 
@@ -391,7 +413,7 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
           "items": { "$ref": "#/$defs/expression" }
         }
       },
-      "required": ["type", "name", "args"],
+      "required": ["kind", "name", "args"],
       "additionalProperties": false
     },
     "mutation": {
@@ -416,10 +438,10 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
 
 ### Discussion & Notes
 
-* **Re: JSON Schema Bulk/Detail:** While JSON Schema can feel bulky, it is standard practice to include the formal definition within a system design document when defining a strict API boundary. Because the PRM and Core Daemon are entirely decoupled components (communicating strictly via file-based IPC), the schema acts as the definitive technical contract for developers building custom PRMs. It removes all ambiguity regarding payload structure.
-* **Function Overload Resolution (Name Mangling Removal):** I completely removed the name mangling implementation from Section 5.5 and replaced it with an explanation confirming that the Core Daemon is responsible for overload resolution dynamically. Because the PRM cannot reliably resolve the primitive types of arbitrary environment references, enforcing signature tracking at the PRM level is an anti-pattern. The Core Daemon now handles this naturally during its proactive static validation pass.
-* **Detailed Node Keys:** Section 5.3 was expanded to include specific, structured descriptions of what every key represents inside `literal`, `reference`, `operator`, and `function` nodes.
-* **Unary Operator Logic Shift:** The `operator` node definition and the formal JSON Schema were updated to make the `right` operand strictly required, while the `left` operand is optional. This natively supports prefix unary operators like `NOT` where the operand naturally follows the operator on the right-hand side.
+* **JSON-IR Refinements:** The "Function Overload Resolution" section has been excised completely. Because the PRM passes standard names and the Core Engine resolves types at runtime, dedicating a section to explain an operation the JSON-IR parser *doesn't* do was unnecessary clutter.
+* **`kind` vs `type` Keyword:** The AST nodes have been formally migrated to use the `"kind"` keyword to indicate node identity. This is reflected across all JSON examples and the formal JSON Schema inside the `$defs` block. (Note: The schema wrapper itself still retains `"type": "object"` as required by the JSON Schema specification, but all custom domain properties are updated).
+* **Inline Documentation:** Textual descriptions for nodes in Sections 5.3 and 5.4 have been migrated directly into the multi-line JSON structures using the `//` commenting style to tightly couple definitions to the properties they represent.
+* **Whitespace & Formatting:** All JSON blocks utilize multi-line indentation, and trailing spaces have been strictly eliminated from the document.
 
 ### Consolidated List of Pending Architecture Document Updates
 
