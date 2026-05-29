@@ -181,7 +181,7 @@ To prevent schemas from becoming excessively verbose for highly nested data, the
 
 ## 4. Rule Structure and Evaluation
 
-A rule is defined by its name, a set of conditions, and a set of actions.
+A rule is defined by its name, a tracking source string, a set of conditions, and a set of actions.
 
 ### 4.1 Conditions
 
@@ -195,12 +195,13 @@ Actions mutate data in either the `new.*` or `var.*` namespaces. An action consi
 
 ## 5. JSON Intermediate Representation (JSON-IR)
 
-To decouple the PRM's source-language parser from the Core Daemon's execution engine, rules are communicated via a strict **JSON-IR**.
+To decouple the PRM's source-language parser from the Core Daemon's execution engine, rules are communicated via a strict **JSON-IR**. Every structural node within this payload explicitly declares its type identity via a uniform `"kind"` property.
 
 ### 5.1 Root Document Structure
 
 ```json
 {
+  "kind": "ruleset", // Always "ruleset" to identify the root document node
   "climate_rules": [ // Ordered array of rule objects executed first
     {
       /* Rule Object */
@@ -218,7 +219,9 @@ To decouple the PRM's source-language parser from the Core Daemon's execution en
 
 ```json
 {
-  "name": "Extreme Heat Modifier", // A string defining the identifier for the rule
+  "kind": "rule", // Always "rule" to identify this structural node
+  "name": "Extreme Heat Modifier", // A human-readable name for the rule (does not need to be unique)
+  "source": "prm://repository/rules/climate.yml:line_42", // A PRM-generated tracking string to identify rule origin
   "conditions": [ // An array of expression nodes evaluating to a boolean (implicitly ANDed)
     {
       /* Expression Node */
@@ -278,7 +281,7 @@ Every expression node must declare a `"kind"` to identify its structural type.
 ```json
 {
   "kind": "function", // Always "function" to identify this node structure
-  "name": "within", // A string containing the exact source name of the function
+  "name": "within", // An identifier containing the exact source name of the function
   "args": [ // An array of expression nodes representing the ordered arguments
     {
       "kind": "reference",
@@ -309,7 +312,8 @@ Mutations dictate state changes inside the `actions` array of a Rule Object.
 
 ```json
 {
-  "target": "new.climate.value", // A string representing the NamespacePath to mutate (must target new.* or var.*)
+  "kind": "mutation", // Always "mutation" to identify this node structure
+  "target": "new.climate.value", // A NamespacePath representing the target field to mutate
   "op": "ADD_ASSIGN", // The string code for the mutation operation
   "expression": { // An expression node evaluating to the modifier or new value
     "kind": "literal",
@@ -331,6 +335,7 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
   "description": "JSON Intermediate Representation for Climatomaton Rules",
   "type": "object",
   "properties": {
+    "kind": { "const": "ruleset" },
     "climate_rules": {
       "type": "array",
       "items": { "$ref": "#/$defs/rule" }
@@ -340,13 +345,23 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
       "items": { "$ref": "#/$defs/rule" }
     }
   },
-  "required": ["climate_rules", "tag_rules"],
+  "required": ["kind", "climate_rules", "tag_rules"],
   "additionalProperties": false,
   "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+    },
+    "namespacePath": {
+      "type": "string",
+      "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*(\\.[a-zA-Z_][a-zA-Z0-9_]*)*$"
+    },
     "rule": {
       "type": "object",
       "properties": {
+        "kind": { "const": "rule" },
         "name": { "type": "string" },
+        "source": { "type": "string" },
         "conditions": {
           "type": "array",
           "items": { "$ref": "#/$defs/expression" }
@@ -356,7 +371,7 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
           "items": { "$ref": "#/$defs/mutation" }
         }
       },
-      "required": ["name", "conditions", "actions"],
+      "required": ["kind", "name", "source", "conditions", "actions"],
       "additionalProperties": false
     },
     "expression": {
@@ -382,7 +397,7 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
       "type": "object",
       "properties": {
         "kind": { "const": "reference" },
-        "path": { "type": "string" }
+        "path": { "$ref": "#/$defs/namespacePath" }
       },
       "required": ["kind", "path"],
       "additionalProperties": false
@@ -391,8 +406,8 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
       "type": "object",
       "properties": {
         "kind": { "const": "operator" },
-        "op": { 
-          "enum": ["ADD", "SUB", "MUL", "DIV", "MOD", "EXP", "EQ", "NEQ", "LT", "LTE", "GT", "GTE", "AND", "OR", "NOT", "CONCAT"] 
+        "op": {
+          "enum": ["ADD", "SUB", "MUL", "DIV", "MOD", "EXP", "EQ", "NEQ", "LT", "LTE", "GT", "GTE", "AND", "OR", "NOT", "CONCAT"]
         },
         "left": { "$ref": "#/$defs/expression" },
         "right": { "$ref": "#/$defs/expression" }
@@ -404,10 +419,7 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
       "type": "object",
       "properties": {
         "kind": { "const": "function" },
-        "name": { 
-          "type": "string",
-          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$" 
-        },
+        "name": { "$ref": "#/$defs/identifier" },
         "args": {
           "type": "array",
           "items": { "$ref": "#/$defs/expression" }
@@ -419,13 +431,14 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
     "mutation": {
       "type": "object",
       "properties": {
-        "target": { "type": "string" },
+        "kind": { "const": "mutation" },
+        "target": { "$ref": "#/$defs/namespacePath" },
         "op": {
           "enum": ["ASSIGN", "ADD_ASSIGN", "SUB_ASSIGN", "INCLUDES", "EXCLUDES"]
         },
         "expression": { "$ref": "#/$defs/expression" }
       },
-      "required": ["target", "op", "expression"],
+      "required": ["kind", "target", "op", "expression"],
       "additionalProperties": false
     }
   }
@@ -434,18 +447,21 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
 
 ---
 
+## Discussion Points & Design Updates
+
+### Architectural Reflections on Uniform Structural Grouping
+
+Adding a standard `"kind"` attribute to the structural markers (`ruleset`, `rule`, `mutation`) introduces a completely uniform pattern parsing schema. The internal parsing engines inside the Core Daemon can now process any JSON node identically by routing on `"kind"` before exploring properties, standardizing AST initialization.
+
+### Enhanced Admin Context via tracking Strings
+
+Decoupling the rule `name` from being an implementation constraint and re-classifying it as a human-readable title solves structural tracking issues. By appending the explicit `source` tracking string generated dynamically by the PRM, we grant the daemon full structural tracing capabilities. Whenever an execution error triggers a strict failure abort or proactive type validation drops out, administrators will receive standard errors pointing directly to the exact file origin context (e.g. repo path, line numbers) along with its structural rule name context.
+
 ---
-
-### Discussion & Notes
-
-* **JSON-IR Refinements:** The "Function Overload Resolution" section has been excised completely. Because the PRM passes standard names and the Core Engine resolves types at runtime, dedicating a section to explain an operation the JSON-IR parser *doesn't* do was unnecessary clutter.
-* **`kind` vs `type` Keyword:** The AST nodes have been formally migrated to use the `"kind"` keyword to indicate node identity. This is reflected across all JSON examples and the formal JSON Schema inside the `$defs` block. (Note: The schema wrapper itself still retains `"type": "object"` as required by the JSON Schema specification, but all custom domain properties are updated).
-* **Inline Documentation:** Textual descriptions for nodes in Sections 5.3 and 5.4 have been migrated directly into the multi-line JSON structures using the `//` commenting style to tightly couple definitions to the properties they represent.
-* **Whitespace & Formatting:** All JSON blocks utilize multi-line indentation, and trailing spaces have been strictly eliminated from the document.
 
 ### Consolidated List of Pending Architecture Document Updates
 
-The following items represent design changes established during the rule language specification sequence that require formal updates to the main **Climatomaton Architecture Specification**:
+The following items reflect architecture modifications driven by ongoing language updates that must be synchronized into the main **Climatomaton Architecture Specification**:
 
 1. **Core Daemon Immediate Validation Pass:** Update Section 4.1 to specify that the Core Daemon must actively monitor the rules folder and the schemas folder. It must proactively parse and type-check incoming JSON-IR files immediately upon modification of the rules file, or whenever a PEM schema is added, updated, or deleted.
 2. **Validation Error Recovery Policy:** Update the architecture to reflect the exact fallback strategies:

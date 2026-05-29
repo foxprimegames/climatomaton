@@ -109,3 +109,13 @@ given the uploaded architecture document, the original prompts that generated it
 3. instead of having a textual description of the keys and values (which i know i asked for), instead use the (non-json-compliant) comment format that you used in the 5.2 "rule object" example.  do this for every key/value please.
 4. in all the node examples, please use the multi-line JSON format.
 5. As always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.  please also include any previous notes about needed updates to the architecture document.  finally, please avoid any trailing spaces in your output.
+
+--
+
+given the uploaded architecture document, the original prompts that generated it, the design document for the climate/tag rules language, and the prompts that led to that document, we need to continue developing the design.
+
+1. i asked for all nodes in the JSON-IR to include a `kind` key.  this includes the top level node, the rule objects, and the mutation nodes.
+2. the `name` field of a rule is not an _identifier_, since it doesn't need to be unique; it's the human-readable name of the rule.
+3. each rule needs to indicate its source, so that notifications can point administrators to the exact source and rule name.  Since different PRMs might have different kinds of sources, this can just be a string that the PRM is responsible for generating.
+4. in the schema, please introduce a definition for `identifier` and `namespacePath` (that include regex patterns for validation), and use references to those definitions in the `reference_node` and `function_node` schemas.
+5. As always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.  please also include any previous notes about needed updates to the architecture document.  finally, please avoid any trailing spaces in your output.
