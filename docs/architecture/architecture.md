@@ -184,27 +184,3 @@ While the specific hosting environment is not yet defined, the deployment strate
 5. **Log Aggregation:** Because the Logging Manager writes all local observability data to `stdout`/`stderr` using a native logger, the deployment environment must feature an agent or mechanism to capture, rotate, and aggregate standard output logs.
 6. **Graceful Shutdown Signals:** The environment must issue standard termination signals (`SIGTERM`) and provide a brief grace period to allow the Event Bus and Rules Engine to finalize any in-flight file writes and network requests before exiting.
 7. **Testing Environment:** Functional testing of the integrated system will be performed against a dedicated staging or private testing-only Discord server to ensure live Nomicron gameplay is completely isolated from development.
-
----
-
-### Comments, New Issues, Discussion Points, and Questions
-
-* **Document Consolidation:** I have removed the "Rules Language Design Document" from the list of pending updates below since you confirmed it already exists and covers the JSON-IR requirements. Section 4.1's reference to it remains unchanged and correct.
-* **Trailing Spaces:** A thorough pass was completed to ensure no trailing spaces exist at the ends of the lines or table rows.
-
-### Pending Updates for Other Documents
-
-#### Pluggable Environment Module (PEM) Design Document
-
-* **Schema File Syntax & Semantics:** Must rigorously define the JSON structure, syntax, and semantics of the `{pem_namespace}.schema.json` file. This includes standardizing how namespace paths are mapped to primitive types, and explicitly specifying which namespace paths are mutable; any namespace paths not so specified will be treated as read-only. It must also define how namespace paths with wildcards are to be treated by the rules parser.
-* **Environment File Syntax & Semantics:** Must rigorously define the JSON structure of the `{pem_namespace}.json` file, specifying how the structured environment data is mapped omitting the PEM's namespace prefix.
-* **Transaction & Acknowledgment Formats:** Must define the precise JSON structure and expected key-value pairs for the transaction diff file (`req_{tx_id}_{namespace}.json`) and the subsequent acknowledgment file (`ack_{tx_id}_{namespace}.json`).
-
-#### Rules Engine Design Document
-
-* **Dynamic Type Registry Initialization:** The engine must be designed to construct a master `TypeMap` at runtime by scanning and flattening the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Parsing and translation logic will depend on the PEM Design Document's specifications for translating path patterns and wildcards into resolving regex patterns within the registry.
-* **Static Type Checking & Semantic Analysis:** The engine must implement a proactive compiler frontend pattern (a Node Visitor architecture) that traverses the JSON-IR AST prior to active execution. This visitor is responsible for inferring types bottom-up, enforcing operator and function constraints (e.g., preventing a `MOD` operation on a string), and guaranteeing no implicit type coercion takes place. If an undefined symbol or type mismatch is found, it must throw an error bound to the `source` tracking string and abort the ruleset load.
-
-#### DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents
-
-* **Discord Integration specifics:** Must define exact Discord intents and permissions (for the DGL) and specific OAuth2 scopes (for the DAC). Additionally, the DAC design document must incorporate the specific logic for overall and per-source notification rate limiting.
