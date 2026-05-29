@@ -33,7 +33,7 @@ Climatomaton consists of the **Core Daemon** and its **Pluggable Subprocesses** 
 6. **Environment Manager:** Scaffolds the environments during rule evaluation. It selectively duplicates explicitly registered mutable variables into the `new.` transaction environment.
 7. **Rules Engine:** Evaluates rule conditions against the environments, applies actions, coordinates with the IPC Broker for PEM acknowledgments, and dispatches outbound messages.
 8. **State Rehydrator:** A high-level logic process that calls the DAC to fetch historical messages on startup and passes them to the `ClimateReport` object to establish the initial `climate.` namespace.
-9. **File-Based IPC Broker:** Manages local communication with the PRM and PEMs via shared container volumes. It utilizes file system event watchers (`inotify`) to detect changes and translates them into internal events.
+9. **File-Based IPC Broker:** Manage local communication with the PRM and PEMs via shared container volumes. It utilizes file system event watchers (`inotify`) to detect changes and translates them into internal events.
 10. **Logging & Observability Manager:** A centralized component that ingests all logs, observability metrics, and notifications from the Core Daemon, PRM, and PEMs. It formats these for the local system and selectively routes high-severity alerts to Discord administrators.
 
 ---
@@ -189,8 +189,8 @@ While the specific hosting environment is not yet defined, the deployment strate
 
 ### Comments, New Issues, Discussion Points, and Questions
 
-* **References to Upcoming Documents:** Sections 4.1 and 4.2 now correctly point to the *Rules Language Design Document* and the *Pluggable Environment Module (PEM) Design Document* for their respective exact file formats, cementing the contract boundaries between the core architecture and the specific implementations.
-* **New Tracking Items:** I have appended the requirements for the transaction/acknowledgment file formats and the overall JSON-IR structure to the tracking list below to ensure they aren't lost when generating those sub-documents.
+* **Document Consolidation:** I have removed the "Rules Language Design Document" from the list of pending updates below since you confirmed it already exists and covers the JSON-IR requirements. Section 4.1's reference to it remains unchanged and correct.
+* **Trailing Spaces:** A thorough pass was completed to ensure no trailing spaces exist at the ends of the lines or table rows.
 
 ### Pending Updates for Other Documents
 
@@ -204,10 +204,6 @@ While the specific hosting environment is not yet defined, the deployment strate
 
 * **Dynamic Type Registry Initialization:** The engine must be designed to construct a master `TypeMap` at runtime by scanning and flattening the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Parsing and translation logic will depend on the PEM Design Document's specifications for translating path patterns and wildcards into resolving regex patterns within the registry.
 * **Static Type Checking & Semantic Analysis:** The engine must implement a proactive compiler frontend pattern (a Node Visitor architecture) that traverses the JSON-IR AST prior to active execution. This visitor is responsible for inferring types bottom-up, enforcing operator and function constraints (e.g., preventing a `MOD` operation on a string), and guaranteeing no implicit type coercion takes place. If an undefined symbol or type mismatch is found, it must throw an error bound to the `source` tracking string and abort the ruleset load.
-
-#### Rules Language Design Document
-
-* **JSON-IR Ruleset Structure:** Must rigorously define the overall format, schema, syntax tree representations, and constraints of the compiled JSON-IR ruleset that the PRM pushes to the Core Daemon.
 
 #### DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents
 
