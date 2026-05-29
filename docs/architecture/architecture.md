@@ -70,16 +70,8 @@ Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by 
 
 ### 4.2 PEM Protocol (Environment Module)
 
-* **Schema Registration & Heartbeat (PEM -> IPC Broker):**
-  * **Name:** `{pem_namespace}.schema.json`
-  * **When:** This file must be written as soon as the PEM starts up and must be periodically updated (as a heartbeat) at an interval no greater than a defined maximum limit.
-  * **How:** Updates must be performed atomically (e.g., writing to a `.tmp` file first, then executing a rename operation).
-  * **What:** The contents dictate the type schema and designate the read-only versus mutable state for the data the PEM will provide. The exact structure and semantics are defined in the Pluggable Environment Module (PEM) Design Document.
-* **Environment Data Publication (PEM -> Environment Manager):**
-  * **Name:** `{pem_namespace}.json`
-  * **When:** This file must be created or updated as soon as practical after the schema file is written, and must be updated whenever the represented content changes thereafter.
-  * **How:** Updates must be performed atomically (e.g., via `.tmp` rename) to ensure the Rules Engine never reads partial state.
-  * **What:** The contents represent the structured environment data, excluding the PEM's namespace prefix itself. The exact specification of this environment file will be defined in the Pluggable Environment Module (PEM) Design Document.
+* **Schema Registration & Heartbeat (PEM -> IPC Broker):** As soon as the PEM starts up, it must write a static schema description file to `pems/{pem_namespace}.schema.json`. This file dictates the type schema and designates the read-only versus mutable state for the data the PEM will provide. The PEM must periodically update this file at an interval no greater than a defined maximum limit to indicate it is alive. Updates must be performed atomically (e.g., writing to a `.tmp` file first, then executing a rename operation). The exact structure and semantics are defined in the Pluggable Environment Module (PEM) Design Document.
+* **Environment Data Publication (PEM -> Environment Manager):** As soon as practical after the schema file is written, and whenever the represented content changes thereafter, the PEM must write its structured environment data (excluding the PEM's namespace prefix itself) to `pems/{pem_namespace}.json`. Updates must be performed atomically (e.g., via `.tmp` rename) to ensure the Rules Engine never reads partial state. The exact specification of this environment file will be defined in the Pluggable Environment Module (PEM) Design Document.
 * **Transaction Commit (Rules Engine -> PEM):** If rules mutate a PEM namespace, the Rules Engine writes a diff to `tx/req_{tx_id}_{namespace}.json`.
 * **Acknowledgment (PEM -> IPC Broker):** The PEM processes the transaction and writes `tx/ack_{tx_id}_{namespace}.json`.
 * **Transaction Cleanup:** The IPC Broker detects the ACK file and fires an `ipc.pem_ack` event. Once the Rules Engine successfully posts the Discord report via the DAC, the IPC Broker deletes both the `req` and `ack` files.
@@ -143,7 +135,7 @@ If a **new, live** EOT arrives, but the PRM rules rely on a PEM namespace that h
 
 Triggered when a `game.eot_detected` event is received and all required PEM data is validated.
 
-1. **Environment Initialization:** `climate.*`, `proposals.*`, and `{pem_namespace}.*` are loaded from cache. `var.*` fields auto-initialize to `0` upon first call. `new.*` is populated by the Environment Manager as a clone of only the explicitly registered mutable fields.
+1. **Environment Initialization:** `climate.*`, `proposals.*`, and `{pem_namespace}.*` are loaded from cache. `var.*` fields auto-initialize to their typed default values (`false` for booleans, `0` for numbers, the empty string `""` for strings, and the empty list `[]` for tag lists) upon first call. `new.*` is populated by the Environment Manager as a clone of only the explicitly registered mutable fields.
 2. **Execution Constraints:** Rules are evaluated strictly in numeric order. Syntax strictly requires spaces for keywords (e.g., "climate rule", "tag rule").
 3. **Strict Error Handling:** If a namespace path resolution fails, or any other execution error occurs, all rule processing is immediately aborted. The failure is logged, a `sys.notification` event is fired to alert administrators, and no default values are assumed.
 4. **Mutations:** Climate rules mutate `new.climate.value`, `var.*`, or other mapped numeric fields. Tag rules mutate `new.climate.tags` or other mapped tag-list fields.
@@ -197,20 +189,18 @@ While the specific hosting environment is not yet defined, the deployment strate
 
 ### Comments, New Issues, Discussion Points, and Questions
 
-* **Component Accountability:** I have replaced abstract references to "The Core" with specific component names (e.g., Rules Engine, IPC Broker, Environment Manager, EOT Parser) to clarify exact ownership of tasks throughout Section 4 and Section 6.
-* **Event Bus Constraint:** The asynchronous constraint (that no component may block others from publishing or receiving) has been explicitly added to the introduction of Section 3.
-* **PEM Protocol Restructure:** Section 4.2 has been entirely rewritten to separate the `schema.json` lifecycle from the `.json` environment data lifecycle, defining the exact name, trigger conditions, atomic update requirements, and contents for both as requested.
-* **Code Segment Formatting:** As a reminder, any future stand-alone double asterisks needed will be formatted using backticks separated by a space (e.g., `*` `*`).
+* **Section 4.2 Formatting:** I have reworked the PEM Protocol section to match the paragraph-style bullet points of Section 4.1, removing the keyword/definition sub-bullets while still ensuring the strict file-naming, initialization, atomic write constraints, and content expectations are clearly articulated.
+* **Section 6.3 Variable Initialization:** The environment initialization step has been successfully updated to specify that dynamically invoked `var.*` fields inherit their strict typed defaults (`false`, `0`, `""`, or `[]`) instead of assuming an integer `0`.
 
 ### Pending Updates for Other Documents
 
-The following specific requirements extracted from the conversation and update lists must be propagated into their respective child documents:
+The following specific requirements extracted from our conversations and update lists must be propagated into their respective child documents:
 
-* **Pluggable Environment Module (PEM) Design Document:**
-  * **Schema File Syntax & Semantics:** Must rigorously define the JSON structure, syntax, and semantics of the `{pem_namespace}.schema.json` file. This includes standardizing how namespace paths are mapped to primitive types and explicitly defining how pattern matching formats (e.g., Glob or Regex declarations) are passed along to the Core Engine.
+* **Pluggable Environment Module (PEM) Design Document**
+  * **Schema File Syntax & Semantics:** Must rigorously define the JSON structure, syntax, and semantics of the `{pem_namespace}.schema.json` file. This includes standardizing how namespace paths are mapped to primitive types, and explicitly specifying which namespace paths are mutable; any namespace paths not so specified will be treated as read-only. It must also define how namespace paths with wildcards are to be treated by the rules parser.
   * **Environment File Syntax & Semantics:** Must rigorously define the JSON structure of the `{pem_namespace}.json` file, specifying how the structured environment data is mapped omitting the PEM's namespace prefix.
-* **Rules Engine Design Document:**
-  * **Dynamic Type Registry Initialization:** The engine must be designed to construct a master `TypeMap` at runtime by scanning and flattening the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Parsing and translation logic will depend on the PEM Design Document's specifications for translating path patterns into resolving regex patterns within the registry.
+* **Rules Engine Design Document**
+  * **Dynamic Type Registry Initialization:** The engine must be designed to construct a master `TypeMap` at runtime by scanning and flattening the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Parsing and translation logic will depend on the PEM Design Document's specifications for translating path patterns and wildcards into resolving regex patterns within the registry.
   * **Static Type Checking & Semantic Analysis:** The engine must implement a proactive compiler frontend pattern (a Node Visitor architecture) that traverses the JSON-IR AST prior to active execution. This visitor is responsible for inferring types bottom-up, enforcing operator and function constraints (e.g., preventing a `MOD` operation on a string), and guaranteeing no implicit type coercion takes place. If an undefined symbol or type mismatch is found, it must throw an error bound to the `source` tracking string and abort the ruleset load.
-* **DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents:**
+* **DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents**
   * **Discord Integration specifics:** Must define exact Discord intents and permissions (for the DGL) and specific OAuth2 scopes (for the DAC). Additionally, the DAC design document must incorporate the specific logic for overall and per-source notification rate limiting.

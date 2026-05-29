@@ -19,3 +19,13 @@ as always, please process the above issues into the document and display it.  re
 3. please refer to specific components when talking about actions taken or messages sent or received.  "The Core" is not a component.  In the case of section 4.1's "core processing" bullet point, it's the rules engine that needs to parse the new ruleset.
 
 as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
+
+--
+
+1. please rework section 4.2 back into a format more similar to 4.1, rather than the very "corporate slide deck" keyword/definition format.
+2. in section 6.3, the `var` fields initialize to their typed default values (`false` for booleans, `0` for numbers, the empty string `""` for strings, and the empty list `[]` for tag lists).
+3. for the pending updates to the pem design document, the schema file must also specify which namespace paths are mutable; any namespace paths not so specified will be treated as read-only.
+4. please make sure to include the already-existing pending updates (from the uploaded file) in the list of pending updates with each response.
+5. in the PEM design document notes, don't talk about "how pattern matching formats are passed along"; use "how namespace paths with wildcards are to be treated by the rules parser" or something similar.
+
+as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
