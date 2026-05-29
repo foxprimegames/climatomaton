@@ -119,3 +119,9 @@ given the uploaded architecture document, the original prompts that generated it
 3. each rule needs to indicate its source, so that notifications can point administrators to the exact source and rule name.  Since different PRMs might have different kinds of sources, this can just be a string that the PRM is responsible for generating.
 4. in the schema, please introduce a definition for `identifier` and `namespacePath` (that include regex patterns for validation), and use references to those definitions in the `reference_node` and `function_node` schemas.
 5. As always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points about the above issues after the end of the document itself.  please also include any previous notes about needed updates to the architecture document.  finally, please avoid any trailing spaces in your output.
+
+--
+
+okay, i think the internal representation looks good.  next up:  how would you design the static type checking and semantic analysis logic?
+
+Please DON'T modify the language design document as a result of the above question; just re-display the document, then place any comments, new issues, or other discussion points issues after the end of the document itself.  please also include any previous notes about needed updates to the architecture document.  finally, please avoid any trailing spaces in your output.

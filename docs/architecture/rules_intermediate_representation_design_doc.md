@@ -449,15 +449,23 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
 
 ## Discussion Points & Design Updates
 
-### Architectural Reflections on Uniform Structural Grouping
+### Designing the Static Type Checking & Semantic Analysis Logic
 
-Adding a standard `"kind"` attribute to the structural markers (`ruleset`, `rule`, `mutation`) introduces a completely uniform pattern parsing schema. The internal parsing engines inside the Core Daemon can now process any JSON node identically by routing on `"kind"` before exploring properties, standardizing AST initialization.
+To establish a strict, proactive validation pass before execution, the Core Engine should adopt a classic compiler frontend pattern, parsing the JSON-IR into strongly-typed internal data objects (like `dataclasses`) and processing them using a standard **Node Visitor** architecture.
 
-### Enhanced Admin Context via tracking Strings
+Here is how the logic pipeline can be designed:
 
-Decoupling the rule `name` from being an implementation constraint and re-classifying it as a human-readable title solves structural tracking issues. By appending the explicit `source` tracking string generated dynamically by the PRM, we grant the daemon full structural tracing capabilities. Whenever an execution error triggers a strict failure abort or proactive type validation drops out, administrators will receive standard errors pointing directly to the exact file origin context (e.g. repo path, line numbers) along with its structural rule name context.
-
----
+1. **The Dynamic Type Registry (Environment Mapping)**
+Before any rules are checked, the engine builds a master `TypeMap`. It scans the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside the internal `climate` and `proposals` schemas. This map flattens out valid namespace paths into their explicit return types (e.g., `{"climate.value": "number", "weather.status": "string"}`). For the wildcard paths discussed previously (e.g., `weather.*.temp`), the engine stores these as resolvable regex patterns against their expected primitive type.
+2. **The Type-Checking Visitor**
+The core semantic analysis uses a recursive visitor that traverses the AST and infers types bottom-up. For every node, it verifies constraints and returns the guaranteed data type to its parent.
+   * **`visit_literal(node)`:** Immediately returns the node's explicit `datatype`.
+   * **`visit_reference(node)`:** If the `path` begins with `var.`, it parses the type prefix directly from the string (e.g., `var.n.*` returns `"number"`). If not, it attempts an exact lookup or wildcard match against the `TypeMap`. If the symbol cannot be resolved, it halts validation and throws a `SymbolNotFoundError`, capturing the `source` tracking string from the parent rule.
+   * **`visit_operator(node)`:** Evaluates the returned types of its children against strict operator signatures. For example, if evaluating a `MOD` operator, the visitor asserts that `visit(left) == "number"` and `visit(right) == "number"`. If there is a mismatch, it throws a `TypeError`. (It can also catch semantic anomalies here, such as a static division by literal `0`).
+   * **`visit_function(node)`:** Queries an internal registry of standard library functions. It compares the count and type of the resolved arguments against the function's strict signature, returning the function's static return type if valid.
+3. **Rule and Action Validation**
+   * For the `conditions` array, the visitor ensures that the final resolved type of every underlying expression node evaluates strictly to `"boolean"`.
+   * For the `actions` array, the visitor enforces immutability logic by checking the `target` prefix (throwing a `MutationError` if it does not start with `new.` or `var.`). It then cross-references the left-hand target type against the right-hand `expression` type based on the specific mutation operator (e.g., `ADD_ASSIGN` mandates both sides are `"number"`).
 
 ### Consolidated List of Pending Architecture Document Updates
 
@@ -468,3 +476,5 @@ The following items reflect architecture modifications driven by ongoing languag
    * **LKG Fallback:** If a newly watched JSON-IR file fails semantic/static verification, the Core Daemon discards it, retains the prior working version, logs the trace, and issues an admin alert.
    * **PAUSED Fallback:** If an environment change (like a PEM deletion) renders the active rules invalid, there is no "last-known-good" ruleset to fall back to. The Core Daemon must immediately drop into a **PAUSED** state, halt EOT reporting, and notify the administrators.
 3. **PEM Schema Exchange & Registration Cadence:** Establish an initialization file contract (updating Section 4.2) where every registered PEM must write a static schema description file (e.g., `{pem_namespace}.schema.json`) to the shared IPC volume. The Core Daemon reads these files on startup and during dynamic reloads to successfully construct the type-checking reference map required for validating JSON-IR expressions. This section should also note the implementation of wildcard path matching to streamline heavily nested module schemas.
+
+For the PEM schemas and the type map, how complex do we expect the wildcard matching to get—should it just support single-level standard wildcards (e.g., `weather.*.temp`), or do we need deeper regex support for multi-level path resolution?
