@@ -61,12 +61,17 @@ Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by 
 
 ### 4.1 PRM Protocol (Rules Module)
 
-* **`push_rules` (PRM -> Core):** The PRM writes a new compiled JSON ruleset to `prm/active_rules.json.tmp`, then atomically renames it.
+* **`push_rules` (PRM -> Core):** The PRM writes a new compiled JSON-IR ruleset to `prm/active_rules.json.tmp`, then atomically renames it.
+* **Core Daemon Immediate Validation Pass:** The Core Daemon actively monitors the rules folder and the schemas folder. It must proactively parse and type-check incoming JSON-IR files immediately upon modification of the rules file, or whenever a PEM schema is added, updated, or deleted.
+* **Validation Error Recovery Policy:**
+  * **LKG Fallback:** If a newly watched JSON-IR file fails semantic or static verification, the Core Daemon discards it, retains the prior working version (Last-Known-Good), logs the trace, and issues an admin alert.
+  * **PAUSED Fallback:** If an environment change (such as a PEM deletion) renders the active rules invalid, there is no last-known-good ruleset to fall back to. The Core Daemon must immediately drop into a **PAUSED** state, halt EOT reporting, and notify the administrators.
 * **Core Processing:** The IPC Broker detects the rename, fires an `ipc.rules_updated` event. The Core then parses the new rules into `RuleAST` objects in the background, validates them, and atomically swaps the active rules pointer.
 
 ### 4.2 PEM Protocol (Environment Module)
 
 * **Schema Registration & Heartbeat (PEM -> Core):** PEMs write their schema and state payload to `pems/{namespace}.json`. PEMs must periodically update this file to indicate they are alive.
+* **PEM Schema Exchange & Registration Cadence:** Every registered PEM must write a static schema description file (e.g., `{pem_namespace}.schema.json`) to the shared IPC volume. The Core Daemon reads these files on startup and during dynamic reloads to successfully construct the type-checking reference map required for validating JSON-IR expressions. The specific structure, syntax, and semantics of these schema files are defined in the Pluggable Environment Module (PEM) Design Document.
 * **Transaction Commit (Core -> PEM):** If rules mutate a PEM namespace, the Core writes a diff to `tx/req_{tx_id}_{namespace}.json`.
 * **Acknowledgment:** The PEM processes the transaction and writes `tx/ack_{tx_id}_{namespace}.json`.
 * **Cleanup:** The IPC Broker detects the ACK file, fires an `ipc.pem_ack` event, and once the Core successfully posts the Discord report, it deletes both the `req` and `ack` files.
@@ -179,3 +184,20 @@ While the specific hosting environment is not yet defined, the deployment strate
 5. **Log Aggregation:** Because the Core Daemon writes all local observability data to `stdout`/`stderr` using a native logger, the deployment environment must feature an agent or mechanism to capture, rotate, and aggregate standard output logs.
 6. **Graceful Shutdown Signals:** The environment must issue standard termination signals (`SIGTERM`) and provide a brief grace period to allow the Event Bus and Rules Engine to finalize any in-flight file writes and network requests before exiting.
 7. **Testing Environment:** Functional testing of the integrated system will be performed against a dedicated staging or private testing-only Discord server to ensure live Nomicron gameplay is completely isolated from development.
+
+---
+
+### Comments, New Issues, Discussion Points, and Questions
+
+* **Validation Pass Concurrency:** In Section 4.1, the architecture states the Core Daemon parses JSON-IR files on changes. We may need to clarify in a future design document whether this "immediate validation pass" blocks the Event Bus thread while type-checking, or if it handles the traversal purely asynchronously to avoid dropping inbound Discord payloads.
+* **Formatting Nuance:** As requested, if a double-asterisk must be rendered as a stand-alone code segment without triggering markdown emphasis, it can be handled by splitting it across two segments (e.g., `*``*`), though this specific text payload did not strictly require rendering isolated standalone asterisks.
+
+### Pending Updates for Other Documents
+
+The following specific requirements extracted from the conversation and update lists must be propagated into their respective child documents:
+
+* **Pluggable Environment Module (PEM) Design Document:**
+  * **Schema File Syntax & Semantics:** Must rigorously define the exact JSON structure, syntax, and semantics of the `{pem_namespace}.schema.json` file. This includes standardizing how namespace paths are mapped to primitive types and explicitly defining how pattern matching formats (e.g., Glob or Regex declarations) are passed along to the Core Engine for parsing.
+* **Rules Engine Design Document:**
+  * **Dynamic Type Registry Initialization:** The engine must be designed to construct a master `TypeMap` at runtime by scanning and flattening the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Parsing and translation logic will depend on the PEM Design Document's specifications for translating path patterns into resolving regex patterns within the registry.
+  * **Static Type Checking & Semantic Analysis:** The engine must implement a proactive compiler frontend pattern (a Node Visitor architecture) that traverses the JSON-IR AST prior to active execution. This visitor is responsible for inferring types bottom-up, enforcing operator and function constraints (e.g., preventing a `MOD` operation on a string), and guaranteeing no implicit type coercion takes place. If an undefined symbol or type mismatch is found, it must throw an error bound to the `source` tracking string and abort the ruleset load.
