@@ -37,11 +37,13 @@ If at any point during execution a rule attempts to resolve an undefined namespa
 
 The rule language supports four distinct primitives. All operations, parameters, and return types are strongly typed. To guarantee standardized interpretation across any language or parser, the JSON-IR utilizes standardized short-word keywords for all operators rather than symbols.
 
+**No Implicit Coercion:** To prevent unpredictable behaviors during state evaluation, the language strictly prohibits implicit type coercion. Any attempt to operate across mismatched types without an explicit conversion function will result in a strict failure abort.
+
 Note: For functions, both the function call syntax and the method call syntax are provided below for source-language design flexibility. The JSON-IR format remains identical regardless of the source language syntax chosen.
 
 ### 2.1 Number
 
-Represents floating-point or integer numeric values.
+Represents floating-point or integer numeric values. The specific memory limits and precision of a number are intentionally unspecified by the language and left to the underlying execution engine.
 
 * **Literal Representation:** Standard digits, optional negative sign, optional decimal (e.g., `42`, `-15`, `3.14`).
 
@@ -89,8 +91,8 @@ Represents true or false logic states.
 
 #### Expression Operators
 
-* **Logical Conjunction (`AND`)**: Evaluates to `true` if both left and right expressions are true. Returns a Boolean.
-* **Logical Disjunction (`OR`)**: Evaluates to `true` if either the left or right expression is true. Returns a Boolean.
+* **Logical Conjunction (`AND`)**: Evaluates to `true` if both left and right expressions are true. Guarantees short-circuit evaluation: if the left expression evaluates to `false`, the right expression is not evaluated. Returns a Boolean.
+* **Logical Disjunction (`OR`)**: Evaluates to `true` if either the left or right expression is true. Guarantees short-circuit evaluation: if the left expression evaluates to `true`, the right expression is not evaluated. Returns a Boolean.
 * **Logical Negation (`NOT`)**: Unary operator that inverts the boolean value of the expression. Returns a Boolean.
 * **Equality (`EQ`)**: Evaluates if two boolean states are identical. Returns a Boolean.
 * **Inequality (`NEQ`)**: Evaluates if two boolean states are opposite. Returns a Boolean.
@@ -175,7 +177,7 @@ To satisfy the requirement that variables are not predefined while guaranteeing 
 
 Because the Core Engine performs the semantic and type validation of rules, it must understand the data types present in external namespaces. Every PEM must provide a corresponding static schema file (e.g., `{pem_namespace}.schema.json`) mapping its namespace paths to their primitive types.
 
-To prevent schemas from becoming excessively verbose for highly nested data, the schema definitions support wildcard pattern mapping. For example, a PEM schema might declare `weather.regions.*.temp` as a `Number`, which informs the Core Engine that any identifier matching that generic path pattern during rule evaluation is strongly typed as a Number.
+To prevent schemas from becoming excessively verbose for highly nested data, the schema definitions support pattern mapping (implementation specific) allowing parent nodes to strongly type child values dynamically.
 
 ---
 
@@ -195,7 +197,7 @@ Actions mutate data in either the `new.*` or `var.*` namespaces. An action consi
 
 ## 5. JSON Intermediate Representation (JSON-IR)
 
-To decouple the PRM's source-language parser from the Core Daemon's execution engine, rules are communicated via a strict **JSON-IR**. Every structural node within this payload explicitly declares its type identity via a uniform `"kind"` property.
+To decouple the PRM's source-language parser from the Core Daemon's execution engine, rules are communicated via a strict **JSON-IR**. Every structural node within this payload explicitly declares its type identity via a uniform `"kind"` property. The JSON-IR imposes no artificial Abstract Syntax Tree (AST) depth limit; execution engines must handle arbitrarily nested structures.
 
 ### 5.1 Root Document Structure
 
@@ -447,32 +449,15 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
 
 ---
 
-## Discussion Points & Design Updates
+## Discussion Points & New Issues
 
-### 1. Document Placement: Language vs. Engine
-
-The exact algorithm for static type checking and semantic analysis (e.g., the Visitor pattern execution, the dynamic type registry building) belongs in the **Rules Engine Design Document**.
-
-The language design document specifies *what* the rules are (the type constraints, operator behaviors, and valid AST structure). The engine document specifies *how* the Python backend implements those rules. Moving the implementation details to the engine document keeps concerns separated and makes the engine specification the single source of truth for execution flow.
-
-### 2. Missing Items for the Rules Language Design Document
-
-Before finalizing the language spec, consider adding definitions for the following:
-
-* **Implicit vs. Explicit Coercion:** Explicitly state whether the language allows any implicit type coercion (e.g., trying to `ADD` a number and a string, or evaluating a number in a boolean context like `if (1)`). Given the strict failure policy, it's highly recommended to formally state that **no implicit type coercion is permitted** to prevent unpredictable behaviors during EOT evaluation.
-* **AST Depth Limits:** To prevent stack overflows during recursive parsing by the engine, the language spec should define a maximum nested depth for JSON-IR trees (e.g., a maximum depth of 50 expression nodes).
-* **Numeric Precision & Limits:** Clarify what "Number" means under the hood. Does the JSON-IR expect a 64-bit float (IEEE 754)? Are there maximum/minimum bounds for integers? How are floating-point inaccuracies handled natively?
-* **Short-Circuit Evaluation:** Formalize whether the `AND` and `OR` operators guarantee short-circuit evaluation. While there are no side effects in conditions, this matters for efficiency (e.g., preventing a complex or potentially failing path resolution if the left side of an `AND` is already `false`).
-
-### 3. PEM Schema Wildcard Complexity
-
-Regarding your previous question about wildcard matching in schemas: given that the system does not use a database and communicates via simple IPC payloads, a full regex engine is overkill and introduces unnecessary complexity.
-
-A standard glob-style matching system is usually sufficient. Supporting single-level wildcards (`*`) and potentially multi-level wildcards (``) allows developers to map repetitive structures (like `weather.regions.*.temp`) efficiently without needing to parse complex lookarounds or character classes inside the Core Engine's schema registry. This should also be formalized in the Engine documentation rather than the Language spec.
+* **Apology & Clarification:** You are entirely correct—the question regarding wildcard matching at the end of the previous response was my own query aimed at gathering clarification for the ongoing design, not something you asked. I apologize for the confusion!
+* **Markdown Formatting for Double-Asterisks:** I have noted your suggestion for using split backticks (`*` `*`) to force rendering if needed. Standard markdown syntax usually handles ```` safely when enclosed properly, but the split method is a reliable fallback if environment parsers get aggressive.
+* **Regex vs. Glob for Pattern Matching:** Since you actively prefer Regex over Glob, we will formalize the architecture to use standard Regex for PEM schema mapping rather than reverting to a restrictive Glob system. This gives you the full flexibility you prefer while keeping the language document focused strictly on the language itself rather than the core engine's parser.
 
 ---
 
-### Consolidated List of Pending Architecture Document Updates
+## Consolidated List of Pending Architecture Document Updates
 
 The following items reflect architecture modifications driven by ongoing language updates that must be synchronized into the main **Climatomaton Architecture Specification**:
 
@@ -481,4 +466,4 @@ The following items reflect architecture modifications driven by ongoing languag
    * **LKG Fallback:** If a newly watched JSON-IR file fails semantic/static verification, the Core Daemon discards it, retains the prior working version, logs the trace, and issues an admin alert.
    * **PAUSED Fallback:** If an environment change (like a PEM deletion) renders the active rules invalid, there is no "last-known-good" ruleset to fall back to. The Core Daemon must immediately drop into a **PAUSED** state, halt EOT reporting, and notify the administrators.
 3. **PEM Schema Exchange & Registration Cadence:** Establish an initialization file contract (updating Section 4.2) where every registered PEM must write a static schema description file (e.g., `{pem_namespace}.schema.json`) to the shared IPC volume. The Core Daemon reads these files on startup and during dynamic reloads to successfully construct the type-checking reference map required for validating JSON-IR expressions.
-4. **PEM Schema Wildcard Support:** Note the implementation of simplified glob-style path matching (`*` and ``) inside the Core Engine's registry to streamline heavily nested module schemas without requiring a full regex engine.
+4. **PEM Schema Path Matching via Regex:** Detail in the Core Engine documentation that PEM schema matching will utilize regular expressions (Regex) rather than simple glob paths. This ensures full capability for wildcarding, range matching (`[]`, `[^]`), and robust multi-level path abstractions within the dynamic type registry.

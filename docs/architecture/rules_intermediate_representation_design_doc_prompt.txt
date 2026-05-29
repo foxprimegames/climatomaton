@@ -127,3 +127,18 @@ next question:  is the design document for the rules language the right place to
 in any case, what other items do you think should be discussed in the rules language design document?
 
 Please DON'T modify the language design document as a result of the above question; just re-display the document, then place any comments, new issues, or other discussion points issues after the end of the document itself.  please also include any previous notes about needed updates to the architecture document.  finally, please avoid any trailing spaces in your output.
+
+--
+
+okay, first, i didn't actually ask about wildcard matching - that was a question _you_ asked in the previous update (_after_, i'll add, the pending architecture documents, instead of in the comments, new issues, and other discussion points section of the post-document conversation).  in any case, i assume you used a double-asterisk `**` for your multi-level wildcard symbol even though your actual output is missing the desired symbol, since your markup processor eliminates those double-asterisks from enclosing code blocks for some reason.  my suggestion is, when trying to render a double-asterisk symbol, use two individual code blocks with a single asterisk each.
+
+i always prefer regex, because glob is too restrictive, but if the decision is to go with glob, please make sure you also include the `[]` and `[^]` character range matching.`
+
+to answer the other points raised:
+
+* no implicit coercion.
+* no AST depth limit.
+* number precision is not specified.  if it were to be specified, i'm really tempted to force it to integers, but i'm trying to avoid that.
+* yes, let's formalize short-circuit evaluation for `AND` and `OR`; please include that in the description of those operators.
+
+as always, please process the above issues into the language design document and display that document; place any comments, new issues, or other discussion points after the end of the document itself.  please also include any previous notes about needed updates to the architecture document, after any comments, new issues, or discussion points.  finally, please avoid any trailing spaces in your output.
