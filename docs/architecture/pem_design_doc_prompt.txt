@@ -18,3 +18,11 @@ this needs to specify:
 3. After the file layout descriptions, all the file formats should be specified using JSON schema.
 
 as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
+
+--
+
+1. instead of a custom mutable keyword, we could define, for this purpose, that the default of the `readOnly` attribute in the pem environment schema file is `true`, and the schema file must include `"readOnly": false` for mutable entries.  please make this change.  with this change, we don't need a schema for the schema file, since it is now .. a schema file. :)
+2. please use json-schema draft 2020-12 for all schema files.
+3. the heartbeat interval is not specified by the pems, but must be defined here.  what would a reasonable interval be, to ensure that a crashed or removed pem is identified quickly enough to not cause validation errors, but is not so short as to cause unnecessary work?
+
+as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.

@@ -10,32 +10,44 @@ PEMs are entirely decoupled from the core daemon and communicate strictly via fi
 
 ## 2. The Schema File
 
-The schema file dictates the structure, data types, and mutability of the environment data the PEM provides.
-
-**IMPORTANT NOTE:** The file layout represented in this section is a custom mapping format specific to Climatomaton's internal engine. It is **NOT** a standard "JSON Schema" (i.e., it does not conform to the IETF JSON Schema specification), though it uses JSON syntax to declare types and mutability.
+The schema file dictates the structure, data types, and mutability of the environment data the PEM provides. It is authored as a standard JSON Schema document adhering strictly to Draft 2020-12.
 
 * **File Naming Convention:** `pems/{pem_namespace}.schema.json`.
-* **Timing and Cadence:** The file must be written as soon as the PEM starts up. It must also be periodically updated (at an interval no greater than a predefined maximum, such as 60 seconds) to serve as a heartbeat indicating the PEM is alive.
-* **Content Description:** The schema explicitly maps namespace paths to primitive types (e.g., numbers, strings, boolean values, or lists of strings/tags). It rigorously defines which namespace paths are mutable. Any namespace path not explicitly marked as mutable in this file is strictly treated as read-only by the Rules Engine. It also establishes how wildcard characters (e.g., `*`) are handled for dynamic keys.
+* **Timing and Cadence:** The file must be written as soon as the PEM starts up. To serve as a heartbeat indicating the PEM is alive, this file must be atomically updated (e.g., touching the file to update its modified timestamp or rewriting it) at a system-wide defined interval of **no greater than 30 seconds**.
+* **Content Description:** The schema uses standard JSON Schema validation keywords (`properties`, `type`, `items`, `patternProperties`) to define the allowed namespace paths and primitive types.
+* **Mutability (The `readOnly` Constraint):** For the purposes of the Climatomaton engine, the default state of any property within a PEM schema is assumed to be read-only (`"readOnly": true`). If a PEM intends to allow the Rules Engine to mutate a specific field via tag or climate rules, it must explicitly include `"readOnly": false` on that property definition in the schema.
 
 **Format Layout (`{pem_namespace}.schema.json`)**
 
 ```json
 {
-  "namespace": "weather",
-  "heartbeat_interval_seconds": 60,
-  "paths": {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://climatomaton.local/schemas/weather.schema.json",
+  "title": "Weather Namespace Schema",
+  "type": "object",
+  "properties": {
     "temperature": {
-      "type": "number",
-      "mutable": false
+      "type": "number"
     },
     "forecast_tags": {
-      "type": "tag_list",
-      "mutable": true
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "readOnly": false
     },
-    "regions.*.wind_speed": {
-      "type": "number",
-      "mutable": false
+    "regions": {
+      "type": "object",
+      "patternProperties": {
+        "^.*$": {
+          "type": "object",
+          "properties": {
+            "wind_speed": {
+              "type": "number"
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -49,7 +61,7 @@ The environment data file contains the actual state values utilized by the Rules
 
 * **File Naming Convention:** `pems/{pem_namespace}.json`.
 * **Timing and Cadence:** This file must be written as soon as practical after the schema file is established. It must be atomically updated whenever the underlying represented content changes.
-* **Content Description:** The file contains the structured JSON environment data. The root of the JSON object maps directly to the identifiers within the namespace, explicitly omitting the PEM's top-level namespace prefix.
+* **Content Description:** The file contains the structured JSON environment data. The root of the JSON object maps directly to the identifiers within the namespace, explicitly omitting the PEM's top-level namespace prefix. It must successfully validate against the PEM's published schema file.
 
 **Format Layout (`{pem_namespace}.json`)**
 
@@ -119,65 +131,18 @@ To standardize data mutation mapping, the transaction file utilizes the **JSON P
 
 ## 5. JSON Schema Specifications for IPC Files
 
-The following are the formal JSON Schema representations for validating the system files defined above.
+The following are the formal JSON Schema representations (Draft 2020-12) for validating the transaction files defined above.
 
-### 5.1 PEM Custom Schema File (`{pem_namespace}.schema.json`)
+### 5.1 PEM Environment Data File (`{pem_namespace}.json`)
 
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "PEM Custom Mapping Schema",
-  "type": "object",
-  "required": ["namespace", "heartbeat_interval_seconds", "paths"],
-  "properties": {
-    "namespace": {
-      "type": "string",
-      "description": "The top-level prefix for this module."
-    },
-    "heartbeat_interval_seconds": {
-      "type": "integer",
-      "minimum": 1
-    },
-    "paths": {
-      "type": "object",
-      "patternProperties": {
-        "^.*$": {
-          "type": "object",
-          "required": ["type", "mutable"],
-          "properties": {
-            "type": {
-              "type": "string",
-              "enum": ["number", "string", "boolean", "tag_list"]
-            },
-            "mutable": {
-              "type": "boolean"
-            }
-          }
-        }
-      }
-    }
-  }
-}
-```
+Because this file contains the arbitrary data provided by the PEM, a static engine-wide JSON Schema cannot represent it. This file must be validated dynamically against the specific `{pem_namespace}.schema.json` file published by the PEM itself.
 
-### 5.2 PEM Environment Data File (`{pem_namespace}.json`)
-
-*Note: Because this file contains the arbitrary data provided by the PEM, a single rigid JSON Schema cannot represent it. A meta-schema would simply define it as a generic JSON object. If a standard JSON Schema is adopted in the future (see discussion below), this file would be validated against the PEM's published JSON Schema.*
+### 5.2 Transaction Request File (`req_{tx_id}_{namespace}.json`)
 
 ```json
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "PEM Environment Data File",
-  "type": "object",
-  "description": "The dynamic data object containing the PEM's environment variables. Its specific structure is dictated by the associated schema file."
-}
-```
-
-### 5.3 Transaction Request File (`req_{tx_id}_{namespace}.json`)
-
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://climatomaton.local/schemas/transaction_request.schema.json",
   "title": "Transaction Request File",
   "type": "object",
   "required": ["tx_id", "namespace", "patch"],
@@ -212,11 +177,12 @@ The following are the formal JSON Schema representations for validating the syst
 }
 ```
 
-### 5.4 Transaction Acknowledgment File (`ack_{tx_id}_{namespace}.json`)
+### 5.3 Transaction Acknowledgment File (`ack_{tx_id}_{namespace}.json`)
 
 ```json
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://climatomaton.local/schemas/transaction_ack.schema.json",
   "title": "Transaction Acknowledgment File",
   "type": "object",
   "required": ["tx_id", "namespace", "status", "timestamp"],
@@ -242,21 +208,17 @@ The following are the formal JSON Schema representations for validating the syst
 
 ---
 
-### Discussion Points & Investigation
+### Discussion Points & Questions
 
-1. **Investigating standard JSON Schema for the PEM Schema File:** It is entirely feasible to replace the custom `"paths"` mapping object with a fully standard JSON Schema definition.
-* **How it would work:** The PEM would publish a file that adheres to standard JSON Schema drafts. Instead of the custom object, it would declare its fields using standard `properties`, `type`, and `items` keywords. To handle the `mutable` requirement, we could introduce a custom vocabulary keyword (e.g., `x-climatomaton-mutable: true`) that the Rules Engine reads when parsing the schema.
-* **Benefits:** This would allow the core daemon to leverage highly robust, off-the-shelf JSON Schema validation libraries to guarantee the integrity of the Environment Data File before passing it to the rules engine. It natively handles wildcards via `patternProperties` and `additionalProperties` without requiring custom parser logic.
-* **Consideration:** We should discuss whether it is worth shifting the design to fully embrace standard JSON Schema with custom annotations, as it would significantly reduce the maintenance burden of a custom type registry.
-
-
+1. **Heartbeat Interval Choice:** I have defined the heartbeat interval as 30 seconds. In a highly asynchronous, file-based IPC environment, 30 seconds provides a good balance: it is frequent enough that the system will quickly detect a dead PEM and gracefully halt EOT validation before processing bad data, but slow enough that it will not cause undue disk I/O thrashing on the shared volume (since an atomic `.tmp` rename every 30 seconds is virtually zero overhead). Let me know if this cadence should be faster (e.g., 10 seconds) or slower (e.g., 60 seconds).
+2. **Schema Engine Selection:** Since we are now using Draft 2020-12, the core daemon will need a capable JSON Schema validation library to ingest these schemas, evaluate the `readOnly` status, and validate incoming data dynamically.
 
 ### Pending Updates for Other Documents
 
 #### Rules Engine Design Document
 
-1. **Dynamic Type Registry Initialization:** The engine must be designed to construct a master `TypeMap` at runtime by scanning and flattening the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Parsing and translation logic will depend on the PEM Design Document's specifications for translating path patterns and wildcards into resolving regex patterns within the registry. (Note: If standard JSON Schema is adopted, this requirement shifts to loading and compiling JSON Schemas).
-2. **Static Type Checking & Semantic Analysis:** The engine must implement a proactive compiler frontend pattern (a Node Visitor architecture) that traverses the JSON-IR AST prior to active execution. This visitor is responsible for inferring types bottom-up, enforcing operator and function constraints (e.g., preventing a `MOD` operation on a string), and guaranteeing no implicit type coercion takes place. If an undefined symbol or type mismatch is found, it must throw an error bound to the `source` tracking string and abort the ruleset load.
+1. **Dynamic Type Registry Initialization:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Because the system now utilizes standard JSON Schema (Draft 2020-12), the engine must incorporate a compliant JSON Schema compiler to load these files, resolve wildcards via `patternProperties`, and map fields as mutable strictly when the `"readOnly": false` attribute is explicitly present.
+2. **Static Type Checking & Semantic Analysis:** The engine must implement a proactive compiler frontend pattern (a Node Visitor architecture) that traverses the JSON-IR AST prior to active execution. This visitor is responsible for inferring types bottom-up, enforcing operator and function constraints (e.g., preventing a `MOD` operation on a string), and guaranteeing no implicit type coercion takes place. If an undefined symbol, a type mismatch, or a write operation to a `readOnly: true` (default) field is found, it must throw an error bound to the `source` tracking string and abort the ruleset load.
 
 #### DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents
 
