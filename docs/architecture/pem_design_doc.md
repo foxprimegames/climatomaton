@@ -14,6 +14,7 @@ The schema file dictates the structure, data types, and mutability of the enviro
 
 * **File Naming Convention:** `pems/{pem_namespace}.schema.json`.
 * **Timing and Cadence:** The file must be written as soon as the PEM starts up. To serve as a heartbeat indicating the PEM is alive, this file must be atomically updated (e.g., touching the file to update its modified timestamp or rewriting it) at a system-wide defined interval of **no greater than 30 seconds**.
+* **Heartbeat Monitoring & Cleanup:** The Core Daemon actively monitors this heartbeat using a more lenient validation interval to prevent unnecessary churn during brief disk I/O latency. The Core Daemon checks the timestamp every 60 seconds. A PEM is only considered dead or removed if it fails two consecutive checks (meaning the file has not been touched in over 120 seconds). If this occurs, the Core Daemon automatically purges the stale schema and data files from the volume.
 * **Content Description:** The schema uses standard JSON Schema validation keywords (`properties`, `type`, `items`, `patternProperties`) to define the allowed namespace paths and primitive types.
 * **Mutability (The `readOnly` Constraint):** For the purposes of the Climatomaton engine, the default state of any property within a PEM schema is assumed to be read-only (`"readOnly": true`). If a PEM intends to allow the Rules Engine to mutate a specific field via tag or climate rules, it must explicitly include `"readOnly": false` on that property definition in the schema.
 
@@ -22,7 +23,7 @@ The schema file dictates the structure, data types, and mutability of the enviro
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://climatomaton.local/schemas/weather.schema.json",
+  "$id": "https://codeberg.org/foxprimegames/climatomaton/src/branch/main/docs/schemas/weather.schema.json",
   "title": "Weather Namespace Schema",
   "type": "object",
   "properties": {
@@ -142,7 +143,7 @@ Because this file contains the arbitrary data provided by the PEM, a static engi
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://climatomaton.local/schemas/transaction_request.schema.json",
+  "$id": "https://codeberg.org/foxprimegames/climatomaton/src/branch/main/docs/schemas/transaction_request.schema.json",
   "title": "Transaction Request File",
   "type": "object",
   "required": ["tx_id", "namespace", "patch"],
@@ -182,7 +183,7 @@ Because this file contains the arbitrary data provided by the PEM, a static engi
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://climatomaton.local/schemas/transaction_ack.schema.json",
+  "$id": "https://codeberg.org/foxprimegames/climatomaton/src/branch/main/docs/schemas/transaction_ack.schema.json",
   "title": "Transaction Acknowledgment File",
   "type": "object",
   "required": ["tx_id", "namespace", "status", "timestamp"],
@@ -208,16 +209,23 @@ Because this file contains the arbitrary data provided by the PEM, a static engi
 
 ---
 
-### Discussion Points & Questions
+### Discussion Points, Questions & Comments
 
-1. **Heartbeat Interval Choice:** I have defined the heartbeat interval as 30 seconds. In a highly asynchronous, file-based IPC environment, 30 seconds provides a good balance: it is frequent enough that the system will quickly detect a dead PEM and gracefully halt EOT validation before processing bad data, but slow enough that it will not cause undue disk I/O thrashing on the shared volume (since an atomic `.tmp` rename every 30 seconds is virtually zero overhead). Let me know if this cadence should be faster (e.g., 10 seconds) or slower (e.g., 60 seconds).
-2. **Schema Engine Selection:** Since we are now using Draft 2020-12, the core daemon will need a capable JSON Schema validation library to ingest these schemas, evaluate the `readOnly` status, and validate incoming data dynamically.
+1. **Python Library Recommendation:** For the Python 3 core engine, the officially recommended library is `jsonschema` (available via PyPI). Version 4.18.0 and above provide full support for Draft 2020-12 validation.
+* *Validation:* You would parse the JSON and use `jsonschema.validate(instance=data, schema=schema)`.
+* *Extracting `readOnly`:* Standard JSON Schema validation only checks data structures, not annotations (meaning a standard validator will not automatically fail if you write to a field marked `"readOnly": true`). Therefore, during the Rules Engine startup/initialization phase, you will write a quick recursive dictionary traversal function in Python that walks the loaded `schema.json` dictionary to find and catalog any paths where the `"readOnly": false` key is present. This catalog will be passed to the Type Registry to build the mutable fields list.
+
+
+2. **Heartbeat & Cleanup Cadence:** Your logic is sound. I have updated Section 2 to implement the "fast publish, lenient subscribe" model. The PEM is required to update its timestamp every 30 seconds, but the Core Engine only checks every 60 seconds and allows for two consecutive misses. This drastically reduces the likelihood of race conditions or minor volume latency causing an accidental teardown, while still isolating dead PEMs well before the weekly EOT report processing.
+3. **Python Library for PEM Modules:** I completely agree with your instinct here. I have deliberately kept any mention of a "helper library" out of the design document. The architecture strictly demands decoupled, language-agnostic integration via JSON and shared volumes. Keeping the document language-agnostic ensures that developers using Go, Rust, or Node.js to write a PEM in the future understand the exact baseline requirements without being sidetracked by Python-specific tooling.
+
+---
 
 ### Pending Updates for Other Documents
 
 #### Rules Engine Design Document
 
-1. **Dynamic Type Registry Initialization:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Because the system now utilizes standard JSON Schema (Draft 2020-12), the engine must incorporate a compliant JSON Schema compiler to load these files, resolve wildcards via `patternProperties`, and map fields as mutable strictly when the `"readOnly": false` attribute is explicitly present.
+1. **Dynamic Type Registry Initialization:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Because the system now utilizes standard JSON Schema (Draft 2020-12), the engine must incorporate a compliant JSON Schema library (e.g., `jsonschema`) to load these files. The initialization phase must recursively traverse the parsed schema dict to extract and register mutable namespace paths strictly where the `"readOnly": false` attribute is present. Wildcards will be resolved via the schema's `patternProperties`.
 2. **Static Type Checking & Semantic Analysis:** The engine must implement a proactive compiler frontend pattern (a Node Visitor architecture) that traverses the JSON-IR AST prior to active execution. This visitor is responsible for inferring types bottom-up, enforcing operator and function constraints (e.g., preventing a `MOD` operation on a string), and guaranteeing no implicit type coercion takes place. If an undefined symbol, a type mismatch, or a write operation to a `readOnly: true` (default) field is found, it must throw an error bound to the `source` tracking string and abort the ruleset load.
 
 #### DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents
