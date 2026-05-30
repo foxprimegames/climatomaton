@@ -1,0 +1,12 @@
+Prompts for the design document for the Pluggable Environment Modules.
+Using Gemini Pro Extended model.
+
+----
+
+based on the uploaded architecture document, the original prompts that generated it and the prompts that later updated it, and the list of pending updates, we need to generate a design document for the pluggable environment modules to follow.
+
+this needs to specify:
+* what a pluggable environment module does (manage a set of environment data that is made available for climate and tag rules to evaluate)
+* the schema and data files that the pluggable environment module is expected to publish on its own, and what the timing for those files are.
+* the transaction and acknowledgement files that are used when the rules engine sends a data update back to the pem and the pem acknowledges receipt.
+* the file specifications must include the file naming convention, the description of their content and the exact format or layout of the files.
