@@ -10,3 +10,11 @@ this needs to specify:
 * the schema and data files that the pluggable environment module is expected to publish on its own, and what the timing for those files are.
 * the transaction and acknowledgement files that are used when the rules engine sends a data update back to the pem and the pem acknowledges receipt.
 * the file specifications must include the file naming convention, the description of their content and the exact format or layout of the files.
+
+--
+
+1. it is important that you emphasize that the PEM schema file represented here is NOT a "JSON schema".  however, the schema we want _could_ be represented by a JSON schema file, so please investigate that.
+2. the transaction request file _should_ use the JSON Patch file format (RFC 6902) to describe the differences.
+3. After the file layout descriptions, all the file formats should be specified using JSON schema.
+
+as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
