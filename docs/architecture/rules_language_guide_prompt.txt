@@ -76,3 +76,24 @@ tag rule "not changing" when new.climate.value = climate.value then new.climate.
 ```
 
 as always, please process the above issues into both documents and display them, guide first followed by reference.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
+
+--
+
+1. Please add a syntax for comments.  i was originally going to suggest using either `#` or `//` or both for through-end-of-line comments, but then thought it might be more natural to say that comments are enclosed in square brackets (e.g. `when proposals.count < 5 [ not a lot of activity ]`).  comments must be allowed anywhere (_except possibly in between words of a multi-word keyword_) and are explicitly ignored.  note, the last sentence was a directive to you, not language that should appear in the guide; please explain comments appropriately in the guide.
+2. In the (current) section 7 rule set example, please add comments with your understanding of what each rule or group of rules is doing.
+3. you added a comment outside the code block for the ebnf, which doesn't do anything (and also you targeted the wrong quote).  the comment should be an inline comment at the end of the EBNF for StringLiteral; or better yet, to make sure it works properly, StringLiteral should be broken up into two lines, each of which ends in an inline comment:
+```
+StringLiteral ::= '"' [^"\\]* '"' # keep rendering engines happy: "
+                | "'" [^'\\]* "'" # keep rendering engines happy: '
+```
+4. question: would introducing conditional expressions (such as C's ternary operator or python's `x if y else z` syntax) create more confusion than it might solve?  such expressions would have allowed the example set of "agreement makes everything calm down" rules into two rules rather than 4.
+5. in the guide "writing actions" section, choose a different way to explain why there are different specific keywords to change data.  also, for the "more compact" explanation, say tag list modifications instead of just tag modifications.
+6. in the reference section on natural-language constructs, "action items combined via `and`" should specifically talk about tag-list actions.
+7. somewhere, probably in the "environments" section, the guide needs to discuss the structure of the `var` namespace.
+8. in the reference section on action mutations, the explanation of the engine not being able to statically block certain mutations is not accurate, since the syntax could preclude that, but that would preclude the use of tag list variables also.
+9. in the "types of data" section of the guide, don't include the comment about making a number negative by placing a - sign in front of it, since you already have an example that shows that.
+10. in the guide on types of data and operations, the `includes`/`excludes` tag list operators allow checking for a **single** tag inside the target tag list, whereas the `any of` and `all of` tag list operators are the two different ways of checking if one or all tags from a **tag list** are inside the target tag list.  the previous sentence was a directive to you; please explain it appropriately within the guide.
+11. in the example for the actions for a tag list, please use the singular verbs `includes` and `excludes`, since the example *target* is a singular word.
+12. in the ebnf for `Factor`, only allow one optional `^` operator, not a chain of them.
+
+as always, please process the above issues into both documents and display them, guide first followed by reference.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.

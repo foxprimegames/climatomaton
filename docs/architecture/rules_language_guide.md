@@ -15,10 +15,12 @@ Every rule does two things: it checks if certain **conditions** are met, and if 
 
 A rule always starts with its type (`climate rule` or `tag rule`) followed by its name in quotes. After that, the `when` section lists the conditions, and the `then` section lists the actions.
 
+You can also add **comments** anywhere in your rules (except in the middle of multi-word keywords) by wrapping them in square brackets `[ like this ]`. The system completely ignores comments, so they are a great way to explain what a rule is doing.
+
 Here is a simple example:
 
 ```text
-climate rule "Greenhouse Warming"
+climate rule "Greenhouse Warming" [ This rule triggers when the greenhouse effect is active ]
 when
   climate.tags includes "Greenhouse Effect"
   proposals.passed >= 3
@@ -33,14 +35,18 @@ Rules read and change data. To keep things organized, data is grouped into "name
 * **`climate.` (Read-Only):** This is the state of the climate *before* any rules run this turn. You can look at `climate.value` or `climate.tags`, but you cannot change them directly.
 * **`proposals.` (Read-Only):** This contains information about the end-of-turn report, such as `proposals.count`, `proposals.passed`, and `proposals.failed`.
 * **`new.` (Changeable):** This is the data you *can* change. When you want to update the climate, you apply your changes to `new.climate.value` or `new.climate.tags`.
-* **`var.` (Variables):** This is your scratchpad. If you need to keep track of a temporary number or list while your rules run, you use a variable. Variables automatically start at `0` (or empty).
+* **`var.` (Variables):** This is your scratchpad. If you need to keep track of a temporary value while your rules run, you use a variable. Variables automatically start at `0` (or empty), but you must tell the system what type of data the variable holds by starting its name with a specific prefix:
+  * `var.n.` for a number (e.g., `var.n.counter`)
+  * `var.b.` for a true/false boolean (e.g., `var.b.is_active`)
+  * `var.s.` for a string of text (e.g., `var.s.message`)
+  * `var.l.` for a tag list (e.g., `var.l.temp_tags`)
 * **Future Namespaces (e.g., `weather.`):** Future additions to the system might introduce new namespaces. You can read them (e.g., `weather.wind_speed`) and, if permitted, modify them using the `new.` prefix (e.g., `new.weather.wind_speed`).
 
 ## 4. Types of Data
 
 The system understands four types of data:
 
-* **Numbers:** Standard numbers like `5`, `-10`, or `3.14`. You can make a number negative by placing a minus sign directly in front of it (e.g., `-5`).
+* **Numbers:** Standard numbers like `5`, `-10`, or `3.14`.
 * **Booleans (True/False):** Logical states represented by `true` or `false`.
 * **Strings (Text):** Text wrapped in quotes, like `"Windy"`.
 * **Tag Lists:** A collection of unique tags separated by commas, like `"Mild", "Windy"`.
@@ -52,10 +58,10 @@ The `when` section acts as a gatekeeper. You use comparisons to evaluate data:
 
 * **Math Comparisons:** `=`, `!=` (not equal), `<`, `<=`, `>`, `>=`, and range comparisons like `10 < climate.value <= 20`.
 * **Tag Checks:** You can look for tags inside tag lists using clean English phrases:
-  * *target* `includes` *tags* (checks if a specific tag or list of tags is present)
-  * *target* `includes any of` *tags* (checks if at least one of the tags is present)
-  * *target* `includes all of` *tags* (checks if every single one of the listed tags is present)
-  * *target* `excludes` *tags*, *target* `excludes any of` *tags*, and *target* `excludes all of` *tags* function identically but verify that the tags are missing.
+  * *target* `includes` *tag* (checks if a **single** tag is present)
+  * *target* `includes any of` *list* (checks if at least one tag from a **tag list** is present)
+  * *target* `includes all of` *list* (checks if every single tag from a **tag list** is present)
+  * *target* `excludes` *tag*, *target* `excludes any of` *list*, and *target* `excludes all of` *list* function identically but verify that the tags are missing.
 * **Combining Conditions:** Use `and` (both must be true), `or` (at least one must be true), and `not` (reverses the truth).
 
 **Listing Multiple Conditions:**
@@ -66,14 +72,14 @@ You can also use built-in functions to ask complex questions, such as:
 
 ## 6. Writing Actions (`then`)
 
-The `then` section modifies data. Because the system enforces strict rules, you must use specific keywords to change data:
+The `then` section modifies data. To ensure the system always knows exactly what type of data you are updating, each data type requires specific phrasing:
 
 * **For Numbers:** You can use *target* `is` *value*, *target* `is increased by` *value*, or *target* `is decreased by` *value*.
 * **For Booleans and Strings:** You can **only** use *target* `is` *value*.
 * **For Tag Lists:** You can use *target* `is` *list*, *target* `includes` *tags* (or `include`), and *target* `excludes` *tags* (or `exclude`).
 
-To make rules more compact, you can chain tag modifications on the same line using `and`:
-*target* `include "warming" and exclude "cooling"`
+To make rules more compact, you can chain tag list modifications on the same line using `and`:
+*target* `includes "warming" and excludes "cooling"`
 
 ## 7. Example Set of Rules
 
@@ -82,84 +88,84 @@ Here is a complete set of example rules demonstrating how the language coordinat
 ```text
 climate rule "not enough activity"
 when
-  proposals.count < 5
+  proposals.count < 5 [ If there are very few proposals... ]
 then
-  new.climate.value is decreased by 5 - proposals.count
+  new.climate.value is decreased by 5 - proposals.count [ ...the climate drops based on the shortfall. ]
 
 climate rule "disagreements cause heated discussions"
 when
-  proposals.count >= 5
-  proposals.failed > proposals.passed
+  proposals.count >= 5 [ If there are plenty of proposals... ]
+  proposals.failed > proposals.passed [ ...but more failed than passed... ]
 then
-  new.climate.value is increased by proposals.failed - proposals.passed
+  new.climate.value is increased by proposals.failed - proposals.passed [ ...the climate heats up from the arguments. ]
 
 climate rule "agreement makes everything calm down (warm climate cooling)"
 when
   proposals.count >= 5
-  proposals.passed > proposals.failed
-  new.climate.value > proposals.passed - proposals.failed
+  proposals.passed > proposals.failed [ If more proposals pass than fail... ]
+  new.climate.value > proposals.passed - proposals.failed [ ...and the climate is currently very warm... ]
 then
-  new.climate.value is decreased by proposals.passed - proposals.failed
+  new.climate.value is decreased by proposals.passed - proposals.failed [ ...the climate cools down toward zero. ]
 
 climate rule "agreement makes everything calm down (warm climate becomes neutral)"
 when
   proposals.count >= 5
   proposals.passed > proposals.failed
-  new.climate.value <= proposals.passed - proposals.failed
+  new.climate.value <= proposals.passed - proposals.failed [ ...and the climate is only slightly warm... ]
 then
-  new.climate.value is 0
+  new.climate.value is 0 [ ...it settles perfectly at neutral zero. ]
 
 climate rule "agreement makes everything calm down (cool climate warming)"
 when
   proposals.count >= 5
   proposals.passed > proposals.failed
-  new.climate.value < -(proposals.passed - proposals.failed)
+  new.climate.value < -(proposals.passed - proposals.failed) [ ...and the climate is currently very cold... ]
 then
-  new.climate.value is increased by proposals.passed - proposals.failed
+  new.climate.value is increased by proposals.passed - proposals.failed [ ...the climate warms up toward zero. ]
 
 climate rule "agreement makes everything calm down (cool climate becomes neutral)"
 when
   proposals.count >= 5
   proposals.passed > proposals.failed
-  new.climate.value >= -(proposals.passed - proposals.failed)
+  new.climate.value >= -(proposals.passed - proposals.failed) [ ...and the climate is only slightly cold... ]
 then
-  new.climate.value is 0
+  new.climate.value is 0 [ ...it settles perfectly at neutral zero. ]
 
 tag rule "hope it stays mild"
 when
-  -10 <= new.climate.value <= 10
+  -10 <= new.climate.value <= 10 [ If the climate value is balanced near zero... ]
 then
-  new.climate.tags include "mild" and exclude "greenhouse", "ice age"
+  new.climate.tags includes "mild" and excludes "greenhouse", "ice age" [ ...apply the mild tag and remove extreme tags. ]
 
 tag rule "brrrr"
 when
-  new.climate.value < -10
+  new.climate.value < -10 [ If the climate drops significantly below zero... ]
 then
-  new.climate.tags include "ice age" and exclude "mild", "greenhouse"
+  new.climate.tags includes "ice age" and excludes "mild", "greenhouse" [ ...it triggers an ice age. ]
 
 tag rule "hothothot"
 when
-  new.climate.value > 10
+  new.climate.value > 10 [ If the climate rises significantly above zero... ]
 then
-  new.climate.tags include "greenhouse" and exclude "ice age", "mild"
+  new.climate.tags includes "greenhouse" and excludes "ice age", "mild" [ ...it triggers the greenhouse effect. ]
 
 tag rule "getting warmer"
 when
-  new.climate.value > climate.value
+  new.climate.value > climate.value [ If the new value is higher than the previous turn's value... ]
 then
-  new.climate.tags include "warming" and exclude "cooling"
+  new.climate.tags includes "warming" and excludes "cooling" [ ...show that the trend is warming. ]
 
 tag rule "getting cooler"
 when
-  new.climate.value < climate.value
+  new.climate.value < climate.value [ If the new value is lower than the previous turn's value... ]
 then
-  new.climate.tags include "cooling" and exclude "warming"
+  new.climate.tags includes "cooling" and excludes "warming" [ ...show that the trend is cooling. ]
 
 tag rule "not changing"
 when
-  new.climate.value = climate.value
+  new.climate.value = climate.value [ If the value stayed exactly the same... ]
 then
-  new.climate.tags exclude "cooling", "warming"
+  new.climate.tags excludes "cooling", "warming" [ ...remove all trend tags. ]
 ```
 
 ---
@@ -174,6 +180,7 @@ The language prioritizes whitespace-separated, plain-English keywords.
 
 * **Keywords:** `climate rule`, `tag rule`, `when`, `then`, `and`, `or`, `not`, `is`, `increased by`, `decreased by`, `include`, `includes`, `exclude`, `excludes`, `any of`, `all of`, `empty`. Keywords are case-insensitive.
 * **Rule Definitions:** Must begin with the exact sequence `climate rule` or `tag rule`, followed by a string literal representing the name.
+* **Comments:** Text enclosed in square brackets `[ ... ]` are comments. They may appear anywhere in the source file except inside multi-word keywords (e.g., between "climate" and "rule") and are explicitly ignored by the lexer/parser.
 
 ## 2. Data Types & Literals
 
@@ -221,8 +228,8 @@ The PRM parser must translate specific natural-language constructs into their co
   * `<target> excludes <expr>` translates to `not(has(<target>, <expr>))`
   * `<target> excludes any of <expr>` translates to `not(has_any(<target>, <expr>))`
   * `<target> excludes all of <expr>` translates to `not(has_all(<target>, <expr>))`
-* **Chained Actions:**
-  * Action items combined via `and` (e.g., `target include X and exclude Y`) must be parsed and unrolled into distinct individual JSON-IR mutation nodes within the `actions` array.
+* **Chained Tag-List Actions:**
+  * Tag-list action items combined via `and` (e.g., `target includes X and excludes Y`) must be parsed and unrolled into distinct individual JSON-IR mutation nodes within the `actions` array.
 
 ## 4. Environment Namespaces & Strict Typing
 
@@ -274,7 +281,7 @@ Mutations in the `then` block define standard assignment and list alterations.
 * **List Union (`INCLUDES`):** `<target> includes <expression>` or `<target> include <expression>`
 * **List Difference (`EXCLUDES`):** `<target> excludes <expression>` or `<target> exclude <expression>`
 
-*Convention Note:* Because the Core Engine allows general-purpose actions, it is purely a convention that Climate Rules target numbers/booleans and Tag Rules target tag lists. The engine cannot statically block a Climate Rule from mutating `new.climate.tags`.
+*Convention Note:* The engine cannot statically block a Climate Rule from mutating `new.climate.tags` purely through syntax without also precluding the valid use of dynamic tag list variables (e.g., `var.l.my_tags`). Thus, the separation of concerns (Climate Rules for numbers/booleans, Tag Rules for tag lists) remains a convention.
 
 ## 7. Extended Backus-Naur Form (EBNF) Grammar
 
@@ -310,7 +317,7 @@ RangeComparison ::= Arithmetic ("<" | "<=") Arithmetic ("<" | "<=") Arithmetic
 
 Arithmetic ::= Term (("+" | "-") Term)*
 Term ::= Factor (("*" | "/") Factor)* | Factor "mod" Factor
-Factor ::= [ "-" ] Base ("^" Factor)*
+Factor ::= [ "-" ] Base [ "^" Factor ]
 Base ::= Literal | NamespacePath | FunctionCall | MethodCall | "(" Expression ")"
 
 FunctionCall ::= Identifier "(" [ArgumentList] ")"
@@ -320,24 +327,25 @@ ArgumentList ::= Expression ("," Expression)*
 Literal ::= Number | Boolean | StringLiteral | TagList
 Number ::= ["-"] Digit+ ["." Digit+]
 Boolean ::= "true" | "false"
-StringLiteral ::= '"' [^"\\]* '"' | "'" [^'\\]* "'"
+StringLiteral ::= '"' [^"\\]* '"' # keep rendering engines happy: "
+                | "'" [^'\\]* "'" # keep rendering engines happy: '
 TagList ::= "empty" | StringLiteral "," | StringLiteral ("," StringLiteral)+
 
 Identifier ::= Letter (Letter | Digit | "_")*
 Letter ::= [a-zA-Z]
 Digit ::= [0-9]
+Comment ::= "[" [^\]]* "]"
 ```
 
-(* Note: The regex character set [^"\] inside StringLiteral is optimized for single-line evaluation. Certain markdown engines can occasionally mistake the backslash-quote string boundaries within custom EBNF code block renderers as unmatched literal blocks. *)
+(* Note: `Comment` is handled at the lexer level and may interleave between any valid tokens. *)
 
 ---
 
 ## Comments, Issues, and Discussion Points
 
-1. **Arithmetic Term Chaining Strategy:** Keeping mixed `*` and `/` chaining together (`Factor (("*" | "/") Factor)*`) remains the correct, standard approach matching user expectations. Forcing authors to split chained multiplication and division into separate un-mixed expressions would have subverted normal order-of-operations conventions and introduced arbitrary parsing hurdles. Leaving `mod` completely isolated as non-chaining (`Factor "mod" Factor`) is highly intuitive, preventing confusing ambiguities like `A mod B mod C`.
-2. **Action Chaining Sugar Implementation:** Allowing actions to use compound structures connected by `and` (e.g., `target include A and exclude B`) makes rulesets exceptionally clean. The grammar safely unrolls these into an explicit repetition loop inside `Action` so the PRM parser can cleanly output separate, atomic mutation frames into the JSON-IR array structure, completely decoupling presentation layout from engine simplicity.
-3. **Condition Sugar Layout Expansion:** Elevating both the range comparisons and the keyword variations (`includes all of`, `excludes any of`, etc.) into a dedicated `ConditionSugar` EBNF branch makes it explicitly clear that these represent higher-level parsing constructs designed to translate downstream into flat JSON-IR function calls.
-4. **Unary Negation Integration:** Unary negative operations are seamlessly placed inside the `Factor` block rule `[ "-" ] Base`. This cleanly supports recursive precedence matching so complex numerical structures like `-(proposals.passed - proposals.failed)` evaluate safely before scaling or mutating values.
+1. **Conditional Expressions (Ternary / `if/else`):** Regarding your question about introducing conditional expressions (like `x if y else z`): While it would undoubtedly consolidate rule counts (like collapsing the 4 "agreement makes everything calm down" rules into 2), it introduces a significant conceptual leap for non-programmers. It forces authors to embed branching logic *inside* an action or expression, rather than keeping the "If X, do Y" flow cleanly separated between the `when` and `then` blocks. For a language aimed at maximum readability and typo-reduction for non-technical users, keeping rules structurally flat and distinct is generally safer, even if it requires more lines of code.
+2. **EBNF `Factor` Constraint:** Modifying `Factor` to only allow a single optional exponentiation `[ "^" Factor ]` prevents chained exponents (`2 ^ 3 ^ 4`). Given how rarely exponent chaining is used in non-academic contexts (and the ambiguity of whether it's right-associative or left-associative), this is a solid safeguard.
+3. **EBNF String Literal Rendering:** I successfully split the `StringLiteral` token into two distinct lines with trailing `#` comments. This explicitly defines double quotes and single quotes independently while utilizing the `#` to provide the missing "closing" quote character that syntax highlighters expect.
 
 ---
 
@@ -353,7 +361,7 @@ Digit ::= [0-9]
 
 ### Rules Engine Design Document
 
-1. **Dynamic Type Registry Initialization & Type Mapping:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Because the system utilizes standard JSON Schema (Draft 2020-12), the engine must incorporate a compliant JSON Schema library (e.g., `jsonschema`) to load these files. During initialization, the engine must traverse the parsed schema dictionaries to accomplish two tasks:
+1. **Dynamic Type Registry Initialization & Type Mapping:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Because the system utilizes standard JSON Schema (Draft 2020-12), the engine must incorporate a compliant JSON Schema library (e.g., `jsonschema` in Python) to load these files. During initialization, the engine must traverse the parsed schema dictionaries to accomplish two tasks:
    * **Mutability Registration:** Dynamically extract and register mutable namespace paths strictly where the `"readOnly": false` attribute is present. This extraction logic must be robust enough to recurse through and resolve complex JSON schema definitions, including `patternProperties`, `anyOf`, `allOf`, `oneOf`, and any other nested or variable sub-schemas.
    * **Data Type Mapping:** Map the properties and standard data types (e.g., `number`, `string`, `boolean`) found in the JSON schema to the specific internal data types defined in the rules language. Crucially, the engine's internal language lacks a generic array type and only supports a "tag list" (an array of strings). Therefore, when mapping an `array` type from a JSON schema, the engine must strictly verify that its `items` definition explicitly specifies `"type": "string"`. Any other array configuration (e.g., arrays of numbers, objects, or unbounded arrays) must be rejected as invalid schema definitions.
 2. **Static Type Checking & Semantic Analysis:** The engine must implement a proactive compiler frontend pattern (a Node Visitor architecture) that traverses the JSON-IR AST prior to active execution. This visitor is responsible for inferring types bottom-up, enforcing operator and function constraints (e.g., preventing a `MOD` operation on a string), resolving function signatures to accommodate optional arguments without explicit overload definitions, and guaranteeing no implicit type coercion takes place. If an undefined symbol, a type mismatch (based on the type mapping described above), or a write operation to a `readOnly: true` (default) field is found, it must throw an error bound to the `source` tracking string and abort the ruleset load.
