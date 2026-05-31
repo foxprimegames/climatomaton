@@ -29,7 +29,7 @@ Because the JSON-IR permits general-purpose actions across valid data types, the
 
 ### 1.4 Strict Failure Policy
 
-If at any point during execution a rule attempts to resolve an undefined namespace path, performs an invalid operation (e.g., a failed type conversion), or encounters any other execution error, **all rule processing is immediately aborted**. The system logs the specific failure, alerts administrators, and discards all pending transactions. No default values are ever assumed.
+If at any point during execution a rule attempts to resolve an undefined namespace path, performs an invalid operation (e.g., a failed type conversion), or encounters any error, **all rule processing is immediately aborted**. The system logs the specific failure, alerts administrators, and discards all pending transactions. No default values are ever assumed.
 
 ---
 
@@ -49,6 +49,7 @@ Represents floating-point or integer numeric values. The specific memory limits 
 
 #### Expression Operators
 
+* **Unary Negation (`NEG`)**: Unary operator that inverts the sign of the numeric expression. Returns a Number.
 * **Addition (`ADD`)**: Adds two numeric values. Returns a Number.
 * **Subtraction (`SUB`)**: Subtracts the right numeric value from the left. Returns a Number.
 * **Multiplication (`MUL`)**: Multiplies two numeric values. Returns a Number.
@@ -175,7 +176,7 @@ To satisfy the requirement that variables are not predefined while guaranteeing 
 
 ### 3.2 PEM Schemas & Environment Typing
 
-Because the Core Engine performs the semantic and type validation of rules, it must understand the data types present in external namespaces. The type checking and semantic validation of rules involving PEM namespace paths are executed in strict accordance with the PEM's published schema, as defined by the Pluggable Environment Module (PEM) Design Document.
+The type checking and semantic validation of rules involving PEM namespace paths are executed in strict accordance with the PEM's published schema, as defined by the Pluggable Environment Module (PEM) Design Document.
 
 ---
 
@@ -264,7 +265,7 @@ Every expression node must declare a `"kind"` to identify its structural type.
 {
   "kind": "operator", // Always "operator" to identify this node structure
   "op": "EXP", // The string code for the operator
-  "left": { // Optional expression node representing the left-hand side (omitted for unary operators)
+  "left": { // Optional expression node representing the left-hand side (omitted for unary operators like NOT or NEG)
     "kind": "reference",
     "path": "var.n.base_multiplier"
   },
@@ -407,7 +408,7 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
       "properties": {
         "kind": { "const": "operator" },
         "op": {
-          "enum": ["ADD", "SUB", "MUL", "DIV", "MOD", "EXP", "EQ", "NEQ", "LT", "LTE", "GT", "GTE", "AND", "OR", "NOT", "CONCAT"]
+          "enum": ["ADD", "SUB", "MUL", "DIV", "MOD", "EXP", "EQ", "NEQ", "LT", "LTE", "GT", "GTE", "AND", "OR", "NOT", "NEG", "CONCAT"]
         },
         "left": { "$ref": "#/$defs/expression" },
         "right": { "$ref": "#/$defs/expression" }
@@ -444,3 +445,34 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
   }
 }
 ```
+
+---
+
+### Comments & Discussion Points
+
+* **Unary Negation Integration:** The `NEG` operator has been successfully integrated into Section 2.1 (Number - Expression Operators) and added to the enumerator array within the JSON Schema Definition (Section 5.5). The operator node documentation (Section 5.3) has also been updated to explicitly cite `NEG` alongside `NOT` as an example of a unary operator where the `left` expression is omitted.
+* **Pending Updates Sync:** The completed Rules IR task has been removed from the list of pending updates below. Additionally, based on the historical prompt requirements, the Pluggable Environment Module (PEM) Design Document has been formally added to the tracked pending updates list below to ensure schema requirements, syntax, semantics, and mutability configurations are not lost during subsequent module designing.
+
+---
+
+### Pending Updates for Other Documents
+
+#### IPC Broker Design Document
+
+1. **Heartbeat Monitoring & Cleanup:** The IPC Broker must implement a "fast publish, lenient subscribe" model for tracking PEM heartbeats. While PEMs are required to update their schema file timestamps every 30 seconds, the IPC Broker should check these timestamps every 60 seconds. A PEM is only considered offline if it misses two consecutive checks (i.e., the file has not been touched in over 120 seconds). Upon detecting a dead PEM, the IPC Broker must automatically purge the stale schema and data files from the shared volume.
+
+#### Rules Engine Design Document
+
+1. **Dynamic Type Registry Initialization & Type Mapping:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Because the system utilizes standard JSON Schema (Draft 2020-12), the engine must incorporate a compliant JSON Schema library (e.g., `jsonschema` in Python) to load these files. During initialization, the engine must traverse the parsed schema dictionaries to accomplish two tasks:
+   * **Mutability Registration:** Dynamically extract and register mutable namespace paths strictly where the `"readOnly": false` attribute is present. This extraction logic must be robust enough to recurse through and resolve complex JSON schema definitions, including `patternProperties`, `anyOf`, `allOf`, `oneOf`, and any other nested or variable sub-schemas.
+   * **Data Type Mapping:** Map the properties and standard data types (e.g., `number`, `string`, `boolean`) found in the JSON schema to the specific internal data types defined in the rules language. Crucially, the engine's internal language lacks a generic array type and only supports a "tag list" (an array of strings). Therefore, when mapping an `array` type from a JSON schema, the engine must strictly verify that its `items` definition explicitly specifies `"type": "string"`. Any other array configuration (e.g., arrays of numbers, objects, or unbounded arrays) must be rejected as invalid schema definitions.
+2. **Static Type Checking & Semantic Analysis:** The engine must implement a proactive compiler frontend pattern (a Node Visitor architecture) that traverses the JSON-IR AST prior to active execution. This visitor is responsible for inferring types bottom-up, enforcing operator and function constraints (e.g., preventing a `MOD` operation on a string), resolving function signatures to accommodate optional arguments without explicit overload definitions, and guaranteeing no implicit type coercion takes place. If an undefined symbol, a type mismatch (based on the type mapping described above), or a write operation to a `readOnly: true` (default) field is found, it must throw an error bound to the `source` tracking string and abort the ruleset load.
+3. **Validation Event Triggers:** The rules engine must perform the load-and-validate type-check *both* when the rules file is updated *and* whenever the PEM schema files are updated or deleted on the shared volume.
+
+#### DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents
+
+1. **Discord Integration Specifics:** Must define exact Discord intents and permissions (for the DGL) and specific OAuth2 scopes (for the DAC). Additionally, the DAC design document must incorporate the specific logic for overall and per-source notification rate limiting.
+
+#### Pluggable Environment Module (PEM) Design Document
+
+1. **Schema File Definition:** Define the exact structure, syntax, and semantics of the PEM schema file. This includes specifying which namespace paths are mutable (any paths not explicitly specified as mutable are treated as read-only). Pattern matching constraints and how namespace paths with wildcards are to be treated by the rules parser will also be defined here.
