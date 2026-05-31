@@ -22,7 +22,7 @@ The schema file dictates the structure, data types, and mutability of the enviro
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://climatomaton.local/schemas/weather.schema.json",
+  "$id": "https://climatomaton.local/pems/weather.schema.json",
   "title": "Weather Namespace Schema",
   "type": "object",
   "properties": {
@@ -210,10 +210,8 @@ Because this file contains the arbitrary data provided by the PEM, a static engi
 
 ### Discussion Points & Comments
 
-1. I have removed the note about the core engine's handling of the schema heartbeats from this document. It has been relocated to the pending updates for the IPC Broker component.
-2. The PEM schema file example in Section 2 now correctly utilizes the `https://climatomaton.local` URL, while the schemas in Section 5 retain the `https://codeberg.org/foxprimegames` URL structure.
-3. The JSON schema validation and `readOnly` attribute extraction requirements (including the explicit need to handle `patternProperties`, `anyOf`, and other variable sub-schemas) have been added to the Rules Engine pending updates.
-4. The filenames for the transaction JSON schemas in Section 5 have been prefixed with `pem_` to accurately track their domains.
+1. The `$id` field in the PEM schema example (Section 2) has been successfully updated to `https://climatomaton.local/pems/weather.schema.json` to accurately mirror the internal pathname on the shared volume.
+2. For mapping JSON Schema properties to the rules language data types, this has been added to the Rules Engine pending updates. Generally, this mapping will involve the Type Registry parser reading the JSON Schema `type` definitions (e.g., mapping `"type": "number"` to the internal rules numeric type, and `"type": "array"` containing `"type": "string"` to the internal tag list type) during its initialization phase. This creates a bridge between standard JSON Schema validation and the engine's internal static type checker.
 
 ---
 
@@ -225,8 +223,10 @@ Because this file contains the arbitrary data provided by the PEM, a static engi
 
 #### Rules Engine Design Document
 
-1. **Dynamic Type Registry Initialization:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Because the system utilizes standard JSON Schema (Draft 2020-12), the engine must incorporate a compliant JSON Schema library (e.g., `jsonschema`) to load these files. During initialization, the engine must traverse the parsed schema dictionaries to dynamically extract and register mutable namespace paths strictly where the `"readOnly": false` attribute is present. This extraction logic must be robust enough to recurse through and resolve complex JSON schema definitions, including `patternProperties`, `anyOf`, `allOf`, `oneOf`, and any other nested or variable sub-schemas.
-2. **Static Type Checking & Semantic Analysis:** The engine must implement a proactive compiler frontend pattern (a Node Visitor architecture) that traverses the JSON-IR AST prior to active execution. This visitor is responsible for inferring types bottom-up, enforcing operator and function constraints (e.g., preventing a `MOD` operation on a string), and guaranteeing no implicit type coercion takes place. If an undefined symbol, a type mismatch, or a write operation to a `readOnly: true` (default) field is found, it must throw an error bound to the `source` tracking string and abort the ruleset load.
+1. **Dynamic Type Registry Initialization & Type Mapping:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Because the system utilizes standard JSON Schema (Draft 2020-12), the engine must incorporate a compliant JSON Schema library (e.g., `jsonschema`) to load these files. During initialization, the engine must traverse the parsed schema dictionaries to accomplish two tasks:
+  * **Mutability Registration:** Dynamically extract and register mutable namespace paths strictly where the `"readOnly": false` attribute is present. This extraction logic must be robust enough to recurse through and resolve complex JSON schema definitions, including `patternProperties`, `anyOf`, `allOf`, `oneOf`, and any other nested or variable sub-schemas.
+  * **Data Type Mapping:** Map the properties and standard data types (e.g., `number`, `string`, `array`, `boolean`) found in the JSON schema to the specific internal data types defined in the rules language. This ensures the engine's internal static type checking has accurate type definitions for all external namespace properties.
+2. **Static Type Checking & Semantic Analysis:** The engine must implement a proactive compiler frontend pattern (a Node Visitor architecture) that traverses the JSON-IR AST prior to active execution. This visitor is responsible for inferring types bottom-up, enforcing operator and function constraints (e.g., preventing a `MOD` operation on a string), and guaranteeing no implicit type coercion takes place. If an undefined symbol, a type mismatch (based on the type mapping described above), or a write operation to a `readOnly: true` (default) field is found, it must throw an error bound to the `source` tracking string and abort the ruleset load.
 
 #### DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents
 
