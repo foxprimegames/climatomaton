@@ -15,7 +15,7 @@ Every rule does two things: it checks if certain **conditions** are met, and if 
 
 A rule always starts with its type (`climate rule` or `tag rule`) followed by its name in quotes. After that, the `when` section lists the conditions, and the `then` section lists the actions.
 
-You can also add **comments** anywhere in your rules (except in the middle of multi-word keywords) by wrapping them in square brackets `[ like this ]`. The system completely ignores comments, so they are a great way to explain what a rule is doing.
+You can also add **comments** anywhere in your rules (except in the middle of multi-word keywords) by wrapping them in square brackets `[ like this ]`. The system completely ignores comments, so they are a great way to explain what a rule is doing. Note that while the examples in this guide often show comments on their own lines for readability, they can also appear anywhere within a line.
 
 Here is a simple example:
 
@@ -366,7 +366,8 @@ Note: `Comment` is handled at the lexer level and may interleave between any val
 
 ## Comments, Issues, and Discussion Points
 
-1. **Comment Placement in Section 2:** The inline comment from the example rule in Section 2 has been cleanly dropped to a new line immediately beneath the rule declaration, matching the visual layout styling requested and previously established in the Section 7 ruleset example.
+1. **Inline Comments Explanation:** I have added the sentence to Section 2 of the Guide to explicitly inform users that while the examples show comments on their own separate lines for visual readability, they are fully supported inline anywhere within a line.
+2. **Syntactic Sugar Pruning:** Understood. Since the translation of syntactic sugar is now entirely constrained to the definition in the PRM Language Reference section, it has been cleanly removed from the Intermediate Representation Design Document pending updates.
 
 ---
 
@@ -374,11 +375,7 @@ Note: `Comment` is handled at the lexer level and may interleave between any val
 
 ### Rules Intermediate Representation Design Document
 
-1. **JSON-IR Syntactic Sugar Mapping:** The PRM must translate syntactic sugar constructs into specific JSON-IR nodes prior to transmission to the Core Engine:
-   * **Numeric Range Comparisons** (e.g., `x <= N < y`) must be mapped to `within` function nodes in the JSON-IR.
-   * **Condition List sugar** (e.g., `includes`, `includes any of`, `includes all of`) must be explicitly mapped to `has`, `has_any`, and `has_all` function nodes.
-   * **Chained tag-list actions** (e.g., `<target> includes X and excludes Y`) must be split by the PRM and mapped into multiple, separate distinct JSON-IR mutation nodes within the `actions` array.
-2. **Unary Negation Operator Integration:** The JSON-IR schema must be updated to introduce an explicit unary negation operator (`NEG`) within the `operator_node` configurations. The Core Daemon execution schema must accept a single `right` node context when evaluating a `NEG` pattern type.
+1. **Unary Negation Operator Integration:** The JSON-IR schema must be updated to introduce an explicit unary negation operator (`NEG`) within the `operator_node` configurations. The Core Daemon execution schema must accept a single `right` node context when evaluating a `NEG` pattern type.
 
 ### IPC Broker Design Document
 
