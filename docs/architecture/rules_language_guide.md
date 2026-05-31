@@ -75,9 +75,7 @@ The `then` section modifies data. To ensure the system always knows exactly what
 * **For Numbers:** You can use *target* `is` *value*, *target* `is increased by` *value*, or *target* `is decreased by` *value*.
 * **For Booleans and Strings:** You can **only** use *target* `is` *value*.
 * **For Tag Lists:** You can use *target* `is` *list*, *target* `includes` *tags* (or `include`), and *target* `excludes` *tags* (or `exclude`).
-
-To make rules more compact, you can chain tag list modifications on the same line using `and`:
-*target* `includes "warming" and excludes "cooling"`
+  * To make rules more compact, you can chain tag list modifications on the same line using `and`: *target* `includes "warming" and excludes "cooling"`
 
 ## 7. Example Set of Rules
 
@@ -86,84 +84,110 @@ Here is a complete set of example rules demonstrating how the language coordinat
 ```text
 climate rule "not enough activity"
 when
-  proposals.count < 5 [ If there are very few proposals... ]
+  proposals.count < 5
+  [ If there are very few proposals... ]
 then
-  new.climate.value is decreased by 5 - proposals.count [ ...the climate drops based on the shortfall. ]
+  [ ...the climate drops based on the shortfall. ]
+  new.climate.value is decreased by 5 - proposals.count
 
 climate rule "disagreements cause heated discussions"
 when
-  proposals.count >= 5 [ If there are plenty of proposals... ]
-  proposals.failed > proposals.passed [ ...but more failed than passed... ]
+  proposals.count >= 5
+  [ If there are plenty of proposals... ]
+  proposals.failed > proposals.passed
+  [ ...but more failed than passed... ]
 then
-  new.climate.value is increased by proposals.failed - proposals.passed [ ...the climate heats up from the arguments. ]
+  [ ...the climate heats up from the arguments. ]
+  new.climate.value is increased by proposals.failed - proposals.passed
 
 climate rule "agreement makes everything calm down (warm climate cooling)"
 when
   proposals.count >= 5
-  proposals.passed > proposals.failed [ If more proposals pass than fail... ]
-  new.climate.value > proposals.passed - proposals.failed [ ...and the climate is currently very warm... ]
+  proposals.passed > proposals.failed
+  [ If more proposals pass than fail... ]
+  new.climate.value > proposals.passed - proposals.failed
+  [ ...and the climate is currently very warm... ]
 then
-  new.climate.value is decreased by proposals.passed - proposals.failed [ ...the climate cools down toward zero. ]
+  [ ...the climate cools down toward zero. ]
+  new.climate.value is decreased by proposals.passed - proposals.failed
 
 climate rule "agreement makes everything calm down (warm climate becomes neutral)"
 when
   proposals.count >= 5
   proposals.passed > proposals.failed
-  new.climate.value <= proposals.passed - proposals.failed [ ...and the climate is only slightly warm... ]
+  new.climate.value <= proposals.passed - proposals.failed
+  [ ...and the climate is only slightly warm... ]
 then
-  new.climate.value is 0 [ ...it settles perfectly at neutral zero. ]
+  [ ...it settles perfectly at neutral zero. ]
+  new.climate.value is 0
 
 climate rule "agreement makes everything calm down (cool climate warming)"
 when
   proposals.count >= 5
   proposals.passed > proposals.failed
-  new.climate.value < -(proposals.passed - proposals.failed) [ ...and the climate is currently very cold... ]
+  new.climate.value < -(proposals.passed - proposals.failed)
+  [ ...and the climate is currently very cold... ]
 then
-  new.climate.value is increased by proposals.passed - proposals.failed [ ...the climate warms up toward zero. ]
+  [ ...the climate warms up toward zero. ]
+  new.climate.value is increased by proposals.passed - proposals.failed
 
 climate rule "agreement makes everything calm down (cool climate becomes neutral)"
 when
   proposals.count >= 5
   proposals.passed > proposals.failed
-  new.climate.value >= -(proposals.passed - proposals.failed) [ ...and the climate is only slightly cold... ]
+  new.climate.value >= -(proposals.passed - proposals.failed)
+  [ ...and the climate is only slightly cold... ]
 then
-  new.climate.value is 0 [ ...it settles perfectly at neutral zero. ]
+  [ ...it settles perfectly at neutral zero. ]
+  new.climate.value is 0
 
 tag rule "hope it stays mild"
 when
-  -10 <= new.climate.value <= 10 [ If the climate value is balanced near zero... ]
+  -10 <= new.climate.value <= 10
+  [ If the climate value is balanced near zero... ]
 then
-  new.climate.tags includes "mild" and excludes "greenhouse", "ice age" [ ...apply the mild tag and remove extreme tags. ]
+  [ ...apply the mild tag and remove extreme tags. ]
+  new.climate.tags includes "mild" and excludes "greenhouse", "ice age"
 
 tag rule "brrrr"
 when
-  new.climate.value < -10 [ If the climate drops significantly below zero... ]
+  new.climate.value < -10
+  [ If the climate drops significantly below zero... ]
 then
-  new.climate.tags includes "ice age" and excludes "mild", "greenhouse" [ ...it triggers an ice age. ]
+  [ ...it triggers an ice age. ]
+  new.climate.tags includes "ice age" and excludes "mild", "greenhouse"
 
 tag rule "hothothot"
 when
-  new.climate.value > 10 [ If the climate rises significantly above zero... ]
+  new.climate.value > 10
+  [ If the climate rises significantly above zero... ]
 then
-  new.climate.tags includes "greenhouse" and excludes "ice age", "mild" [ ...it triggers the greenhouse effect. ]
+  [ ...it triggers the greenhouse effect. ]
+  new.climate.tags includes "greenhouse" and excludes "ice age", "mild"
 
 tag rule "getting warmer"
 when
-  new.climate.value > climate.value [ If the new value is higher than the previous turn's value... ]
+  new.climate.value > climate.value
+  [ If the new value is higher than the previous turn's value... ]
 then
-  new.climate.tags includes "warming" and excludes "cooling" [ ...show that the trend is warming. ]
+  [ ...show that the trend is warming. ]
+  new.climate.tags includes "warming" and excludes "cooling"
 
 tag rule "getting cooler"
 when
-  new.climate.value < climate.value [ If the new value is lower than the previous turn's value... ]
+  new.climate.value < climate.value
+  [ If the new value is lower than the previous turn's value... ]
 then
-  new.climate.tags includes "cooling" and excludes "warming" [ ...show that the trend is cooling. ]
+  [ ...show that the trend is cooling. ]
+  new.climate.tags includes "cooling" and excludes "warming"
 
 tag rule "not changing"
 when
-  new.climate.value = climate.value [ If the value stayed exactly the same... ]
+  new.climate.value = climate.value
+  [ If the value stayed exactly the same... ]
 then
-  new.climate.tags excludes "cooling", "warming" [ ...remove all trend tags. ]
+  [ ...remove all trend tags. ]
+  new.climate.tags excludes "cooling", "warming"
 ```
 
 ---
@@ -227,7 +251,7 @@ The parser must translate specific natural-language constructs into their underl
   * `<target> excludes any of <expr>` translates to `not(has_any(<target>, <expr>))`
   * `<target> excludes all of <expr>` translates to `not(has_all(<target>, <expr>))`
 * **Chained Tag-List Actions:**
-  * Tag-list action items combined via `and` (e.g., `target includes X and excludes Y`) must be parsed and unrolled into distinct individual mutation actions within the execution sequence.
+  * Tag-list action items combined via `and` (e.g., `target includes X and excludes Y`) must be parsed and unrolled into multiple, separate actions against the same target.
 
 ## 4. Environment Namespaces & Strict Typing
 
@@ -341,10 +365,9 @@ Note: `Comment` is handled at the lexer level and may interleave between any val
 
 ## Comments, Issues, and Discussion Points
 
-1. **JSON-IR Abstraction:** I have fully scrubbed the Reference section of explicit JSON-IR structural node references (like `operator` nodes or `ASSIGN`), ensuring the document remains purely a language specification. The directive to map specific syntactic sugar to JSON-IR structures has been moved appropriately to the Pending Updates for the IR Design Document below.
-2. **StringLiteral Comment Fix:** I swapped the trailing quote characters in the inline comments for the `StringLiteral` EBNF definition. The double-quote line now terminates with `# keep rendering engines happy: '` and vice versa, which flawlessly resolves markdown escaping glitches.
-3. **EBNF Notes Cleaned:** I removed the `(* ... *)` comment wrapper from the final note under the EBNF block, rendering it as standard text.
-4. **Function Definitions Consistency:** The `has_any` and `has_all` descriptions now utilize the exact phrasing you requested ("True if at least one tag from `tag_list` exists in `list`" and "True if all tags from `tag_list` exist in `list`"). This makes their behavior perfectly clear against the `has` function.
+1. **Tag List Action Formatting:** Moving the chained tag list modifications to a sub-bullet point underneath "For Tag Lists" provides a much cleaner visual hierarchy in the Guide.
+2. **Comment Placement in Example Block:** Separating the comments onto their own lines directly after the condition and directly before the action makes the example rules significantly easier to read on mobile devices or narrow screen windows, preventing horizontal scrolling while maintaining contextual clarity.
+3. **Reference Sugar Extraction:** Restoring the Syntactic Sugar section to the Technical Reference while explicitly abstracting away JSON-IR implementation details effectively maintains the boundary between the language specification (what the syntax *means*) and the engine implementation (how it is *processed*). It tells the PRM developer *what* functions their parser needs to generate without mandating *how* those structures are serialized to the downstream engine.
 
 ---
 
@@ -352,11 +375,7 @@ Note: `Comment` is handled at the lexer level and may interleave between any val
 
 ### Rules Intermediate Representation Design Document
 
-1. **JSON-IR Syntactic Sugar Mapping:** The PRM must translate syntactic sugar constructs into specific JSON-IR nodes prior to transmission to the Core Engine:
-   * **Numeric Range Comparisons** (e.g., `x <= N < y`) must be mapped to `within` function nodes in the JSON-IR.
-   * **Condition List sugar** (e.g., `includes`, `includes any of`, `includes all of`) must be explicitly mapped to `has`, `has_any`, and `has_all` function nodes.
-   * **Chained tag-list actions** (e.g., `<target> includes X and excludes Y`) must be split by the PRM and mapped into multiple, separate distinct JSON-IR mutation nodes within the `actions` array.
-2. **Unary Negation Operator Integration:** The JSON-IR schema must be updated to introduce an explicit unary negation operator (`NEG`) within the `operator_node` configurations. The Core Daemon execution schema must accept a single `right` node context when evaluating a `NEG` pattern type.
+1. **Unary Negation Operator Integration:** The JSON-IR schema must be updated to introduce an explicit unary negation operator (`NEG`) within the `operator_node` configurations. The Core Daemon execution schema must accept a single `right` node context when evaluating a `NEG` pattern type.
 
 ### IPC Broker Design Document
 
