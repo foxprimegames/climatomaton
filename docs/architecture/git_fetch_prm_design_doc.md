@@ -1,3 +1,7 @@
+To answer your question about the appropriate level of detail: For a component-level design document like this, you want to define the *architecture* of the parser and its data flow, rather than writing out the line-by-line implementation or repeating the full EBNF grammar. You should specify the distinct phases of compilation (Lexing, Parsing, Emission), how errors are trapped at each stage, and the chosen technical approach (e.g., using a parser generator versus a custom recursive descent approach). Because this system is being built in Python, specifying a parsing strategy that aligns with the Python ecosystem provides the right blueprint for the actual development work.
+
+Here is the updated Git-Fetch PRM design document with a fully expanded Section 4.
+
 # Git-Fetch Pluggable Rules Module (PRM) Design Document
 
 ## 1. System Overview
@@ -48,19 +52,34 @@ To ensure consistent execution logic across deployments, the PRM compiles rules 
 
 ## 4. Compilation & JSON-IR Generation
 
-The PRM iterates through the sorted `.rules` files to parse the grammar into the standardized JSON-IR expected by the Core Daemon.
+The PRM is responsible for translating the human-readable `.rules` files into the Core Daemon's JSON-IR. The compilation process utilizes a standard compiler frontend pipeline to guarantee syntactic correctness before emission.
 
-### 4.1 Parsing Source Files
+### 4.1 Parser Architecture
 
-* The PRM utilizes a lexer and parser built strictly against the defined Extended Backus-Naur Form (EBNF) grammar.
-* As it parses, it constructs the required `source` tracking string for each rule (e.g., `prm://repository/rules/01_base.rules:line_15`).
+The PRM implements a three-stage parsing pipeline: Lexical Analysis, Syntactic Analysis, and IR Emission. It utilizes a robust Python-based parsing library (such as Lark or PLY) capable of directly consuming the established EBNF grammar, ensuring the parser remains strictly synchronized with the language specification.
 
-### 4.2 Aggregation and Segregation
+### 4.2 Lexical Analysis (Tokenization)
 
-The PRM segregates rules into an ordered array of `climate_rules` and an ordered array of `tag_rules`.
+The lexer scans the raw text of the `.rules` files and converts it into a stream of recognized tokens.
 
-* As the PRM reads the sorted files, it evaluates the rule type declaration.
-* It appends climate rules to the internal Climate array and tag rules to the internal Tag array, ensuring all rules execute in their combined alphabetical/line order.
+* **Keywords & Identifiers:** Extracts keywords (e.g., `climate rule`, `when`, `includes`) using case-insensitive matching, alongside variable/namespace identifiers.
+* **Strings & Literals:** Safely captures string literals, honoring escape sequences for internal quotes and backslashes.
+* **Comment Stripping:** Explicitly identifies and strips all text enclosed within square brackets `[` `]`. These comments are completely discarded at the lexer stage and do not pass to the parser.
+* **Source Tracking:** The lexer attaches file origin and line number metadata to every emitted token. This is critical for constructing the required `source` tracking string for the final JSON-IR payload.
+
+### 4.3 Syntactic Analysis (AST Generation)
+
+The parser consumes the token stream and constructs an in-memory Abstract Syntax Tree (AST) representing the logical structure of the rules.
+
+* **Grammar Enforcement:** The parser rigidly applies the EBNF rules. If the token stream violates the grammar, the parser throws a fatal syntax exception.
+* **Syntactic Sugar Unrolling:** During AST construction, the parser identifies natural language shortcuts (e.g., `<target> includes all of <expr>`) and translates them directly into their equivalent foundational function nodes (e.g., `has_all(<target>, <expr>)`). Chained actions linked by `and` are also unrolled into distinct mutation nodes at this stage.
+
+### 4.4 IR Emission & Segregation
+
+A final pass traverses the generated AST to serialize the data into the strict JSON-IR schema.
+
+* **Node Translation:** AST nodes are mapped exactly to their JSON-IR counterparts (e.g., Operator Nodes, Function Nodes, Reference Nodes), explicitly declaring their `kind` attributes.
+* **Array Segregation:** As the emitter processes the AST, it evaluates the root rule type. It appends `climate rule` blocks to the internal Climate array and `tag rule` blocks to the internal Tag array, preserving the deterministic alphabetical/line ordering established during file discovery.
 
 ## 5. IPC File Delivery
 
@@ -87,6 +106,7 @@ If the parser encounters a syntax error or invalid token within any `.rules` fil
 
 ### Comments, New Issues, Discussion Points, and Questions
 
+* **Parser Tooling:** Using a library like Lark for the Python implementation is highly recommended because it can read the EBNF grammar almost verbatim. This minimizes the risk of the parser implementation drifting away from the documented language specification.
 * **Notification Rate Limiting for Compilations:** Since the PRM will continue to fail compilation on every polling cycle until the repository is fixed, it should maintain an internal cache of the last failed commit hash. It should only emit a `sys.notification` payload for a broken compilation once per unique commit to prevent flooding the administrative Discord channel.
 * **Alert Deduplication:** For synchronization failures, the Core Engine's Logging & Observability Manager already handles deduplication of identical alerts, but adding the `SYNC_FAILURE_THRESHOLD` prevents transient network blips from immediately queuing an alert.
 
@@ -113,3 +133,5 @@ If the parser encounters a syntax error or invalid token within any `.rules` fil
 #### Deployment Architecture Document
 
 1. **PRM Configuration Definitions:** The deployment specifications must be updated to include the required environment variables for the Git-Fetch PRM container (`GIT_REPO_URL`, `GIT_BRANCH`, `GIT_TARGET_DIR`, `GIT_AUTH_TOKEN`, `POLL_INTERVAL`, `SYNC_FAILURE_THRESHOLD`), ensuring secrets management handles `GIT_AUTH_TOKEN` securely at deployment time.
+
+Is this level of detail aligned with how you are envisioning the handoff to the actual parser implementation phase?
