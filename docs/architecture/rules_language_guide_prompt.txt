@@ -1,0 +1,7 @@
+----
+
+Based on the uploaded architecture document (and the prompts that led to it and its updates), the uploaded rules intermediate representation design document (and the prompts that led to that document), the uploaded pem design document (and the prompts that led to it), and the uploaded pending document updates list, we need to create a language guide and reference for the rules language.
+
+Please choose a rules language that is easy for a non-technical, non-programmer to understand and to write.  Choose grammar and syntax that reduces "typo" errors.  for the language guide, use non-technical language to explain how to write the rules and what they mean.  for the language reference, use the technical language and include the detailed specifications of the language.
+
+as always, please process the above issues into both documents and display them, guide first followed by reference.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
