@@ -46,3 +46,33 @@ as always, please process the above issues into both documents and display them,
 12. you only should have replaced mutable in the language guide.  i was .. too enthusiastic with my prohibition.  at least in the pending updates, please put the language back to "mutable".
 
 as always, please process the above issues into both documents and display them, guide first followed by reference.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
+
+--
+
+1. okay, to be specific: in the language guide, use either "modifyable" or "changeable" instead of the word "mutable".  you can use "mutable" in the reference guide , the discussion section, and the pending updates.
+2. to address the `includes`/`excludes` -> either `has_all` or `has_any`, more keywords!  `<source> includes <value>` -> `has(<source>, <value>)`; `<source> includes any of <value>` -> `has_any(<source>, <value>)`; `<source> includes all of <value>` -> `has_all(<source>, <value>)`. `excludes` is the same but prefixed by `not`.
+3. in the ebnf, to make it clear that the range comparison is syntactic sugar, move its definition into `ConditionSugar` as well.
+4. splitting the arithmetic term up to only support chained multiplications or chained divisions but not mixed was my thought.  do you think it's correct?  it's probably not expected is my worry now.  i do still want `mod` to not chain.
+5. the attempt to fix the ebnf string rendering issue was valiant, but unsuccessful.  go ahead and put it back to the more compact form.  maybe stick a comment at the end with what the renderer thinks is the unmatched quote.
+6. the example made me realize we need a unary negative.  please add that to the language guide and reference, and add a pending update to the rules intermediate representation design doc to add the unary negative to the json-ir format.
+7. we should include syntactic sugar for the actions to (a) allow either `include` or `includes` and `exclude` or `excludes` for those action types, and (b) allow `xxx includes yyy and excludes zzz` or `xxx excludes yyy and includes zzz` syntax.  both of the `(b)` formats would be rendered into a pair of json-ir action nodes.
+8. once again, the pem design document is already written and includes the update you provided.
+9. let's take the example out of the guide section 6, and create a new guide section 7 as "Example set of rules".  include the following rules (formatted properly) with descriptions of what they do:
+
+```
+climate rule "not enough activity" when proposals.count < 5 then new.climate.value is decreased by 5 - proposals.count
+climate rule "disagreements cause heated discussions" when proposals.count >= 5 and proposals.failed > proposals.passed then new.climate.value is increased by proposals.failed - proposals.passed
+climate rule "agreement makes everything calm down (warm climate cooling)" when proposals.count >= 5 and proposals.passed > proposals.failed and new.climate.value > proposals.passed - proposals.failed then new.climate.value is decreased by proposals.passed - proposals.failed
+climate rule "agreement makes everything calm down (warm climate becomes neutral)" when proposals.count >= 5 and proposals.passed > proposals.failed and new.climate.value <= proposals.passed - proposals.failed then new.climate.value is 0
+climate rule "agreement makes everything calm down (cool climate warming)" when proposals.count >= 5 and proposals.passed > proposals.failed and new.climate.value < -(proposals.passed - proposals.failed) then new.climate.value is increased by proposals.passed - proposals.failed
+climate rule "agreement makes everything calm down (cool climate becomes neutral)" when proposals.count >= 5 and proposals.passed > proposals.failed and new.climate.value >= -(proposals.passed - proposals.failed) then new.climate.value is 0
+
+tag rule "hope it stays mild" when -10 <= new.climate.value <= 10 then new.climate.tags include "mild" and exclude "greenhouse", "ice age"
+tag rule "brrrr" when new.climate.value < -10 then new.climate.tags include "ice age" and exclude "mild", "greenhouse"
+tag rule "hothothot" when new.climate.value > 10 then new.climate.tags include "greenhouse" and exclude "ice age", "mild"
+tag rule "getting warmer" when new.climate.value > climate.value then new.climate.tags include "warming" and exclude "cooling"
+tag rule "getting cooler" when new.climate.value < climate.value then new.climate.tags include "cooling" and exclude "warming"
+tag rule "not changing" when new.climate.value = climate.value then new.climate.tags exclude "cooling", "warming"
+```
+
+as always, please process the above issues into both documents and display them, guide first followed by reference.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.

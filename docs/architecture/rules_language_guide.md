@@ -32,7 +32,7 @@ Rules read and change data. To keep things organized, data is grouped into "name
 
 * **`climate.` (Read-Only):** This is the state of the climate *before* any rules run this turn. You can look at `climate.value` or `climate.tags`, but you cannot change them directly.
 * **`proposals.` (Read-Only):** This contains information about the end-of-turn report, such as `proposals.count`, `proposals.passed`, and `proposals.failed`.
-* **`new.` (Mutable):** This is the data you *can* change. When you want to update the climate, you apply your changes to `new.climate.value` or `new.climate.tags`.
+* **`new.` (Changeable):** This is the data you *can* change. When you want to update the climate, you apply your changes to `new.climate.value` or `new.climate.tags`.
 * **`var.` (Variables):** This is your scratchpad. If you need to keep track of a temporary number or list while your rules run, you use a variable. Variables automatically start at `0` (or empty).
 * **Future Namespaces (e.g., `weather.`):** Future additions to the system might introduce new namespaces. You can read them (e.g., `weather.wind_speed`) and, if permitted, modify them using the `new.` prefix (e.g., `new.weather.wind_speed`).
 
@@ -40,7 +40,7 @@ Rules read and change data. To keep things organized, data is grouped into "name
 
 The system understands four types of data:
 
-* **Numbers:** Standard numbers like `5`, `-10`, or `3.14`.
+* **Numbers:** Standard numbers like `5`, `-10`, or `3.14`. You can make a number negative by placing a minus sign directly in front of it (e.g., `-5`).
 * **Booleans (True/False):** Logical states represented by `true` or `false`.
 * **Strings (Text):** Text wrapped in quotes, like `"Windy"`.
 * **Tag Lists:** A collection of unique tags separated by commas, like `"Mild", "Windy"`.
@@ -51,7 +51,11 @@ The system understands four types of data:
 The `when` section acts as a gatekeeper. You use comparisons to evaluate data:
 
 * **Math Comparisons:** `=`, `!=` (not equal), `<`, `<=`, `>`, `>=`, and range comparisons like `10 < climate.value <= 20`.
-* **Tag Checks:** You can use *target* `includes` *tags* or *target* `excludes` *tags* directly in your conditions to see if a list currently has or does not have specific tags.
+* **Tag Checks:** You can look for tags inside tag lists using clean English phrases:
+  * *target* `includes` *tags* (checks if a specific tag or list of tags is present)
+  * *target* `includes any of` *tags* (checks if at least one of the tags is present)
+  * *target* `includes all of` *tags* (checks if every single one of the listed tags is present)
+  * *target* `excludes` *tags*, *target* `excludes any of` *tags*, and *target* `excludes all of` *tags* function identically but verify that the tags are missing.
 * **Combining Conditions:** Use `and` (both must be true), `or` (at least one must be true), and `not` (reverses the truth).
 
 **Listing Multiple Conditions:**
@@ -66,17 +70,96 @@ The `then` section modifies data. Because the system enforces strict rules, you 
 
 * **For Numbers:** You can use *target* `is` *value*, *target* `is increased by` *value*, or *target* `is decreased by` *value*.
 * **For Booleans and Strings:** You can **only** use *target* `is` *value*.
-* **For Tag Lists:** You can use *target* `is` *list*, *target* `includes` *tags* (to add them), and *target* `excludes` *tags* (to remove them).
+* **For Tag Lists:** You can use *target* `is` *list*, *target* `includes` *tags* (or `include`), and *target* `excludes` *tags* (or `exclude`).
 
-**Example of a Tag Rule:**
+To make rules more compact, you can chain tag modifications on the same line using `and`:
+*target* `include "warming" and exclude "cooling"`
+
+## 7. Example Set of Rules
+
+Here is a complete set of example rules demonstrating how the language coordinates a complex end-of-turn cycle:
 
 ```text
-tag rule "Extreme Heat Tagging"
+climate rule "not enough activity"
 when
-  new.climate.value > 20
+  proposals.count < 5
 then
-  new.climate.tags includes "Extreme Heat"
-  new.climate.tags excludes "Mild"
+  new.climate.value is decreased by 5 - proposals.count
+
+climate rule "disagreements cause heated discussions"
+when
+  proposals.count >= 5
+  proposals.failed > proposals.passed
+then
+  new.climate.value is increased by proposals.failed - proposals.passed
+
+climate rule "agreement makes everything calm down (warm climate cooling)"
+when
+  proposals.count >= 5
+  proposals.passed > proposals.failed
+  new.climate.value > proposals.passed - proposals.failed
+then
+  new.climate.value is decreased by proposals.passed - proposals.failed
+
+climate rule "agreement makes everything calm down (warm climate becomes neutral)"
+when
+  proposals.count >= 5
+  proposals.passed > proposals.failed
+  new.climate.value <= proposals.passed - proposals.failed
+then
+  new.climate.value is 0
+
+climate rule "agreement makes everything calm down (cool climate warming)"
+when
+  proposals.count >= 5
+  proposals.passed > proposals.failed
+  new.climate.value < -(proposals.passed - proposals.failed)
+then
+  new.climate.value is increased by proposals.passed - proposals.failed
+
+climate rule "agreement makes everything calm down (cool climate becomes neutral)"
+when
+  proposals.count >= 5
+  proposals.passed > proposals.failed
+  new.climate.value >= -(proposals.passed - proposals.failed)
+then
+  new.climate.value is 0
+
+tag rule "hope it stays mild"
+when
+  -10 <= new.climate.value <= 10
+then
+  new.climate.tags include "mild" and exclude "greenhouse", "ice age"
+
+tag rule "brrrr"
+when
+  new.climate.value < -10
+then
+  new.climate.tags include "ice age" and exclude "mild", "greenhouse"
+
+tag rule "hothothot"
+when
+  new.climate.value > 10
+then
+  new.climate.tags include "greenhouse" and exclude "ice age", "mild"
+
+tag rule "getting warmer"
+when
+  new.climate.value > climate.value
+then
+  new.climate.tags include "warming" and exclude "cooling"
+
+tag rule "getting cooler"
+when
+  new.climate.value < climate.value
+then
+  new.climate.tags include "cooling" and exclude "warming"
+
+tag rule "not changing"
+when
+  new.climate.value = climate.value
+then
+  new.climate.tags exclude "cooling", "warming"
 ```
 
 ---
@@ -89,12 +172,12 @@ This document serves as the formal specification for the Climatomaton Rule Langu
 
 The language prioritizes whitespace-separated, plain-English keywords.
 
-* **Keywords:** `climate rule`, `tag rule`, `when`, `then`, `and`, `or`, `not`, `is`, `increased by`, `decreased by`, `includes`, `excludes`, `empty`. Keywords are case-insensitive.
+* **Keywords:** `climate rule`, `tag rule`, `when`, `then`, `and`, `or`, `not`, `is`, `increased by`, `decreased by`, `include`, `includes`, `exclude`, `excludes`, `any of`, `all of`, `empty`. Keywords are case-insensitive.
 * **Rule Definitions:** Must begin with the exact sequence `climate rule` or `tag rule`, followed by a string literal representing the name.
 
 ## 2. Data Types & Literals
 
-* **Number:** Floating-point or integer values (e.g., `42`, `-15`, `3.14`).
+* **Number:** Floating-point or integer values (e.g., `42`, `-15`, `3.14`). Supports a unary negative symbol directly prefixing a variable, nested expression, or literal.
 * **Boolean:** `true`, `false`.
 * **String:** Enclosed in double (`"`) or single (`'`) quotes. Escaping a quote is done via a backslash (`\`), and a literal backslash requires double backslashes (`\\`).
 * **Tag List:** A comma-separated list of string literals (e.g., `"Mild", "Windy"`). To explicitly define a single-element tag list without contextual cues, a trailing comma must be appended (e.g., `"Mild",`). An empty tag list is represented by the keyword `empty`.
@@ -105,12 +188,10 @@ Operators strictly map to the JSON-IR `operator` nodes, with some handled as syn
 
 ### Arithmetic Operators (Numbers)
 
-* `+` (`ADD`)
-* `-` (`SUB`)
-* `*` (`MUL`)
-* `/` (`DIV`)
-* `mod` (`MOD`)
+* Unary `-` (`NEG`): Highest priority arithmetic negation.
 * `^` (`EXP`)
+* `*` (`MUL`), `/` (`DIV`), `mod` (`MOD`)
+* `+` (`ADD`), `-` (`SUB`)
 
 ### Comparison Operators (All Types where applicable)
 
@@ -126,16 +207,22 @@ Operators strictly map to the JSON-IR `operator` nodes, with some handled as syn
 
 ### Syntactic Sugar Translations
 
-The PRM parser must translate specific natural-language constructs into their corresponding JSON-IR function nodes:
+The PRM parser must translate specific natural-language constructs into their corresponding JSON-IR nodes:
 
 * **Range Comparisons:**
   * `x < N < y` translates to `within(N, x, y, "()")`
   * `x <= N <= y` translates to `within(N, x, y, "[]")`
   * `x < N <= y` translates to `within(N, x, y, "(]")`
   * `x <= N < y` translates to `within(N, x, y, "[)")`
-* **Condition List Checks:**
-  * `<target> includes <expression>` translates to `has(<target>, <expression>)` (or `has_all`/`has_any` depending on parameter type).
-  * `<target> excludes <expression>` translates to `not has(<target>, <expression>)` (or `not has_all`/`not has_any`).
+* **Condition List sugar Expressions:**
+  * `<target> includes <expr>` translates to `has(<target>, <expr>)`
+  * `<target> includes any of <expr>` translates to `has_any(<target>, <expr>)`
+  * `<target> includes all of <expr>` translates to `has_all(<target>, <expr>)`
+  * `<target> excludes <expr>` translates to `not(has(<target>, <expr>))`
+  * `<target> excludes any of <expr>` translates to `not(has_any(<target>, <expr>))`
+  * `<target> excludes all of <expr>` translates to `not(has_all(<target>, <expr>))`
+* **Chained Actions:**
+  * Action items combined via `and` (e.g., `target include X and exclude Y`) must be parsed and unrolled into distinct individual JSON-IR mutation nodes within the `actions` array.
 
 ## 4. Environment Namespaces & Strict Typing
 
@@ -184,8 +271,8 @@ Mutations in the `then` block define standard assignment and list alterations.
 * **Assignment (`ASSIGN`):** `<target> is <expression>`
 * **Addition (`ADD_ASSIGN`):** `<target> is increased by <expression>`
 * **Subtraction (`SUB_ASSIGN`):** `<target> is decreased by <expression>`
-* **List Union (`INCLUDES`):** `<target> includes <expression>`
-* **List Difference (`EXCLUDES`):** `<target> excludes <expression>`
+* **List Union (`INCLUDES`):** `<target> includes <expression>` or `<target> include <expression>`
+* **List Difference (`EXCLUDES`):** `<target> excludes <expression>` or `<target> exclude <expression>`
 
 *Convention Note:* Because the Core Engine allows general-purpose actions, it is purely a convention that Climate Rules target numbers/booleans and Tag Rules target tag lists. The engine cannot statically block a Climate Rule from mutating `new.climate.tags`.
 
@@ -201,8 +288,8 @@ Actions ::= Action+
 Action ::= Target "is" Expression
          | Target "is increased by" Expression
          | Target "is decreased by" Expression
-         | Target "includes" Expression
-         | Target "excludes" Expression
+         | Target MutateOp Expression ( "and" MutateOp Expression )*
+MutateOp ::= "include" | "includes" | "exclude" | "excludes"
 
 Target ::= NamespacePath
 NamespacePath ::= Identifier ("." Identifier)*
@@ -211,14 +298,19 @@ Expression ::= LogicOr
 LogicOr ::= LogicAnd ("or" LogicAnd)*
 LogicAnd ::= LogicNot ("and" LogicNot)*
 LogicNot ::= "not" LogicNot | ConditionSugar | Comparison
-ConditionSugar ::= Target "includes" Expression | Target "excludes" Expression
-Comparison ::= Arithmetic [ CompOp Arithmetic ] | RangeComparison
+
+ConditionSugar ::= Target SugarOp Expression
+                 | RangeComparison
+SugarOp ::= "includes" | "includes any of" | "includes all of"
+          | "excludes" | "excludes any of" | "excludes all of"
+
+Comparison ::= Arithmetic [ CompOp Arithmetic ]
 CompOp ::= "=" | "!=" | "<" | "<=" | ">" | ">="
 RangeComparison ::= Arithmetic ("<" | "<=") Arithmetic ("<" | "<=") Arithmetic
 
 Arithmetic ::= Term (("+" | "-") Term)*
-Term ::= Factor | Factor ("*" Factor)+ | Factor ("/" Factor)+ | Factor "mod" Factor
-Factor ::= Base ("^" Factor)*
+Term ::= Factor (("*" | "/") Factor)* | Factor "mod" Factor
+Factor ::= [ "-" ] Base ("^" Factor)*
 Base ::= Literal | NamespacePath | FunctionCall | MethodCall | "(" Expression ")"
 
 FunctionCall ::= Identifier "(" [ArgumentList] ")"
@@ -228,15 +320,7 @@ ArgumentList ::= Expression ("," Expression)*
 Literal ::= Number | Boolean | StringLiteral | TagList
 Number ::= ["-"] Digit+ ["." Digit+]
 Boolean ::= "true" | "false"
-
-StringLiteral ::= DoubleQuote ( UnescapedDoubleChar | EscapedChar )* DoubleQuote
-                | SingleQuote ( UnescapedSingleChar | EscapedChar )* SingleQuote
-DoubleQuote ::= '"'
-SingleQuote ::= "'"
-EscapedChar ::= "\" ( DoubleQuote | SingleQuote | "\" )
-UnescapedDoubleChar ::= [^"\]
-UnescapedSingleChar ::= [^'\]
-
+StringLiteral ::= '"' [^"\\]* '"' | "'" [^'\\]* "'"
 TagList ::= "empty" | StringLiteral "," | StringLiteral ("," StringLiteral)+
 
 Identifier ::= Letter (Letter | Digit | "_")*
@@ -244,21 +328,24 @@ Letter ::= [a-zA-Z]
 Digit ::= [0-9]
 ```
 
+(* Note: The regex character set [^"\] inside StringLiteral is optimized for single-line evaluation. Certain markdown engines can occasionally mistake the backslash-quote string boundaries within custom EBNF code block renderers as unmatched literal blocks. *)
+
 ---
 
 ## Comments, Issues, and Discussion Points
 
-1. **Multiple Conditions (Implied AND) & EBNF Structure:** I added the ability to list multiple conditions implicitly using `AND` to the guide, and updated the EBNF to `Conditions ::= Expression+`. This was intentionally omitted previously for strictness, but you are right: since the JSON-IR supports an array of condition nodes, defining it as `Expression+` directly maps to the JSON-IR array and saves authors from redundantly typing `and` at the start of every line.
-2. **EBNF Arithmetic Fixes:** The fixes you pointed out were excellent catches.
-   * `Comparison` now properly allows an arithmetic expression on its own, or an arithmetic expression mapped to a comparison operator and a right-hand side `[ CompOp Arithmetic ]`.
-   * `Term` is strictly broken out to prevent chaining after a `mod` operation (`Factor "mod" Factor`), while strictly preserving `*` and `/` chains.
-3. **EBNF String literal Markdown Breakage:** To prevent the markdown syntax highlighters from thinking a string was left open (which happens frequently when mixing regex-style escaping with `"` and `'` in code blocks), I broke `StringLiteral` out into distinct tokens (`DoubleQuote`, `SingleQuote`, and their respective inner unescaped characters). This resolves the syntax highlighting issues completely while correctly supporting backslash escaping.
-4. **Action Syntax Cleanup:** Booleans and strings are now strictly relegated to the *target* `is` *value* syntax in the guide, and the formatting has been shifted to italics/code combinations to clearly denote what is a user-provided variable vs. a keyword.
-5. **Mutable Reversion:** I have completely reverted instances of "changeable" or "modifiable" back to the technically accurate "mutable" throughout the Reference and the Pending Updates sections below!
+1. **Arithmetic Term Chaining Strategy:** Keeping mixed `*` and `/` chaining together (`Factor (("*" | "/") Factor)*`) remains the correct, standard approach matching user expectations. Forcing authors to split chained multiplication and division into separate un-mixed expressions would have subverted normal order-of-operations conventions and introduced arbitrary parsing hurdles. Leaving `mod` completely isolated as non-chaining (`Factor "mod" Factor`) is highly intuitive, preventing confusing ambiguities like `A mod B mod C`.
+2. **Action Chaining Sugar Implementation:** Allowing actions to use compound structures connected by `and` (e.g., `target include A and exclude B`) makes rulesets exceptionally clean. The grammar safely unrolls these into an explicit repetition loop inside `Action` so the PRM parser can cleanly output separate, atomic mutation frames into the JSON-IR array structure, completely decoupling presentation layout from engine simplicity.
+3. **Condition Sugar Layout Expansion:** Elevating both the range comparisons and the keyword variations (`includes all of`, `excludes any of`, etc.) into a dedicated `ConditionSugar` EBNF branch makes it explicitly clear that these represent higher-level parsing constructs designed to translate downstream into flat JSON-IR function calls.
+4. **Unary Negation Integration:** Unary negative operations are seamlessly placed inside the `Factor` block rule `[ "-" ] Base`. This cleanly supports recursive precedence matching so complex numerical structures like `-(proposals.passed - proposals.failed)` evaluate safely before scaling or mutating values.
 
 ---
 
 ## Pending Updates for Other Documents
+
+### Rules Intermediate Representation Design Document
+
+1. **Unary Negation Operator Integration:** The JSON-IR schema must be updated to introduce an explicit unary negation operator (`NEG`) within the `operator_node` configurations. The Core Daemon execution schema must accept a single `right` node context when evaluating a `NEG` pattern type.
 
 ### IPC Broker Design Document
 
@@ -266,7 +353,7 @@ Digit ::= [0-9]
 
 ### Rules Engine Design Document
 
-1. **Dynamic Type Registry Initialization & Type Mapping:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Because the system utilizes standard JSON Schema (Draft 2020-12), the engine must incorporate a compliant JSON Schema library (e.g., `jsonschema` in Python) to load these files. During initialization, the engine must traverse the parsed schema dictionaries to accomplish two tasks:
+1. **Dynamic Type Registry Initialization & Type Mapping:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Because the system utilizes standard JSON Schema (Draft 2020-12), the engine must incorporate a compliant JSON Schema library (e.g., `jsonschema`) to load these files. During initialization, the engine must traverse the parsed schema dictionaries to accomplish two tasks:
    * **Mutability Registration:** Dynamically extract and register mutable namespace paths strictly where the `"readOnly": false` attribute is present. This extraction logic must be robust enough to recurse through and resolve complex JSON schema definitions, including `patternProperties`, `anyOf`, `allOf`, `oneOf`, and any other nested or variable sub-schemas.
    * **Data Type Mapping:** Map the properties and standard data types (e.g., `number`, `string`, `boolean`) found in the JSON schema to the specific internal data types defined in the rules language. Crucially, the engine's internal language lacks a generic array type and only supports a "tag list" (an array of strings). Therefore, when mapping an `array` type from a JSON schema, the engine must strictly verify that its `items` definition explicitly specifies `"type": "string"`. Any other array configuration (e.g., arrays of numbers, objects, or unbounded arrays) must be rejected as invalid schema definitions.
 2. **Static Type Checking & Semantic Analysis:** The engine must implement a proactive compiler frontend pattern (a Node Visitor architecture) that traverses the JSON-IR AST prior to active execution. This visitor is responsible for inferring types bottom-up, enforcing operator and function constraints (e.g., preventing a `MOD` operation on a string), resolving function signatures to accommodate optional arguments without explicit overload definitions, and guaranteeing no implicit type coercion takes place. If an undefined symbol, a type mismatch (based on the type mapping described above), or a write operation to a `readOnly: true` (default) field is found, it must throw an error bound to the `source` tracking string and abort the ruleset load.
@@ -274,8 +361,4 @@ Digit ::= [0-9]
 
 ### DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents
 
-1. **Discord Integration specifics:** Must define exact Discord intents and permissions (for the DGL) and specific OAuth2 scopes (for the DAC). Additionally, the DAC design document must incorporate the specific logic for overall and per-source notification rate limiting.
-
-### PEM Design Document
-
-1. **PEM Schema Exchange & Wildcards:** The PEM design document must fully define the structure, syntax, and semantics of the `{pem_namespace}.schema.json` file. It must explicitly include a mechanism allowing a PEM to declare which pattern matching format it uses for dynamic properties (e.g., specifying if it utilizes glob-style matching or standard regular expressions), which the Rules Engine will translate internally into standard regex patterns.
+1. **Discord Integration Specifics:** Must define exact Discord intents and permissions (for the DGL) and specific OAuth2 scopes (for the DAC). Additionally, the DAC design document must incorporate the specific logic for overall and per-source notification rate limiting.
