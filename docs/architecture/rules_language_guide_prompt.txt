@@ -5,3 +5,17 @@ Based on the uploaded architecture document (and the prompts that led to it and 
 Please choose a rules language that is easy for a non-technical, non-programmer to understand and to write.  Choose grammar and syntax that reduces "typo" errors.  for the language guide, use non-technical language to explain how to write the rules and what they mean.  for the language reference, use the technical language and include the detailed specifications of the language.
 
 as always, please process the above issues into both documents and display them, guide first followed by reference.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
+
+--
+
+1. in the guide section 3, for the external namespaces, instead talk about "future additions to the system might introduce new namespaces (e.g. `weather.`)"; don't talk about modules and PEMs.
+2. in the guide section 4, should tag lists maybe not use the square brackets?  i understand that can cause a conflict between a single string and a tag list with a single tag, but can that be resolved without using the bracket syntax?
+3. in the guide section 5, in the math comparisons, please include `< .. <` or `<= .. <=` in the comparisons.  these can be defined in the language reference as syntactic sugar for the `within` function.
+   * because you're providing a different way of doing `within`, use a different function for the example, such as `climate.tags.has("Mild")`
+4. for guide section 6, would it read easier if you say `<target> is <value>`, `<target> is increased by <value>`, `<target> is decreased by <value>`, along with your existing tag list syntax of `<target> includes <tags>` and `<target> excludes <tags>`?
+
+5. for the reference, section 3 needs to specify the syntactic sugar of `x <(=?) N <(=?) y` is the same as `N.within(x, y, bounds)`
+6. in the reference function lists, please include both function and method syntax (`has(list, tag)` and `list.has(tag)`)
+7.
+
+as always, please process the above issues into both documents and display them, guide first followed by reference.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.

@@ -23,7 +23,7 @@ when
   climate.tags includes "Greenhouse Effect"
   and proposals.passed >= 3
 then
-  add 2 to new.climate.value
+  new.climate.value is increased by 2
 ```
 
 ## 3. Environments: Where Data Lives
@@ -34,7 +34,7 @@ Rules read and change data. To keep things organized, data is grouped into "name
 * **`proposals.` (Read-Only):** This contains information about the end-of-turn report, such as `proposals.count`, `proposals.passed`, and `proposals.failed`.
 * **`new.` (Mutable):** This is the data you *can* change. When you want to update the climate, you apply your changes to `new.climate.value` or `new.climate.tags`.
 * **`var.` (Variables):** This is your scratchpad. If you need to keep track of a temporary number or list while your rules run, you use a variable. Variables automatically start at `0` (or empty).
-* **External Namespaces (e.g., `weather.`):** Other modules (PEMs) might provide extra data. You can read them (e.g., `weather.wind_speed`) and, if permitted, modify them using the `new.` prefix (e.g., `new.weather.wind_speed`).
+* **Future Namespaces (e.g., `weather.`):** Future additions to the system might introduce new namespaces. You can read them (e.g., `weather.wind_speed`) and, if permitted, modify them using the `new.` prefix (e.g., `new.weather.wind_speed`).
 
 ## 4. Types of Data
 
@@ -43,24 +43,24 @@ The system understands four types of data:
 * **Numbers:** Standard numbers like `5`, `-10`, or `3.14`.
 * **Booleans (True/False):** Logical states represented by `true` or `false`.
 * **Strings (Text):** Text wrapped in quotes, like `"Windy"`.
-* **Tag Lists:** A collection of unique tags wrapped in brackets, like `["Mild", "Windy"]`.
+* **Tag Lists:** A collection of unique tags separated by commas, like `"Mild", "Windy"`.
 
 ## 5. Writing Conditions (`when`)
 
 The `when` section acts as a gatekeeper. You use comparisons to evaluate data:
 
-* **Math Comparisons:** `=`, `!=` (not equal), `<`, `<=`, `>`, `>=`.
+* **Math Comparisons:** `=`, `!=` (not equal), `<`, `<=`, `>`, `>=`, and range comparisons like `10 < climate.value <= 20`.
 * **Combining Conditions:** Use `and` (both must be true), `or` (at least one must be true), and `not` (reverses the truth).
 
 You can also use built-in functions to ask complex questions, such as:
-`climate.value.within(10, 20)` (Is the value between 10 and 20?)
+`climate.tags.has("Mild")` (Does the climate currently have the Mild tag?)
 
 ## 6. Writing Actions (`then`)
 
 The `then` section modifies data. Because the system enforces strict rules, you must use specific keywords to change data:
 
-* **For Numbers:** You can `set <target> to <value>`, `add <value> to <target>`, or `subtract <value> from <target>`.
-* **For Tag Lists:** You can `set <target> to <list>`, or use `<target> includes <tags>` to add tags, and `<target> excludes <tags>` to remove them.
+* **For Numbers:** You can use `<target> is <value>`, `<target> is increased by <value>`, or `<target> is decreased by <value>`.
+* **For Tag Lists:** You can use `<target> includes <tags>` to add tags, and `<target> excludes <tags>` to remove them.
 
 **Example of a Tag Rule:**
 
@@ -83,7 +83,7 @@ This document serves as the formal specification for the Climatomaton Rule Langu
 
 The language prioritizes whitespace-separated, plain-English keywords.
 
-* **Keywords:** `climate rule`, `tag rule`, `when`, `then`, `and`, `or`, `not`, `set`, `to`, `add`, `subtract`, `from`, `includes`, `excludes`. Keywords are case-insensitive.
+* **Keywords:** `climate rule`, `tag rule`, `when`, `then`, `and`, `or`, `not`, `is`, `increased by`, `decreased by`, `includes`, `excludes`. Keywords are case-insensitive.
 * **Rule Definitions:** Must begin with the exact sequence `climate rule` or `tag rule`, followed by a string literal representing the name.
 
 ## 2. Data Types & Literals
@@ -91,11 +91,11 @@ The language prioritizes whitespace-separated, plain-English keywords.
 * **Number:** Floating-point or integer values (e.g., `42`, `-15`, `3.14`).
 * **Boolean:** `true`, `false`.
 * **String:** Enclosed in double (`"`) or single (`'`) quotes. Escaping a quote is done via a backslash (`\`), and a literal backslash requires double backslashes (`\\`).
-* **Tag List:** A comma-separated list of string literals enclosed in square brackets (e.g., `["Mild", "Windy"]`, `[]`).
+* **Tag List:** A comma-separated list of string literals (e.g., `"Mild", "Windy"`). Square brackets are not required. The parser interprets comma-separated strings in list-contexts as a unified tag list.
 
 ## 3. Operators & Precedence
 
-Operators strictly map to the JSON-IR `operator` nodes.
+Operators strictly map to the JSON-IR `operator` nodes, with some handled as syntactic sugar for function nodes.
 
 ### Arithmetic Operators (Numbers)
 
@@ -111,6 +111,15 @@ Operators strictly map to the JSON-IR `operator` nodes.
 * `=` (`EQ`)
 * `!=` (`NEQ`)
 * `<` (`LT`), `<=` (`LTE`), `>` (`GT`), `>=` (`GTE`)
+
+### Range Comparisons (Syntactic Sugar)
+
+Expressions chaining a target between two boundaries are syntactic sugar. The PRM parser must translate these into the `within` function node in the JSON-IR:
+
+* `x < N < y` translates to `within(N, x, y, "()")`
+* `x <= N <= y` translates to `within(N, x, y, "[]")`
+* `x < N <= y` translates to `within(N, x, y, "(]")`
+* `x <= N < y` translates to `within(N, x, y, "[)")`
 
 ### Logical Operators (Booleans)
 
@@ -130,41 +139,41 @@ Variables dynamically instantiate upon first use. To ensure the Core Engine can 
 
 ## 5. Built-in Functions
 
-Functions can be invoked via standard call syntax `func(arg)` or method syntax `arg.func()`.
+Functions can be invoked via standard call syntax `func(arg)` or method syntax `arg.func()`. The JSON-IR format remains identical regardless of the source language syntax chosen.
 
 ### Number Functions
 
-* `abs(n)`: Absolute value.
-* `round(n, [precision])`: Rounds to the nearest integer or `precision` decimal places.
-* `min(n1, n2, ...)`: Lowest value.
-* `max(n1, n2, ...)`: Highest value.
-* `clamp(n, min_val, max_val)`: Constrains `n`.
-* `within(n, lo, hi, [bounds])`: Checks range. `bounds` accepts `"[]"`, `"()"`, `"[)"`, or `"(]"`.
-* `to_string(n)`: Converts to a string.
+* `abs(n)` / `n.abs()`: Absolute value.
+* `round(n, [precision])` / `n.round([precision])`: Rounds to the nearest integer or `precision` decimal places.
+* `min(n1, n2, ...)` / `n1.min(n2, ...)`: Lowest value.
+* `max(n1, n2, ...)` / `n1.max(n2, ...)`: Highest value.
+* `clamp(n, min_val, max_val)` / `n.clamp(min_val, max_val)`: Constrains `n`.
+* `within(n, lo, hi, [bounds])` / `n.within(lo, hi, [bounds])`: Checks range. `bounds` accepts `"[]"`, `"()"`, `"[)"`, or `"(]"`.
+* `to_string(n)` / `n.to_string()`: Converts to a string.
 
 ### String Functions
 
-* `length(s)`: Character count.
-* `contains(s, substring)`: Exact substring match.
-* `starts_with(s, prefix)`: Prefix check.
-* `ends_with(s, suffix)`: Suffix check.
-* `to_number(s)`: Parses string to number.
+* `length(s)` / `s.length()`: Character count.
+* `contains(s, substring)` / `s.contains(substring)`: Exact substring match.
+* `starts_with(s, prefix)` / `s.starts_with(prefix)`: Prefix check.
+* `ends_with(s, suffix)` / `s.ends_with(suffix)`: Suffix check.
+* `to_number(s)` / `s.to_number()`: Parses string to number.
 
 ### Tag List Functions
 
-* `length(list)`: Count of unique tags.
-* `has(list, tag)`: True if `tag` exists.
-* `has_any(list, tag_list)`: True if at least one tag overlaps.
-* `has_all(list, tag_list)`: True if all tags exist.
-* `is_empty(list)`: True if count is 0.
+* `length(list)` / `list.length()`: Count of unique tags.
+* `has(list, tag)` / `list.has(tag)`: True if `tag` exists.
+* `has_any(list, tag_list)` / `list.has_any(tag_list)`: True if at least one tag overlaps.
+* `has_all(list, tag_list)` / `list.has_all(tag_list)`: True if all tags exist.
+* `is_empty(list)` / `list.is_empty()`: True if count is 0.
 
 ## 6. Action Mutations
 
 Mutations in the `then` block define standard assignment and list alterations.
 
-* **Assignment (`ASSIGN`):** `set <target> to <expression>`
-* **Addition (`ADD_ASSIGN`):** `add <expression> to <target>`
-* **Subtraction (`SUB_ASSIGN`):** `subtract <expression> from <target>`
+* **Assignment (`ASSIGN`):** `<target> is <expression>`
+* **Addition (`ADD_ASSIGN`):** `<target> is increased by <expression>`
+* **Subtraction (`SUB_ASSIGN`):** `<target> is decreased by <expression>`
 * **List Union (`INCLUDES`):** `<target> includes <expression>`
 * **List Difference (`EXCLUDES`):** `<target> excludes <expression>`
 
@@ -174,10 +183,9 @@ Mutations in the `then` block define standard assignment and list alterations.
 
 ## Comments, Issues, and Discussion Points
 
-1. **Typo Reduction via Syntax:** By opting for a clean, English-like syntax without strict punctuation (like semicolons or braces) and utilizing descriptive keywords (`set`, `add`, `includes`), we drastically reduce the syntactic surface area where non-technical users commonly make errors.
-2. **Double Asterisks & Exponentiation:** The architecture prompt discussions had repeated trouble rendering exponentiation and double asterisks. To resolve this cleanly in the language itself, I defined exponentiation using the standard caret operator (`^`) rather than ``*` `*``. This avoids any markup parsing issues while remaining mathematically standard.
-3. **Implicit vs Explicit Arrays:** As highlighted in the schema restrictions, the internal language *only* supports "Tag Lists" (arrays of strings), not generic arrays. Therefore, no generic array functions (like mapping/reducing numbers) were included in the language reference.
-4. **Keyword Spacing:** Per the architecture constraints, keywords like `climate rule` strictly require spaces.
+1. **Tag List Syntax without Brackets:** Removing the square brackets for tag lists creates a much cleaner, more natural reading experience. From a parsing perspective in the PRM, this works perfectly. The keywords `includes`, `excludes`, or `is` dictate the context. When the parser encounters one of these list-mutating keywords, it can safely consume any subsequent comma-separated string literals and compile them into a `tag_list` literal node in the JSON-IR. A single string (e.g., `includes "Mild"`) is simply parsed as a tag list containing one element.
+2. **Action Syntax Overhaul:** The shift to `<target> is <value>`, `<target> is increased by <value>`, and `<target> is decreased by <value>` significantly reduces cognitive load for non-technical rule authors compared to the earlier `set`, `add`, `subtract` syntax, unifying the grammar into a straightforward subject-verb-object flow.
+3. **Range Comparisons (Syntactic Sugar):** Adding `10 <= climate.value < 20` directly to the language makes bounds checking extremely intuitive. Delegating the translation of this syntax into the `within()` function node exclusively to the PRM keeps the Core Engine's execution logic and JSON-IR schema clean and minimal while granting maximum readability to the end user.
 
 ---
 
