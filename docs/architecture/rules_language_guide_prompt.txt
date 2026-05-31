@@ -28,3 +28,21 @@ as always, please process the above issues into both documents and display them,
 
 as always, please process the above issues into both documents and display them, guide first followed by reference.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
 
+--
+
+1. in the guide section 4:
+   * how about the keyword `empty` for an empty list, rather than `[]`?
+   * "only exactly" is not proper usage.
+2. in the guide section 5, would it be confusing to say that, in the conditions list, you can give multiple conditions _without_ the `and` in between?  (if allowed, this should definitely be specified in the reference, but should it be in the guide?)
+3. in the guide section 6, specify that booleans and strings can only use `<target> is <value>`.
+4. for a non-programmer, the syntax in the guide section 6 might indicate that you would use, e.g. `<new.climate.value> is <10>`.  maybe place the variable parts in italics and the keywords in code? (e.g. _target_ `is` _value_, _target_ `is increased by` _value_, etc.)
+5. the intermediate representation allows for multiple conditions, but the ebnf you give only allows a single condition.  was this an intentional choice, and if so, what were the reasons behind it?
+6. in the ebnf, the comparison syntax is incorrect. the first alternative is just `Arithmetic CompOp Arithmetic`, with no 0-or-more syntax allowed.
+7. in the ebnf, mod should end the term and not allow another term operator after it.  i'm tempted to want to split that up into four rules, one for each operator and one for none (e.g. `Term ::= Factor | Factor ("*" Factor)+ | Factor ("/" Factor)+ | Factor "mod" Factor`)
+8. the string literal syntax does not allow for backslash-escaped quotes or backslashes.
+9. any way to make the string literal EBNF not mess up the way the renderer identifies quoted strings and treat the rest of the syntax as all part of an unterminated string?
+10. should we make another "syntactic sugar" to allow the `climate.tags includes` (string-or-tag-list)` to translate to `climate.tags.has(string-or-tag-list)` and `climate.tags includes (string-or-tag-list)` to translate to `not climate.tags.has(string-or-tag-list)`?
+11. in the reference, you don't need to explain what EBNF means.
+12. you only should have replaced mutable in the language guide.  i was .. too enthusiastic with my prohibition.  at least in the pending updates, please put the language back to "mutable".
+
+as always, please process the above issues into both documents and display them, guide first followed by reference.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
