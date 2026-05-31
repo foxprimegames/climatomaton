@@ -9,3 +9,14 @@ this PRM must fetch rules source files from a specified directory of a named bra
 note that the git repo will likely contain other non-rules files within the same directory.
 
 as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
+
+--
+
+1. this is specifically the Git-Fetch PRM design document.  There might be other PRMs developed.
+2. in section 2.1, the git branch should be optional and should default to `main`.
+3. in section 2.2, the polling workflow must handle the branch changing in a way that a fast-forward merge fails.
+4. in section 3.1, the extension should be `.rules`.
+5. in section 6, multiple synchronization failures should result in a notification.
+6. for now, a flat directory should be sufficient.
+
+as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
