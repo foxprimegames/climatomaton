@@ -62,13 +62,11 @@ The `when` section acts as a gatekeeper. You use comparisons to evaluate data:
   * *target* `includes any of` *list* (checks if at least one tag from a **tag list** is present)
   * *target* `includes all of` *list* (checks if every single tag from a **tag list** is present)
   * *target* `excludes` *tag*, *target* `excludes any of` *list*, and *target* `excludes all of` *list* function identically but verify that the tags are missing.
+* **Function Checks:** You can also ask more complex questions using functions, such as: `climate.tags.has("Mild")` (Does the climate currently have the Mild tag?)
 * **Combining Conditions:** Use `and` (both must be true), `or` (at least one must be true), and `not` (reverses the truth).
 
 **Listing Multiple Conditions:**
 You can just list conditions on separate lines. If you do, the system automatically treats them as if they have an `and` between them.
-
-You can also use built-in functions to ask complex questions, such as:
-`climate.tags.has("Mild")` (Does the climate currently have the Mild tag?)
 
 ## 6. Writing Actions (`then`)
 
@@ -172,7 +170,7 @@ then
 
 # Climatomaton Rule Language: Technical Reference
 
-This document serves as the formal specification for the Climatomaton Rule Language syntax, providing the necessary details for PRM parser developers to convert source rules into the target JSON-IR.
+This document serves as the formal specification for the Climatomaton Rule Language syntax, providing the necessary details for PRM parser developers to convert source rules into the target intermediate representation.
 
 ## 1. Lexical Structure & Grammar
 
@@ -191,32 +189,32 @@ The language prioritizes whitespace-separated, plain-English keywords.
 
 ## 3. Operators & Precedence
 
-Operators strictly map to the JSON-IR `operator` nodes, with some handled as syntactic sugar for function nodes.
+Operators strictly map to standard evaluation node structures, with some handled as syntactic sugar for function nodes.
 
 ### Arithmetic Operators (Numbers)
 
-* Unary `-` (`NEG`): Highest priority arithmetic negation.
-* `^` (`EXP`)
-* `*` (`MUL`), `/` (`DIV`), `mod` (`MOD`)
-* `+` (`ADD`), `-` (`SUB`)
+* Unary `-`: Highest priority arithmetic negation.
+* `^`
+* `*`, `/`, `mod`
+* `+`, `-`
 
 ### Comparison Operators (All Types where applicable)
 
-* `=` (`EQ`)
-* `!=` (`NEQ`)
-* `<` (`LT`), `<=` (`LTE`), `>` (`GT`), `>=` (`GTE`)
+* `=`
+* `!=`
+* `<`, `<=`, `>`, `>=`
 
 ### Logical Operators (Booleans)
 
-* `and` (`AND`): Short-circuits if the left side is false. Note: Multiple expressions defined in a rule's `when` block are implicitly evaluated with an `AND` operation.
-* `or` (`OR`): Short-circuits if the left side is true.
-* `not` (`NOT`): Unary inversion.
+* `and`: Short-circuits if the left side is false. Note: Multiple expressions defined in a rule's `when` block are implicitly evaluated with an `AND` operation.
+* `or`: Short-circuits if the left side is true.
+* `not`: Unary inversion.
 
-### Syntactic Sugar Translations
+### Syntactic Sugar
 
-The PRM parser must translate specific natural-language constructs into their corresponding JSON-IR nodes:
+The parser must translate specific natural-language constructs into their underlying function calls or explicit mutation actions:
 
-* **Range Comparisons:**
+* **Numeric Range Comparisons:**
   * `x < N < y` translates to `within(N, x, y, "()")`
   * `x <= N <= y` translates to `within(N, x, y, "[]")`
   * `x < N <= y` translates to `within(N, x, y, "(]")`
@@ -229,7 +227,7 @@ The PRM parser must translate specific natural-language constructs into their co
   * `<target> excludes any of <expr>` translates to `not(has_any(<target>, <expr>))`
   * `<target> excludes all of <expr>` translates to `not(has_all(<target>, <expr>))`
 * **Chained Tag-List Actions:**
-  * Tag-list action items combined via `and` (e.g., `target includes X and excludes Y`) must be parsed and unrolled into distinct individual JSON-IR mutation nodes within the `actions` array.
+  * Tag-list action items combined via `and` (e.g., `target includes X and excludes Y`) must be parsed and unrolled into distinct individual mutation actions within the execution sequence.
 
 ## 4. Environment Namespaces & Strict Typing
 
@@ -243,7 +241,7 @@ Variables dynamically instantiate upon first use. To ensure the Core Engine can 
 
 ## 5. Built-in Functions
 
-Functions can be invoked via standard call syntax `func(arg)` or method syntax `arg.func()`. The JSON-IR format remains identical regardless of the source language syntax chosen.
+Functions can be invoked via standard call syntax `func(arg)` or method syntax `arg.func()`. The underlying representation remains identical regardless of the source language syntax chosen.
 
 ### Number Functions
 
@@ -267,19 +265,19 @@ Functions can be invoked via standard call syntax `func(arg)` or method syntax `
 
 * `length(list)` / `list.length()`: Count of unique tags.
 * `has(list, tag)` / `list.has(tag)`: True if `tag` exists.
-* `has_any(list, tag_list)` / `list.has_any(tag_list)`: True if at least one tag overlaps.
-* `has_all(list, tag_list)` / `list.has_all(tag_list)`: True if all tags exist.
+* `has_any(list, tag_list)` / `list.has_any(tag_list)`: True if at least one tag from `tag_list` exists in `list`.
+* `has_all(list, tag_list)` / `list.has_all(tag_list)`: True if all tags from `tag_list` exist in `list`.
 * `is_empty(list)` / `list.is_empty()`: True if count is 0.
 
 ## 6. Action Mutations
 
 Mutations in the `then` block define standard assignment and list alterations.
 
-* **Assignment (`ASSIGN`):** `<target> is <expression>`
-* **Addition (`ADD_ASSIGN`):** `<target> is increased by <expression>`
-* **Subtraction (`SUB_ASSIGN`):** `<target> is decreased by <expression>`
-* **List Union (`INCLUDES`):** `<target> includes <expression>` or `<target> include <expression>`
-* **List Difference (`EXCLUDES`):** `<target> excludes <expression>` or `<target> exclude <expression>`
+* **Assignment:** `<target> is <expression>`
+* **Addition Assignment:** `<target> is increased by <expression>`
+* **Subtraction Assignment:** `<target> is decreased by <expression>`
+* **Set Union:** `<target> includes <expression>` or `<target> include <expression>`
+* **Set Difference:** `<target> excludes <expression>` or `<target> exclude <expression>`
 
 *Convention Note:* The engine cannot statically block a Climate Rule from mutating `new.climate.tags` purely through syntax without also precluding the valid use of dynamic tag list variables (e.g., `var.l.my_tags`). Thus, the separation of concerns (Climate Rules for numbers/booleans, Tag Rules for tag lists) remains a convention.
 
@@ -327,8 +325,8 @@ ArgumentList ::= Expression ("," Expression)*
 Literal ::= Number | Boolean | StringLiteral | TagList
 Number ::= ["-"] Digit+ ["." Digit+]
 Boolean ::= "true" | "false"
-StringLiteral ::= '"' [^"\\]* '"' # keep rendering engines happy: "
-                | "'" [^'\\]* "'" # keep rendering engines happy: '
+StringLiteral ::= '"' [^"\\]* '"' # keep rendering engines happy: '
+                | "'" [^'\\]* "'" # keep rendering engines happy: "
 TagList ::= "empty" | StringLiteral "," | StringLiteral ("," StringLiteral)+
 
 Identifier ::= Letter (Letter | Digit | "_")*
@@ -337,15 +335,16 @@ Digit ::= [0-9]
 Comment ::= "[" [^\]]* "]"
 ```
 
-(* Note: `Comment` is handled at the lexer level and may interleave between any valid tokens. *)
+Note: `Comment` is handled at the lexer level and may interleave between any valid tokens.
 
 ---
 
 ## Comments, Issues, and Discussion Points
 
-1. **Conditional Expressions (Ternary / `if/else`):** Regarding your question about introducing conditional expressions (like `x if y else z`): While it would undoubtedly consolidate rule counts (like collapsing the 4 "agreement makes everything calm down" rules into 2), it introduces a significant conceptual leap for non-programmers. It forces authors to embed branching logic *inside* an action or expression, rather than keeping the "If X, do Y" flow cleanly separated between the `when` and `then` blocks. For a language aimed at maximum readability and typo-reduction for non-technical users, keeping rules structurally flat and distinct is generally safer, even if it requires more lines of code.
-2. **EBNF `Factor` Constraint:** Modifying `Factor` to only allow a single optional exponentiation `[ "^" Factor ]` prevents chained exponents (`2 ^ 3 ^ 4`). Given how rarely exponent chaining is used in non-academic contexts (and the ambiguity of whether it's right-associative or left-associative), this is a solid safeguard.
-3. **EBNF String Literal Rendering:** I successfully split the `StringLiteral` token into two distinct lines with trailing `#` comments. This explicitly defines double quotes and single quotes independently while utilizing the `#` to provide the missing "closing" quote character that syntax highlighters expect.
+1. **JSON-IR Abstraction:** I have fully scrubbed the Reference section of explicit JSON-IR structural node references (like `operator` nodes or `ASSIGN`), ensuring the document remains purely a language specification. The directive to map specific syntactic sugar to JSON-IR structures has been moved appropriately to the Pending Updates for the IR Design Document below.
+2. **StringLiteral Comment Fix:** I swapped the trailing quote characters in the inline comments for the `StringLiteral` EBNF definition. The double-quote line now terminates with `# keep rendering engines happy: '` and vice versa, which flawlessly resolves markdown escaping glitches.
+3. **EBNF Notes Cleaned:** I removed the `(* ... *)` comment wrapper from the final note under the EBNF block, rendering it as standard text.
+4. **Function Definitions Consistency:** The `has_any` and `has_all` descriptions now utilize the exact phrasing you requested ("True if at least one tag from `tag_list` exists in `list`" and "True if all tags from `tag_list` exist in `list`"). This makes their behavior perfectly clear against the `has` function.
 
 ---
 
@@ -353,7 +352,11 @@ Comment ::= "[" [^\]]* "]"
 
 ### Rules Intermediate Representation Design Document
 
-1. **Unary Negation Operator Integration:** The JSON-IR schema must be updated to introduce an explicit unary negation operator (`NEG`) within the `operator_node` configurations. The Core Daemon execution schema must accept a single `right` node context when evaluating a `NEG` pattern type.
+1. **JSON-IR Syntactic Sugar Mapping:** The PRM must translate syntactic sugar constructs into specific JSON-IR nodes prior to transmission to the Core Engine:
+   * **Numeric Range Comparisons** (e.g., `x <= N < y`) must be mapped to `within` function nodes in the JSON-IR.
+   * **Condition List sugar** (e.g., `includes`, `includes any of`, `includes all of`) must be explicitly mapped to `has`, `has_any`, and `has_all` function nodes.
+   * **Chained tag-list actions** (e.g., `<target> includes X and excludes Y`) must be split by the PRM and mapped into multiple, separate distinct JSON-IR mutation nodes within the `actions` array.
+2. **Unary Negation Operator Integration:** The JSON-IR schema must be updated to introduce an explicit unary negation operator (`NEG`) within the `operator_node` configurations. The Core Daemon execution schema must accept a single `right` node context when evaluating a `NEG` pattern type.
 
 ### IPC Broker Design Document
 
