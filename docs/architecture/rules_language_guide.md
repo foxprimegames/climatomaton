@@ -20,7 +20,8 @@ You can also add **comments** anywhere in your rules (except in the middle of mu
 Here is a simple example:
 
 ```text
-climate rule "Greenhouse Warming" [ This rule triggers when the greenhouse effect is active ]
+climate rule "Greenhouse Warming"
+[ This rule triggers when the greenhouse effect is active ]
 when
   climate.tags includes "Greenhouse Effect"
   proposals.passed >= 3
@@ -365,9 +366,7 @@ Note: `Comment` is handled at the lexer level and may interleave between any val
 
 ## Comments, Issues, and Discussion Points
 
-1. **Tag List Action Formatting:** Moving the chained tag list modifications to a sub-bullet point underneath "For Tag Lists" provides a much cleaner visual hierarchy in the Guide.
-2. **Comment Placement in Example Block:** Separating the comments onto their own lines directly after the condition and directly before the action makes the example rules significantly easier to read on mobile devices or narrow screen windows, preventing horizontal scrolling while maintaining contextual clarity.
-3. **Reference Sugar Extraction:** Restoring the Syntactic Sugar section to the Technical Reference while explicitly abstracting away JSON-IR implementation details effectively maintains the boundary between the language specification (what the syntax *means*) and the engine implementation (how it is *processed*). It tells the PRM developer *what* functions their parser needs to generate without mandating *how* those structures are serialized to the downstream engine.
+1. **Comment Placement in Section 2:** The inline comment from the example rule in Section 2 has been cleanly dropped to a new line immediately beneath the rule declaration, matching the visual layout styling requested and previously established in the Section 7 ruleset example.
 
 ---
 
@@ -375,7 +374,11 @@ Note: `Comment` is handled at the lexer level and may interleave between any val
 
 ### Rules Intermediate Representation Design Document
 
-1. **Unary Negation Operator Integration:** The JSON-IR schema must be updated to introduce an explicit unary negation operator (`NEG`) within the `operator_node` configurations. The Core Daemon execution schema must accept a single `right` node context when evaluating a `NEG` pattern type.
+1. **JSON-IR Syntactic Sugar Mapping:** The PRM must translate syntactic sugar constructs into specific JSON-IR nodes prior to transmission to the Core Engine:
+   * **Numeric Range Comparisons** (e.g., `x <= N < y`) must be mapped to `within` function nodes in the JSON-IR.
+   * **Condition List sugar** (e.g., `includes`, `includes any of`, `includes all of`) must be explicitly mapped to `has`, `has_any`, and `has_all` function nodes.
+   * **Chained tag-list actions** (e.g., `<target> includes X and excludes Y`) must be split by the PRM and mapped into multiple, separate distinct JSON-IR mutation nodes within the `actions` array.
+2. **Unary Negation Operator Integration:** The JSON-IR schema must be updated to introduce an explicit unary negation operator (`NEG`) within the `operator_node` configurations. The Core Daemon execution schema must accept a single `right` node context when evaluating a `NEG` pattern type.
 
 ### IPC Broker Design Document
 
