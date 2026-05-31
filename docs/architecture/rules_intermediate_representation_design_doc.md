@@ -450,8 +450,7 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
 
 ### Comments & Discussion Points
 
-* **Unary Negation Integration:** The `NEG` operator has been successfully integrated into Section 2.1 (Number - Expression Operators) and added to the enumerator array within the JSON Schema Definition (Section 5.5). The operator node documentation (Section 5.3) has also been updated to explicitly cite `NEG` alongside `NOT` as an example of a unary operator where the `left` expression is omitted.
-* **Pending Updates Sync:** The completed Rules IR task has been removed from the list of pending updates below. Additionally, based on the historical prompt requirements, the Pluggable Environment Module (PEM) Design Document has been formally added to the tracked pending updates list below to ensure schema requirements, syntax, semantics, and mutability configurations are not lost during subsequent module designing.
+* **PEM Document Synced:** Per your confirmation that the PEM design document already includes the requested definitions and pattern-matching structural specifications, the PEM design document section has been removed entirely from the tracked pending updates tracking cache.
 
 ---
 
@@ -472,7 +471,3 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
 #### DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents
 
 1. **Discord Integration Specifics:** Must define exact Discord intents and permissions (for the DGL) and specific OAuth2 scopes (for the DAC). Additionally, the DAC design document must incorporate the specific logic for overall and per-source notification rate limiting.
-
-#### Pluggable Environment Module (PEM) Design Document
-
-1. **Schema File Definition:** Define the exact structure, syntax, and semantics of the PEM schema file. This includes specifying which namespace paths are mutable (any paths not explicitly specified as mutable are treated as read-only). Pattern matching constraints and how namespace paths with wildcards are to be treated by the rules parser will also be defined here.
