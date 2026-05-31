@@ -20,7 +20,7 @@ Here is a simple example:
 ```text
 climate rule "Greenhouse Warming"
 when
-  climate.tags includes "Greenhouse Effect"
+  climate.tags.has("Greenhouse Effect")
   and proposals.passed >= 3
 then
   new.climate.value is increased by 2
@@ -32,7 +32,7 @@ Rules read and change data. To keep things organized, data is grouped into "name
 
 * **`climate.` (Read-Only):** This is the state of the climate *before* any rules run this turn. You can look at `climate.value` or `climate.tags`, but you cannot change them directly.
 * **`proposals.` (Read-Only):** This contains information about the end-of-turn report, such as `proposals.count`, `proposals.passed`, and `proposals.failed`.
-* **`new.` (Mutable):** This is the data you *can* change. When you want to update the climate, you apply your changes to `new.climate.value` or `new.climate.tags`.
+* **`new.` (Modifiable):** This is the data you *can* change. When you want to update the climate, you apply your changes to `new.climate.value` or `new.climate.tags`.
 * **`var.` (Variables):** This is your scratchpad. If you need to keep track of a temporary number or list while your rules run, you use a variable. Variables automatically start at `0` (or empty).
 * **Future Namespaces (e.g., `weather.`):** Future additions to the system might introduce new namespaces. You can read them (e.g., `weather.wind_speed`) and, if permitted, modify them using the `new.` prefix (e.g., `new.weather.wind_speed`).
 
@@ -44,6 +44,7 @@ The system understands four types of data:
 * **Booleans (True/False):** Logical states represented by `true` or `false`.
 * **Strings (Text):** Text wrapped in quotes, like `"Windy"`.
 * **Tag Lists:** A collection of unique tags separated by commas, like `"Mild", "Windy"`.
+  * *Important:* If you need to create a list that contains only exactly *one* tag, add a comma at the end: `"Mild",`. If the list is completely empty, use `[]`.
 
 ## 5. Writing Conditions (`when`)
 
@@ -91,7 +92,7 @@ The language prioritizes whitespace-separated, plain-English keywords.
 * **Number:** Floating-point or integer values (e.g., `42`, `-15`, `3.14`).
 * **Boolean:** `true`, `false`.
 * **String:** Enclosed in double (`"`) or single (`'`) quotes. Escaping a quote is done via a backslash (`\`), and a literal backslash requires double backslashes (`\\`).
-* **Tag List:** A comma-separated list of string literals (e.g., `"Mild", "Windy"`). Square brackets are not required. The parser interprets comma-separated strings in list-contexts as a unified tag list.
+* **Tag List:** A comma-separated list of string literals (e.g., `"Mild", "Windy"`). To explicitly define a single-element tag list without contextual cues, a trailing comma must be appended (e.g., `"Mild",`). An empty tag list is represented by `[]`.
 
 ## 3. Operators & Precedence
 
@@ -167,9 +168,9 @@ Functions can be invoked via standard call syntax `func(arg)` or method syntax `
 * `has_all(list, tag_list)` / `list.has_all(tag_list)`: True if all tags exist.
 * `is_empty(list)` / `list.is_empty()`: True if count is 0.
 
-## 6. Action Mutations
+## 6. Action Modifications
 
-Mutations in the `then` block define standard assignment and list alterations.
+Modifications in the `then` block define standard assignment and list alterations.
 
 * **Assignment (`ASSIGN`):** `<target> is <expression>`
 * **Addition (`ADD_ASSIGN`):** `<target> is increased by <expression>`
@@ -177,15 +178,63 @@ Mutations in the `then` block define standard assignment and list alterations.
 * **List Union (`INCLUDES`):** `<target> includes <expression>`
 * **List Difference (`EXCLUDES`):** `<target> excludes <expression>`
 
-*Convention Note:* Because the Core Engine allows general-purpose actions, it is purely a convention that Climate Rules target numbers/booleans and Tag Rules target tag lists. The engine cannot statically block a Climate Rule from mutating `new.climate.tags`.
+*Convention Note:* Because the Core Engine allows general-purpose actions, it is purely a convention that Climate Rules target numbers/booleans and Tag Rules target tag lists. The engine cannot statically block a Climate Rule from modifying `new.climate.tags`.
+
+## 7. Extended Backus-Naur Form (EBNF) Grammar
+
+The following formalizes the syntax structure of the Climatomaton Rule Language for parser development.
+
+```ebnf
+RuleSet ::= Rule+
+Rule ::= RuleType StringLiteral "when" Conditions "then" Actions
+RuleType ::= "climate rule" | "tag rule"
+Conditions ::= Expression
+Actions ::= Action+
+
+Action ::= Target "is" Expression
+         | Target "is increased by" Expression
+         | Target "is decreased by" Expression
+         | Target "includes" Expression
+         | Target "excludes" Expression
+
+Target ::= NamespacePath
+NamespacePath ::= Identifier ("." Identifier)*
+
+Expression ::= LogicOr
+LogicOr ::= LogicAnd ("or" LogicAnd)*
+LogicAnd ::= LogicNot ("and" LogicNot)*
+LogicNot ::= "not" LogicNot | Comparison
+Comparison ::= Arithmetic (CompOp Arithmetic)* | RangeComparison
+CompOp ::= "=" | "!=" | "<" | "<=" | ">" | ">="
+RangeComparison ::= Arithmetic ("<" | "<=") Arithmetic ("<" | "<=") Arithmetic
+
+Arithmetic ::= Term (("+" | "-") Term)*
+Term ::= Factor (("*" | "/" | "mod") Factor)*
+Factor ::= Base ("^" Factor)*
+Base ::= Literal | NamespacePath | FunctionCall | MethodCall | "(" Expression ")"
+
+FunctionCall ::= Identifier "(" [ArgumentList] ")"
+MethodCall ::= Base "." Identifier "(" [ArgumentList] ")"
+ArgumentList ::= Expression ("," Expression)*
+
+Literal ::= Number | Boolean | StringLiteral | TagList
+Number ::= ["-"] Digit+ ["." Digit+]
+Boolean ::= "true" | "false"
+StringLiteral ::= '"' [^"]* '"' | "'" [^']* "'"
+TagList ::= "[]" | StringLiteral "," | StringLiteral ("," StringLiteral)+
+
+Identifier ::= Letter (Letter | Digit | "_")*
+Letter ::= [a-zA-Z]
+Digit ::= [0-9]
+```
 
 ---
 
 ## Comments, Issues, and Discussion Points
 
-1. **Tag List Syntax without Brackets:** Removing the square brackets for tag lists creates a much cleaner, more natural reading experience. From a parsing perspective in the PRM, this works perfectly. The keywords `includes`, `excludes`, or `is` dictate the context. When the parser encounters one of these list-mutating keywords, it can safely consume any subsequent comma-separated string literals and compile them into a `tag_list` literal node in the JSON-IR. A single string (e.g., `includes "Mild"`) is simply parsed as a tag list containing one element.
-2. **Action Syntax Overhaul:** The shift to `<target> is <value>`, `<target> is increased by <value>`, and `<target> is decreased by <value>` significantly reduces cognitive load for non-technical rule authors compared to the earlier `set`, `add`, `subtract` syntax, unifying the grammar into a straightforward subject-verb-object flow.
-3. **Range Comparisons (Syntactic Sugar):** Adding `10 <= climate.value < 20` directly to the language makes bounds checking extremely intuitive. Delegating the translation of this syntax into the `within()` function node exclusively to the PRM keeps the Core Engine's execution logic and JSON-IR schema clean and minimal while granting maximum readability to the end user.
+1. **Tag List Disambiguation:** As you highlighted, the `is` keyword creates ambiguity for the parser when evaluating an expression like `new.my_list is "Sunny"`. The parser cannot inherently know if `new.my_list` expects a string or a tag list prior to semantic evaluation by the Core Engine. The introduction of the trailing comma syntax (e.g., `"Sunny",`) completely resolves this at the parsing phase. The PRM can now definitively map `"Sunny"` to a string literal node and `"Sunny",` to a tag list literal node in the JSON-IR.
+2. **Terminology Cleanup:** All variations of the forbidden word previously used to describe changeable data have been purged from both the Guide and the Reference documents. The terminology now accurately reflects "modifiable" or "changeable" states.
+3. **EBNF Construction:** The grammar provided in Section 7 cleanly defines the language hierarchy from top-level rulesets down to individual literals. Specifically, the `TagList` rule `("[]" | StringLiteral "," | StringLiteral ("," StringLiteral)+)` natively accommodates empty lists, single-tag lists forced by the trailing comma, and standard multi-tag lists separated by commas.
 
 ---
 
@@ -198,7 +247,7 @@ Mutations in the `then` block define standard assignment and list alterations.
 ### Rules Engine Design Document
 
 1. **Dynamic Type Registry Initialization & Type Mapping:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for all loaded PEM schemas (`*.schema.json`) alongside internal schemas. Because the system utilizes standard JSON Schema (Draft 2020-12), the engine must incorporate a compliant JSON Schema library (e.g., `jsonschema` in Python) to load these files. During initialization, the engine must traverse the parsed schema dictionaries to accomplish two tasks:
-   * **Mutability Registration:** Dynamically extract and register mutable namespace paths strictly where the `"readOnly": false` attribute is present. This extraction logic must be robust enough to recurse through and resolve complex JSON schema definitions, including `patternProperties`, `anyOf`, `allOf`, `oneOf`, and any other nested or variable sub-schemas.
+   * **Modifiability Registration:** Dynamically extract and register changeable namespace paths strictly where the `"readOnly": false` attribute is present. This extraction logic must be robust enough to recurse through and resolve complex JSON schema definitions, including `patternProperties`, `anyOf`, `allOf`, `oneOf`, and any other nested or variable sub-schemas.
    * **Data Type Mapping:** Map the properties and standard data types (e.g., `number`, `string`, `boolean`) found in the JSON schema to the specific internal data types defined in the rules language. Crucially, the engine's internal language lacks a generic array type and only supports a "tag list" (an array of strings). Therefore, when mapping an `array` type from a JSON schema, the engine must strictly verify that its `items` definition explicitly specifies `"type": "string"`. Any other array configuration (e.g., arrays of numbers, objects, or unbounded arrays) must be rejected as invalid schema definitions.
 2. **Static Type Checking & Semantic Analysis:** The engine must implement a proactive compiler frontend pattern (a Node Visitor architecture) that traverses the JSON-IR AST prior to active execution. This visitor is responsible for inferring types bottom-up, enforcing operator and function constraints (e.g., preventing a `MOD` operation on a string), resolving function signatures to accommodate optional arguments without explicit overload definitions, and guaranteeing no implicit type coercion takes place. If an undefined symbol, a type mismatch (based on the type mapping described above), or a write operation to a `readOnly: true` (default) field is found, it must throw an error bound to the `source` tracking string and abort the ruleset load.
 3. **Validation Event Triggers:** The rules engine must perform the load-and-validate type-check *both* when the rules file is updated *and* whenever the PEM schema files are updated or deleted on the shared volume.
