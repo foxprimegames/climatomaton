@@ -37,15 +37,15 @@ Because the PRM operates on a bare repository, it does not scan a local file sys
 
 * The PRM resolves the internal Git tree object associated with the current HEAD commit.
 * It navigates to the specific Git tree object corresponding to the `GIT_TARGET_DIR` path. To be clear, this traversal examines the immediate child blob objects of that specific Git tree object only; it does not recursively descend into sub-trees. This ensures a strictly flat evaluation of the designated folder level, avoiding the deep recursive scans typically associated with file system directory tree traversals.
-* It filters the entries within that single Git tree object, selecting only those whose names end with the `.clime` extension.
+* It filters the entries within that single Git tree object, selecting only those whose names end with the `.rules` extension.
 * The PRM retrieves the blob contents (the raw text) for the matched entries directly from the in-memory object database.
 
 ### 3.2 Deterministic Ordering
 
 To ensure consistent execution logic across deployments, the PRM compiles rules based on an explicit, deterministic sequence:
 
-* The filtered list of `.clime` files is sorted alphabetically by filename in ascending order.
-* Rule authors wishing to enforce a specific execution priority among multiple files must utilize numeric prefixes in the filenames (e.g., `01_base.clime`, `02_overrides.clime`).
+* The filtered list of `.rules` files is sorted alphabetically by filename in ascending order.
+* Rule authors wishing to enforce a specific execution priority among multiple files must utilize numeric prefixes in the filenames (e.g., `01_base.rules`, `02_overrides.rules`).
 
 ## 4. Compilation & JSON-IR Generation
 
@@ -81,56 +81,25 @@ If an outbound Git operation fails, the PRM logs an error locally without modify
 
 ### 6.2 Compilation Failures
 
-If the parsing library reports syntax errors or invalid tokens during compilation of any `.clime` file:
+The external parsing library is designed to accumulate syntax errors rather than failing immediately. If the library returns a structured error object indicating one or more compilation failures across the `.rules` files:
 
-1. **Abort Compilation:** The PRM immediately halts compilation.
+1. **Abort Update:** The PRM discards the invalid AST and halts the update process.
 2. **State Preservation:** The PRM intentionally bypasses IPC delivery, ensuring the Core Daemon continues running the Last-Known-Good ruleset uninterrupted.
-3. **Observability Alert:** The PRM dispatches a high-priority alert payload to the `notifications/` directory detailing the exact file, line number, and syntax error.
+3. **Observability Alert:** The PRM takes the complete array of accumulated errors provided by the library and packages them into a *single* high-priority alert payload dispatched to the `notifications/` directory. This ensures administrators receive a comprehensive list of all syntax errors in one notification, rather than a flood of individual alerts.
 
 ---
 
 ### Comments, New Issues, Discussion Points, and Questions
 
-**1. Language Name: Clime**
-"Clime" is an excellent choice. It perfectly balances thematic relevance with brevity, and `.clime` is visually distinct and immediately identifiable. The document has been updated to reflect the new `.clime` extension globally.
+**1. Compiling all errors vs. a simpler PRM model:**
+You raised an excellent point about keeping the PRM simple. Because the parser library is doing the heavy lifting of accumulating errors (as decided in the previous iteration), the PRM doesn't need complex error-handling logic. It simply receives the final "Result" object from the library. If `success` is false, the PRM just takes the `errors` array from that object and dumps it entirely into a single `sys.notification` payload. This achieves the best of both worlds: the PRM remains a very simple orchestrator, but the Discord administrators still receive a comprehensive, single-message list of every typo in the repository (which is incredibly helpful if someone bypassed CI/CD or edited files directly in the GitHub/Codeberg UI). I have updated Section 6.2 to reflect this flow.
 
-**2. Discussion: Python Build Systems for Monorepos**
-Since the project involves multiple artifacts (the Core Daemon, the PRM container, and the shared Parser Library), relying strictly on standard `build` and `setuptools` becomes tedious. Modern Python build systems streamline workspace management, dependency locking, and packaging. Here is a breakdown of the primary options:
+**2. Convincing you on `.rules` vs. `.clime`:**
+I strongly advocate for sticking with `.rules`.
 
-* **Poetry:**
-* *Pros:* Extremely mature workspace/monorepo support. Excellent deterministic lockfiles (`poetry.lock`). Automatically manages virtual environments. Highly readable `pyproject.toml` configuration.
-* *Cons:* Can occasionally be slow when resolving complex dependency trees. Very strict about standard compliance, which can sometimes cause friction with older, non-compliant packages.
-
-
-* **uv (by Astral):**
-* *Pros:* Incredibly fast (written in Rust). Acts as a drop-in replacement for `pip`, `venv`, and `pip-tools`. Recently introduced excellent workspace support (specifically designed to handle multiple internal packages in a single repo).
-* *Cons:* It is a newer tool in the ecosystem, so community tutorials/resources are slightly less ubiquitous than Poetry, though its adoption is skyrocketing.
-
-
-* **Hatch:**
-* *Pros:* Officially blessed by the Python Packaging Authority (PyPA). Excellent for environment management and running isolated scripts/tests. Highly extensible via plugins.
-* *Cons:* Its locking mechanism is historically less rigid than Poetry's (though improving), which can sometimes lead to "it works on my machine" issues if not carefully managed in CI/CD.
-
-
-* **Recommendation:** Given your familiarity with standard `build`, **uv** is highly recommended. It bridges the gap perfectly by offering the speed and simplicity of standard `pip` while providing the robust workspace features required to link the local Parser Library to the PRM container during development and Docker builds.
-
-**3. Discussion: Parser Error Notification & Recovery Strategy**
-We need to define how the Parser Library communicates failures back to the caller (the PRM or the CLI tool).
-
-* **Approach A: Fast-Fail Exceptions**
-* *How it works:* The moment the parser encounters an unexpected token, it raises a Python `SyntaxError` or custom `ClimeParseError` exception and halts execution immediately.
-* *Pros:* Simplest to implement. Guarantees no malformed AST is ever generated.
-* *Cons:* Terrible developer experience for the rule author. If a file has 5 typos, the author must run the CLI tool, fix the first error, run it again, fix the second error, etc.
-
-
-* **Approach B: Error Accumulation (Result Object)**
-* *How it works:* The parser library implements an error recovery strategy (e.g., dropping tokens until it finds the next valid keyword like `when` or `then`). Instead of raising an exception, the parsing function returns a structured object: `{"success": false, "ast": null, "errors": [{"file": "01_base.clime", "line": 15, "msg": "Unexpected token..."}]}`.
-* *Pros:* Vastly superior developer experience. The standalone CLI tool can output a complete list of all syntax errors across all files in a single pass.
-* *Cons:* Slightly more complex to implement in the parser library (requires defining synchronization points for the parser to recover and continue scanning).
-
-
-
-*Recommendation:* **Approach B (Error Accumulation)** is highly recommended. For a custom DSL intended to be written by non-engineers (Nomicron players), providing comprehensive, multi-error feedback via the CLI tool will significantly reduce friction. I have added this requirement to the Pending Updates for the Parser Library Design Document.
+* **User Intent & Clarity:** Nomicron players are not software engineers learning a new tech stack; they are playing a game. When they navigate to the repository, a folder full of `.rules` files immediately tells them *exactly* what those files do. A proprietary extension like `.clime` forces a cognitive translation ("What is a clime file? Oh, it's a rules file").
+* **Tooling Compatibility:** Generic text editors and web-based IDEs (like Codeberg's built-in file editor) will often fall back to plain-text rendering for unknown extensions. While `.rules` is also custom, it is much more commonly mapped by users to YAML or plain-text highlighters in their editors natively.
+* **Separation of Concepts:** "Clime" is a great name for the *language specification* and the *parser library* (e.g., `import clime_parser`), but the files themselves contain the game's rules. Calling them `.rules` prioritizes plain-English usability, which is the foundational design goal of this DSL. I have reverted the document to use `.rules` based on this argument, but if you still prefer `.clime` for branding purposes, we can easily swap it back!
 
 ---
 
@@ -170,7 +139,7 @@ We need to define how the Parser Library communicates failures back to the calle
 
 #### 7. Rules Language Guide
 
-* **Language Name & Extension:** Update documentation to introduce the language name "Clime" and explicitly state that all rule files must use the `.clime` extension.
+* **Language Name & Extension:** Introduce the language name "Clime", but explicitly state that all rule source files must use the `.rules` extension.
 
 #### 8. Rules Intermediate Representation Design Document
 
@@ -183,12 +152,16 @@ We need to define how the Parser Library communicates failures back to the calle
 
 #### 10. Parser Library & CLI Tooling Design Document (New Document)
 
-* **Library Specifications:** Detail the architecture of the shared Python parsing library that translates plain-English `.clime` files into JSON-IR.
+* **Library Specifications:** Detail the architecture of the shared Python parsing library that translates plain-English `.rules` files into JSON-IR.
 * **I/O Decoupling Requirement:** Explicitly specify that the library must perform **no file operations**. The functions for Lexing, Parsing, and Emitting must be designed to accept either static objects (strings, lists of strings, or populated AST objects) *or* iterators yielding the appropriate content, returning the resulting token stream, AST, or JSON-IR respectively.
 * **Error Accumulation Strategy:** The parser must implement an error recovery strategy. Instead of fast-failing via exceptions, it should accumulate syntax errors and return a structured Result object (e.g., `success`, `errors`, `ast`), allowing callers to process multiple errors simultaneously.
 * **CLI Tooling:** Define the behavior of the standalone syntax checker CLI, detailing input arguments, exit codes for CI/CD integration, file-loading wrappers, and verbose error formatting for local debugging.
 
 #### 11. Codebase & Repository Architecture Document (New Document)
 
-* **Monorepo Structure:** Define the project layout for managing the multiple Python applications and shared internal libraries (Core Daemon, PRM, CLI tool, Parser Library).
-* **Build System:** Specify the tooling (e.g., `uv` or Poetry) used to manage internal package dependencies and orchestrate container builds without requiring the internal libraries to be published to public package registries.
+* **Build System Discussion (`uv` vs `hatch`):** While `hatch` is an officially endorsed PyPA project and fantastic for generic package building, `uv` (built by Astral) is recommended for this specific multi-component project. `uv` acts as an ultra-fast, drop-in replacement for `pip`, `venv`, and `pip-tools` written in Rust. Crucially, `uv` recently introduced Cargo-style "workspace" support. This allows us to define the Parser Library, the PRM, and the Core Engine as separate packages within the same repository, seamlessly linking them together locally without needing to publish the internal library to a PyPI index or wrangle complex local file references in standard `pyproject.toml` configurations.
+* **Monorepo Organization:** The document must define a unified workspace layout. A standard approach would separate concerns clearly, for example:
+* `libs/clime-parser`: The shared parsing library.
+* `apps/core-daemon`: The main Climatomaton Discord engine.
+* `apps/git-prm`: The standalone Git-Fetch container process.
+* `tools/clime-cli`: The standalone syntax checker utility.
