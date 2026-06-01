@@ -51,37 +51,17 @@ To ensure consistent execution logic across deployments, the PRM compiles rules 
 
 The PRM is responsible for translating the retrieved blob contents into the Core Daemon's JSON-IR.
 
-### 4.1 Parser Library Abstraction
+### 4.1 Parser Library Integration
 
-To ensure consistency across the Climatomaton ecosystem, the entire parsing pipeline (Lexical Analysis, Syntactic Analysis, and IR Emission) must be abstracted into a standalone, reusable Python library. The PRM container will import and utilize this shared library rather than defining the parsing logic internally. This allows the exact same compilation logic to power both the PRM runtime and offline tooling.
+To ensure consistency across the Climatomaton ecosystem, all parsing logic (Lexical Analysis, Syntactic Analysis, and IR Emission) is entirely abstracted into a standalone, reusable Python library. The PRM container simply imports and utilizes this shared library. The internal architecture of this library is detailed in the Parser Library & CLI Tooling Design Document.
 
-### 4.2 Lexical Analysis (Tokenization)
+### 4.2 In-Memory Compilation
 
-The library's lexer scans the raw text of the `.rules` blobs and converts them into a stream of recognized tokens.
+The parser library is strictly decoupled from file system operations. The PRM facilitates compilation by acting as the bridge between the Git database and the library:
 
-* **Keywords & Identifiers:** Extracts keywords (e.g., `climate rule`, `when`, `then`) using case-insensitive matching, alongside variable/namespace identifiers.
-* **Strings & Literals:** Safely captures string literals, honoring escape sequences for internal quotes and backslashes.
-* **Comment Stripping:** Explicitly identifies and strips all text enclosed within square brackets `[` `]`. These comments are completely discarded at the lexer stage and do not pass to the parser.
-* **Source Tracking:** The lexer attaches file origin and line number metadata to every emitted token. This is critical for constructing the required `source` tracking string for the final JSON-IR payload.
-
-### 4.3 Syntactic Analysis (AST Generation)
-
-The library's parser consumes the token stream and constructs an in-memory Abstract Syntax Tree (AST) representing the logical structure of the rules.
-
-* **Grammar Enforcement:** The parser rigidly applies the EBNF rules. If the token stream violates the grammar, the parser throws a fatal syntax exception.
-* **Syntactic Sugar Unrolling:** During AST construction, the parser identifies natural language shortcuts (e.g., `<target> includes all of <expr>`) and translates them directly into their equivalent foundational function nodes. Chained actions linked by `and` are also unrolled into distinct mutation nodes at this stage.
-
-### 4.4 IR Emission & Segregation
-
-A final pass traverses the generated AST to serialize the data into the strict JSON-IR schema.
-
-* **Ruleset Identification:** The emitter injects a top-level `id` field into the JSON-IR root object, populated with the exact Git commit hash from which the rules were generated.
-* **Node Translation:** AST nodes are mapped exactly to their JSON-IR counterparts, explicitly declaring their `kind` attributes.
-* **Array Segregation:** As the emitter processes the AST, it evaluates the root rule type. It appends `climate rule` blocks to the internal Climate array and `tag rule` blocks to the internal Tag array, preserving the deterministic alphabetical/line ordering established during file discovery.
-
-### 4.5 Standalone Syntax Checker (Tooling)
-
-Because the parsing pipeline is packaged as an independent library, a lightweight Command Line Interface (CLI) tool must be provided as a project deliverable. This standalone syntax checker allows rule authors to validate their `.rules` files locally on their machines or within a CI/CD pipeline, catching syntax errors and structural issues before they are merged into the repository and processed by the live PRM.
+1. **Data Handoff:** The PRM passes the raw text blobs (retrieved directly from `dulwich` in Section 3) directly into the library's ingestion functions as static strings or iterators.
+2. **Compilation:** The library processes the data stream, generating the fully serialized JSON-IR document internally.
+3. **Identifier Injection:** Upon receiving the compiled JSON-IR, the PRM injects a top-level `id` field into the JSON root object, populated with the exact Git commit hash from which the rules were generated.
 
 ## 5. IPC File Delivery & Heartbeat
 
@@ -101,7 +81,7 @@ If an outbound Git operation fails, the PRM logs an error locally without modify
 
 ### 6.2 Compilation Failures
 
-If the parser encounters a syntax error or invalid token within any `.rules` file:
+If the parsing library throws a syntax error exception during compilation:
 
 1. **Abort Compilation:** The PRM immediately halts compilation.
 2. **State Preservation:** The PRM intentionally bypasses IPC delivery, ensuring the Core Daemon continues running the Last-Known-Good ruleset uninterrupted.
@@ -111,11 +91,35 @@ If the parser encounters a syntax error or invalid token within any `.rules` fil
 
 ### Comments, New Issues, Discussion Points, and Questions
 
-**1. Clarification on Git Trees vs. Directories**
-Your distinction here is critical. By explicitly defining that we are iterating over the children of a specific Git tree object, we inherently enforce the flat-directory constraint without needing to write custom "do not recurse" logic that a standard file system crawler would require. The wording in 3.1 has been updated to reflect Git-native terminology.
+**1. Parser Logic Extraction**
+As requested, the detailed lexing and parsing mechanisms have been stripped from Section 4 of this document. This PRM document now correctly focuses strictly on the *integration* between the Git polling loop, the in-memory blobs, and the external parser library.
 
-**2. The Shared Parser Library & CLI Tooling**
-Extracting the parser into an independent Python library is an excellent architectural decision. If rule authors couldn't test their rules until the PRM failed to parse them in production, the developer experience would be incredibly frustrating. A CLI syntax checker that leverages the exact same library guarantees parity between local testing and production execution. I have added this into Section 4 as a core design requirement and updated the deliverables list to reflect the new CLI tool requirement.
+**2. Cutesy / Clever Language Name Ideas**
+Naming a custom Domain Specific Language is one of the best parts of system design! Since this DSL governs the climate for "Nomicron," we should lean into meteorological, Nomic, or atmospheric puns. Here are a few options to consider:
+
+* **Atmos:** (Short, punchy, implies atmosphere/climate rules).
+* **NomiScript:** (Standard naming convention, very clear what it belongs to).
+* **Weathervane:** (Implies directing the climate, slightly whimsical).
+* **C-Lex:** (Climate Lexicon).
+* **Zephyr:** (A light wind, often used in software for lightweight environments/languages).
+* **Isobar:** (The lines on a weather map indicating pressure—fitting for rules that apply pressure to the game state).
+* *My Recommendation:* **Atmos** or **Isobar**. They are easy to say, short enough to use as file extensions (e.g., `.atmos` instead of `.rules`), and thematic. Let me know what direction you prefer!
+
+**3. Application & Library Organization (Monorepo vs. Polyrepo)**
+Because the Climatomaton project consists of several distinct but tightly coupled Python components (the Core Daemon, the Git-Fetch PRM container, standard PEM containers, the CLI Tool, and the core Parser Library), we need a cohesive strategy for versioning and building them.
+
+* **Polyrepo (Multiple Repositories):** You would have one repo for the Core Daemon, one for the PRM, one for the shared parser library, etc.
+* *Pros:* Strict boundary enforcement. Forces the parser library to be a completely independent, `pip`-installable package.
+* *Cons:* "Dependency hell." If you update a language keyword in the parser library, you must publish a new package version, go to the PRM repo, bump the requirement, go to the Core Daemon repo, bump the requirement, and rebuild everything. This is massive overhead for a single project.
+
+
+* **Monorepo (Single Repository):** All code lives in one Git repository (e.g., `climatomaton/`). Inside, you use a modular structure like `apps/core`, `apps/git-prm`, and `libs/parser`.
+* *Pros:* Atomic commits. A single pull request can update the grammar in the parser library and update the Git-Fetch PRM to utilize the new AST structure simultaneously. You don't have to publish the internal library to PyPI; you can link it locally during Docker builds.
+* *Cons:* Requires slightly more complex Dockerfile setups to ensure each container image only bundles what it needs.
+
+
+
+*Recommendation:* Use a **Python Monorepo** managed with a modern build system like `Poetry` or `uv`. You can define multiple packages/workspaces in one repository. The architecture for this codebase organization should be documented in a new **Codebase & Repository Architecture Document** (or folded into the Deployment Architecture Document as a "Build Strategy" section). I have added this to the pending updates.
 
 ---
 
@@ -129,7 +133,7 @@ Extracting the parser into an independent Python library is an excellent archite
 
 #### 2. Deployment Architecture Document
 
-* **Shared Volume Requirements:** Specify that the deployed shared volume used to accommodate the IPC mechanisms must support the underlying file system operations required by the atomic write protocol (details to be finalized in the Shared Volume Design Document).
+* **Shared Volume Requirements:** Specify that the deployed shared volume used to accommodate the IPC mechanisms must support the underlying file system operations required by the atomic write protocol.
 * **PRM Configuration Definitions:** Include required environment variables for the Git-Fetch PRM container (`GIT_REPO_URL`, `GIT_BRANCH`, `GIT_TARGET_DIR`, `POLL_INTERVAL`, `SYNC_FAILURE_THRESHOLD`).
 
 #### 3. Observability, Health Checking, and Logging Design Document (New Document)
@@ -169,4 +173,10 @@ Extracting the parser into an independent Python library is an excellent archite
 #### 10. Parser Library & CLI Tooling Design Document (New Document)
 
 * **Library Specifications:** Detail the architecture of the shared Python parsing library that translates plain-English `.rules` files into JSON-IR.
-* **CLI Tooling:** Define the behavior of the standalone syntax checker CLI, detailing input arguments, exit codes for CI/CD integration, and verbose error formatting for local debugging.
+* **I/O Decoupling Requirement:** Explicitly specify that the library must perform **no file operations**. The functions for Lexing, Parsing, and Emitting must be designed to accept either static objects (strings, lists of strings, or populated AST objects) *or* iterators yielding the appropriate content, returning the resulting token stream, AST, or JSON-IR respectively.
+* **CLI Tooling:** Define the behavior of the standalone syntax checker CLI, detailing input arguments, exit codes for CI/CD integration, file-loading wrappers (since the library does not do I/O itself), and verbose error formatting for local debugging.
+
+#### 11. Codebase & Repository Architecture Document (New Document)
+
+* **Monorepo Structure:** Define the project layout for managing the multiple Python applications and shared internal libraries (Core Daemon, PRM, CLI tool, Parser Library).
+* **Build System:** Specify the tooling (e.g., Poetry, `uv`) used to manage internal package dependencies and orchestrate container builds without requiring the internal libraries to be published to public package registries.
