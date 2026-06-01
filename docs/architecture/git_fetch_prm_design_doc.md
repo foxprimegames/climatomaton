@@ -1,11 +1,3 @@
-You are spot on with both points.
-
-Using a bare clone and reading blobs directly from the tree object is the most idiomatic and efficient way to use a library like `dulwich` in memory, completely bypassing the need for a working tree. And yes, this is *exactly* the right level of detail for a component architecture document. It tells the developers *how* the system should interact with the data conceptually, without micromanaging the specific lines of Python code.
-
-Regarding the heartbeat: I completely misunderstood your previous proposal. Updating the `mtime` of the file while relying on the IPC Broker to parse the `id` to distinguish between a heartbeat and a true update elegantly solves the problem without creating new file formats.
-
-Here is the updated design document reflecting these architectural refinements.
-
 # Git-Fetch Pluggable Rules Module (PRM) Design Document
 
 ## 1. System Overview
@@ -34,17 +26,18 @@ The PRM container requires the following parameters, injected strictly via envir
 2. **Polling Loop:** The PRM enters a sleep cycle determined by `POLL_INTERVAL`.
 3. **Fetch & Compare:** Upon waking, the PRM performs a fetch operation. It resolves the remote HEAD commit hash and compares it against its local in-memory HEAD.
    * If the hashes match, no repository changes have occurred. The PRM proceeds directly to the Heartbeat phase (see Section 5).
-   * If the hashes differ, the PRM updates its local bare repository references to the new remote tip. This natively bypasses fast-forward merge conflicts since there is no working tree to reconcile. Following the reference update, the PRM triggers the File Discovery and Compilation phases.
+   * If the hashes differ, the PRM explicitly updates its local bare repository references to the new remote tip. This gracefully handles scenarios where the branch has changed in a way that causes a standard fast-forward merge to fail (e.g., a forced push or history rewrite).
+   * Following the update, the PRM triggers the File Discovery and Compilation phases.
 
 ## 3. File Discovery & Filtering
 
-Because the PRM operates on a bare repository, it does not scan a local filesystem. Instead, it utilizes underlying Git object traversal to read file contents directly from the object database.
+Because the PRM operates on a bare repository, it does not scan a local file system. Instead, it utilizes underlying Git object traversal to read file contents directly from the in-memory object database.
 
 ### 3.1 Filtering Protocol
 
-* The PRM resolves the tree object associated with the current HEAD commit.
-* It traverses the specific tree path defined by `GIT_TARGET_DIR`. Deep directory scanning is not supported; the traversal is strictly flat within that designated tree.
-* It filters the tree entries, selecting only those whose names end with the `.rules` extension.
+* The PRM resolves the internal Git tree object associated with the current HEAD commit.
+* It navigates to the specific Git tree object corresponding to the `GIT_TARGET_DIR` path. To be clear, this traversal examines the immediate child blob objects of that specific Git tree object only; it does not recursively descend into sub-trees. This ensures a strictly flat evaluation of the designated folder level, avoiding the deep recursive scans typically associated with file system directory tree traversals.
+* It filters the entries within that single Git tree object, selecting only those whose names end with the `.rules` extension.
 * The PRM retrieves the blob contents (the raw text) for the matched entries directly from the in-memory object database.
 
 ### 3.2 Deterministic Ordering
@@ -56,15 +49,15 @@ To ensure consistent execution logic across deployments, the PRM compiles rules 
 
 ## 4. Compilation & JSON-IR Generation
 
-The PRM is responsible for translating the retrieved blob contents into the Core Daemon's JSON-IR. The compilation process utilizes a standard compiler frontend pipeline to guarantee syntactic correctness before emission.
+The PRM is responsible for translating the retrieved blob contents into the Core Daemon's JSON-IR.
 
-### 4.1 Parser Architecture
+### 4.1 Parser Library Abstraction
 
-The PRM implements a three-stage parsing pipeline: Lexical Analysis, Syntactic Analysis, and IR Emission. It utilizes a robust Python-based parsing library capable of directly consuming the established EBNF grammar, ensuring the parser remains strictly synchronized with the language specification.
+To ensure consistency across the Climatomaton ecosystem, the entire parsing pipeline (Lexical Analysis, Syntactic Analysis, and IR Emission) must be abstracted into a standalone, reusable Python library. The PRM container will import and utilize this shared library rather than defining the parsing logic internally. This allows the exact same compilation logic to power both the PRM runtime and offline tooling.
 
 ### 4.2 Lexical Analysis (Tokenization)
 
-The lexer scans the raw text of the `.rules` blobs and converts them into a stream of recognized tokens.
+The library's lexer scans the raw text of the `.rules` blobs and converts them into a stream of recognized tokens.
 
 * **Keywords & Identifiers:** Extracts keywords (e.g., `climate rule`, `when`, `then`) using case-insensitive matching, alongside variable/namespace identifiers.
 * **Strings & Literals:** Safely captures string literals, honoring escape sequences for internal quotes and backslashes.
@@ -73,7 +66,7 @@ The lexer scans the raw text of the `.rules` blobs and converts them into a stre
 
 ### 4.3 Syntactic Analysis (AST Generation)
 
-The parser consumes the token stream and constructs an in-memory Abstract Syntax Tree (AST) representing the logical structure of the rules.
+The library's parser consumes the token stream and constructs an in-memory Abstract Syntax Tree (AST) representing the logical structure of the rules.
 
 * **Grammar Enforcement:** The parser rigidly applies the EBNF rules. If the token stream violates the grammar, the parser throws a fatal syntax exception.
 * **Syntactic Sugar Unrolling:** During AST construction, the parser identifies natural language shortcuts (e.g., `<target> includes all of <expr>`) and translates them directly into their equivalent foundational function nodes. Chained actions linked by `and` are also unrolled into distinct mutation nodes at this stage.
@@ -86,12 +79,16 @@ A final pass traverses the generated AST to serialize the data into the strict J
 * **Node Translation:** AST nodes are mapped exactly to their JSON-IR counterparts, explicitly declaring their `kind` attributes.
 * **Array Segregation:** As the emitter processes the AST, it evaluates the root rule type. It appends `climate rule` blocks to the internal Climate array and `tag rule` blocks to the internal Tag array, preserving the deterministic alphabetical/line ordering established during file discovery.
 
+### 4.5 Standalone Syntax Checker (Tooling)
+
+Because the parsing pipeline is packaged as an independent library, a lightweight Command Line Interface (CLI) tool must be provided as a project deliverable. This standalone syntax checker allows rule authors to validate their `.rules` files locally on their machines or within a CI/CD pipeline, catching syntax errors and structural issues before they are merged into the repository and processed by the live PRM.
+
 ## 5. IPC File Delivery & Heartbeat
 
 The PRM communicates with the Core Daemon via File-Based IPC on a shared volume. It utilizes the primary rules file to act as both the state payload and the lifecycle heartbeat.
 
 * **Atomic Write Protocol:** When the repository has changed and a new JSON-IR payload is compiled, the PRM strictly follows the system-wide atomic write protocol defined in the Shared Volume Design Document. The final compiled JSON-IR ruleset is delivered to the path `prm/active_rules.json`.
-* **Heartbeat Protocol:** On *every* polling cycle interval, regardless of whether the Git repository changed, the PRM must update the modification timestamp (e.g., via an OS `touch` operation) of `prm/active_rules.json`. This signals to the IPC Broker that the PRM process remains healthy and actively monitoring.
+* **Heartbeat Protocol:** On every polling cycle interval, regardless of whether the Git repository changed, the PRM must update the modification timestamp (e.g., via an OS `touch` operation) of `prm/active_rules.json`. This signals to the IPC Broker that the PRM process remains healthy and actively monitoring.
 * **Local Cleanup:** During its own startup and graceful shutdown phases, the PRM will arbitrarily remove any temporary files it uses to ensure a clean operational state.
 
 ## 6. Error Handling & Observability
@@ -114,8 +111,11 @@ If the parser encounters a syntax error or invalid token within any `.rules` fil
 
 ### Comments, New Issues, Discussion Points, and Questions
 
-* **Level of Detail on Git Implementation:** To answer your first question directly: yes, specifying a bare clone, utilizing `dulwich`, and detailing the retrieval of blobs directly from the tree object is precisely the right level of detail for this document. It restricts the implementation team to a highly efficient, diskless architecture without dictating the exact Python function calls they must write.
-* **Heartbeat via File Modification:** Your clarification on the `id` field makes perfect sense. By injecting the commit hash into the JSON-IR `id` field, the PRM can indiscriminately `touch` the `active_rules.json` file on every cycle. The IPC Broker will detect the `mtime` change via `inotify`, parse the JSON, and simply compare the parsed `id` against its in-memory ruleset `id`. If they match, it acts purely as a heartbeat update. If they differ, it triggers a ruleset reload. This keeps the volume clean and centralizes the liveness check. This logic has been pushed to the "Pending Updates" section for the IPC Broker.
+**1. Clarification on Git Trees vs. Directories**
+Your distinction here is critical. By explicitly defining that we are iterating over the children of a specific Git tree object, we inherently enforce the flat-directory constraint without needing to write custom "do not recurse" logic that a standard file system crawler would require. The wording in 3.1 has been updated to reflect Git-native terminology.
+
+**2. The Shared Parser Library & CLI Tooling**
+Extracting the parser into an independent Python library is an excellent architectural decision. If rule authors couldn't test their rules until the PRM failed to parse them in production, the developer experience would be incredibly frustrating. A CLI syntax checker that leverages the exact same library guarantees parity between local testing and production execution. I have added this into Section 4 as a core design requirement and updated the deliverables list to reflect the new CLI tool requirement.
 
 ---
 
@@ -165,3 +165,8 @@ If the parser encounters a syntax error or invalid token within any `.rules` fil
 
 * **Discord Integration Specifics:** Define exact Discord intents/permissions (DGL) and OAuth2 scopes (DAC).
 * **Rate Limiting:** The DAC design document must incorporate the specific logic for overall and per-source notification rate limiting.
+
+#### 10. Parser Library & CLI Tooling Design Document (New Document)
+
+* **Library Specifications:** Detail the architecture of the shared Python parsing library that translates plain-English `.rules` files into JSON-IR.
+* **CLI Tooling:** Define the behavior of the standalone syntax checker CLI, detailing input arguments, exit codes for CI/CD integration, and verbose error formatting for local debugging.
