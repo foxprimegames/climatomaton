@@ -8,7 +8,7 @@ To strictly maintain the system constraint of having no exposed inbound connecti
 
 ## 2. Git Synchronization & Configuration
 
-The Git-Fetch PRM retrieves rule source files from a remote repository. To optimize performance, eliminate the dependency on a system-level executable, and maintain a highly secure container image, the PRM utilizes the `pygit2` library (native C-bindings for libgit2) to execute all Git protocol operations directly in memory.
+The Git-Fetch PRM retrieves rule source files from a remote repository. To optimize performance, eliminate the dependency on a system-level executable, and maintain a highly secure container image, the PRM utilizes the `dulwich` library. As a pure-Python implementation of the Git protocol, `dulwich` supports true 100% in-memory repository operations, avoiding the need for local disk staging.
 
 ### 2.1 Configuration Parameters
 
@@ -26,8 +26,8 @@ The PRM container requires the following parameters, injected strictly via envir
 2. **Polling Loop:** The PRM enters a sleep cycle determined by `POLL_INTERVAL`.
 3. **Fetch & Compare:** Upon waking, the PRM performs a fetch operation. It compares the local HEAD commit hash against the remote branch's HEAD commit hash.
    * If the hashes match, no changes have occurred. The PRM returns to sleep.
-   * If the hashes differ, the PRM explicitly performs a hard reset to the remote branch tip. This guarantees the local filesystem strictly mirrors the remote state, gracefully handling scenarios where the branch has changed in a way that causes a standard fast-forward merge to fail (e.g., a forced push or history rewrite).
-   * Following the reset, the PRM triggers the File Discovery and Compilation phases.
+   * If the hashes differ, the PRM explicitly updates its in-memory tree to the remote branch tip. This gracefully handles scenarios where the branch has changed in a way that causes a standard fast-forward merge to fail (e.g., a forced push or history rewrite).
+   * Following the update, the PRM triggers the File Discovery and Compilation phases.
 
 ## 3. File Discovery & Filtering
 
@@ -80,7 +80,7 @@ A final pass traverses the generated AST to serialize the data into the strict J
 
 Once the JSON-IR payload is generated, the PRM delivers it to the Core Daemon via File-Based IPC using UTC timestamps.
 
-* **Atomic Write Protocol:** The PRM strictly follows the system-wide atomic write protocol defined in the central architecture document. The final compiled JSON-IR ruleset will be delivered to the path `prm/active_rules.json`.
+* **Atomic Write Protocol:** The PRM strictly follows the system-wide atomic write protocol defined in the Shared Volume Design Document. The final compiled JSON-IR ruleset will be delivered to the path `prm/active_rules.json`.
 * **Local Cleanup:** While the IPC Broker handles stale transaction files upon core engine startup, the PRM is explicitly responsible for managing its own temporary files. During its own startup and graceful shutdown phases, the PRM will arbitrarily remove any temporary files it uses to ensure a clean operational state.
 
 ## 6. Error Handling & Observability
@@ -103,32 +103,32 @@ If the parser encounters a syntax error or invalid token within any `.rules` fil
 
 ### Comments, New Issues, Discussion Points, and Questions
 
-**Discussion: PRM Heartbeat Implementation (Rules File vs. Dedicated Heartbeat File)**
+**Git Implementation: Dulwich over pygit2**
+You made an excellent point regarding the Git implementation. While `pygit2` is exceptionally fast, it relies heavily on native C-libraries and its virtual/in-memory object database support is notoriously complex to configure properly. `Dulwich`, being a pure-Python library, natively features a `MemoryRepo` class that perfectly fulfills our requirement of keeping the filesystem untouched. I have updated the document to reflect `Dulwich` as the chosen implementation.
 
-We need a mechanism for the IPC Broker to recognize if the PRM crashes, preventing the Core Daemon from silently running an outdated ruleset indefinitely. We have two primary approaches for this heartbeat:
+**PRM Heartbeat: JSON-IR `id` Field vs. Dedicated `.heartbeat` File**
+Your proposal to inject an `id` field (like a UUID or commit hash) into the JSON-IR payload to act as the heartbeat is a clever way to reduce the number of files on the shared volume. However, it introduces a few architectural friction points worth discussing:
 
-* **Option A: Using the Rules File (`prm/active_rules.json`)**
-  * *Concept:* The PRM "touches" (updates the modified timestamp of) the active rules file on every polling cycle, even if the Git repository hasn't changed.
-  * *Pros:* Avoids adding new files to the shared volume structure.
-  * *Cons:* Highly problematic for the Core Daemon. The IPC Broker currently uses `inotify` (or similar file watchers) to detect changes to `active_rules.json`. If we touch the file every 60 seconds, we will trigger the Rules Engine to redundantly re-parse, type-check, and re-validate the JSON-IR against all schemas on every cycle. We would have to introduce complex hashing logic in the IPC Broker to determine if the file *contents* actually changed before firing the `ipc.rules_updated` event, which violates the Broker's lightweight design.
-* **Option B: Introducing a New Dedicated Heartbeat File (e.g., `prm/.heartbeat`)**
-  * *Concept:* The PRM writes or touches a lightweight, empty file on the shared volume on every polling cycle.
-  * *Pros:* Cleanly decouples the PRM's lifecycle state from the application's rule state. It exactly mirrors the design paradigm already established for PEMs (which update their schema file timestamps to prove liveness without necessarily mutating environment data).
-  * *Cons:* Introduces an additional file format/path that must be defined in the Shared Volume contract and monitored by the IPC Broker.
-**Recommendation:** Option B (Dedicated Heartbeat File) is architecturally safer. It prevents unnecessary CPU overhead in the Core Daemon and maintains a consistent lifecycle monitoring pattern across all pluggable modules (PEMs and PRMs alike).
+* **File I/O and Parsing Overhead:** For the IPC Broker to know the PRM is still alive, the PRM must prove it is functioning at a regular interval (e.g., every 60 seconds). If we use `active_rules.json` as the heartbeat mechanism, the PRM would have to regenerate and write the entire ruleset payload to the shared volume every 60 seconds, even if the Git repository hasn't changed (just to update the `id` field). Consequently, the IPC Broker would have to load and parse the potentially large JSON file every 60 seconds just to check if the `id` changed or the timestamp updated.
+* **Separation of Concerns:** Mixing ephemeral liveness state (heartbeats) with persistent application state (rules logic) can complicate debugging.
+* **The File Mod-Time Advantage:** With a dedicated, empty `.heartbeat` file, the PRM simply updates the file's modification timestamp (a near-zero cost OS operation). The IPC Broker can check liveness purely by reading the file's metadata (`os.stat().st_mtime`) without ever opening or parsing a file.
+
+**Recommendation:** While adding an `id` or `hash` to the JSON-IR is an excellent idea for tracking *which* Git commit is currently active (and we should probably add that to the JSON-IR schema anyway for observability!), I recommend sticking to a dedicated `.heartbeat` file strictly for the liveness checks to save on disk I/O and JSON parsing overhead. Let me know which direction you'd prefer to formalize.
 
 ---
 
 ### Pending Updates for Other Documents
 
-#### 1. Central Architecture Document
+#### 1. Shared Volume Design Document (New Document)
 
-* **Atomic Write Procedure:** Formally define the system-wide atomic write protocol. Specify that all files written to the shared volume must first be written to a temporary file, followed by a system rename operation. Crucially, grant processes explicit permission to arbitrarily remove any existing temporary files they strictly own (e.g., during their own startup or shutdown cleanup phases) before overwriting them.
+* **Atomic Write Protocol:** Formally define the system-wide atomic write protocol here. Specify that all files written to the shared volume must first be written to a temporary file, followed by a system rename operation. Grant processes explicit permission to arbitrarily remove any existing temporary files they strictly own before overwriting them.
+* **Volume Topology:** Detail the directory structure of the shared volume (e.g., `prm/`, `tx/`, `logs/`, `notifications/`).
+* **Decentralized Schemas:** State that this document outlines the mechanical rules of engagement, but the specific JSON schemas for the payloads remain owned by the component design documents generating them.
 
-#### 2. Shared Volume Design Document (New Document)
+#### 2. Deployment Architecture Document
 
-* **Volume Topology:** Create a new design document detailing the directory structure of the shared volume (e.g., `prm/`, `tx/`, `logs/`, `notifications/`).
-* **Decentralized Schemas:** State that this document outlines the mechanical rules of engagement for the volume, but the specific JSON schemas for the payloads within those files remain owned by the component design documents generating them.
+* **Shared Volume Requirements:** Specify that the deployed shared volume used to accommodate the IPC mechanisms must support the underlying file system operations required by the atomic write protocol (details to be finalized in the Shared Volume Design Document).
+* **PRM Configuration Definitions:** Include required environment variables for the Git-Fetch PRM container (`GIT_REPO_URL`, `GIT_BRANCH`, `GIT_TARGET_DIR`, `POLL_INTERVAL`, `SYNC_FAILURE_THRESHOLD`).
 
 #### 3. Observability, Health Checking, and Logging Design Document (New Document)
 
@@ -137,24 +137,24 @@ We need a mechanism for the IPC Broker to recognize if the PRM crashes, preventi
 #### 4. IPC Broker Design Document
 
 * **Notification Payload Format:** Specify the exact JSON schema and required keys for the files dropped into the `notifications/` directory by external modules.
-* **Heartbeat Monitoring (PEMs):** Implement a "fast publish, lenient subscribe" model for tracking PEM heartbeats. While PEMs update their schema file timestamps every 30 seconds, the IPC Broker checks every 60 seconds. A PEM missing two consecutive checks (120 seconds) is considered dead, prompting the Broker to purge its stale files from the volume.
-* **Heartbeat Monitoring (PRMs):** (Pending final decision from discussion above) Define the monitoring strategy for PRM liveness, detailing the exact mechanism (e.g., watching `prm/.heartbeat`) and the resulting system event (e.g., dropping the Core Engine into a PAUSED state) if the PRM dies.
+* **Heartbeat Monitoring (PEMs):** Implement a "fast publish, lenient subscribe" model for tracking PEM heartbeats. While PEMs update their schema file timestamps every 30 seconds, the IPC Broker checks every 60 seconds. A PEM missing two consecutive checks (120 seconds) is considered dead, prompting the Broker to purge its stale files.
+* **Heartbeat Monitoring (PRMs):** (Pending final decision from discussion above) Define the monitoring strategy for PRM liveness, detailing the exact mechanism and the resulting system event (e.g., dropping the Core Engine into a PAUSED state) if the PRM dies.
 
-#### 5. Rules Engine Design Document
+#### 5. Central Architecture Document
 
-* **Dynamic Type Registry Initialization & Type Mapping:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for loaded PEM schemas (`*.schema.json`) and internal schemas. Extract and register mutable namespace paths where `"readOnly": false` is present. Strictly map JSON schema `array` types to internal tag lists, requiring the `items` definition to be `"type": "string"`.
+* **Cleanup:** Remove the atomic write procedure specifics from this document, delegating them entirely to the new Shared Volume Design Document.
+
+#### 6. Rules Engine Design Document
+
+* **Dynamic Type Registry Initialization & Type Mapping:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for loaded PEM schemas. Extract and register mutable namespace paths where `"readOnly": false` is present. Strictly map JSON schema `array` types to internal tag lists, requiring the `items` definition to be `"type": "string"`.
 * **Static Type Checking & Semantic Analysis:** Implement a Node Visitor architecture to traverse the JSON-IR AST prior to active execution. Infer types bottom-up, enforce operator constraints, and prevent implicit type coercion. Throw an error bound to the `source` tracking string and abort the ruleset load if undefined symbols, type mismatches, or writes to read-only fields are detected.
 * **Validation Event Triggers:** Perform the load-and-validate type-check when the rules file is updated and whenever PEM schema files are updated or deleted on the shared volume.
 
-#### 6. Rules Language Guide
+#### 7. Rules Language Guide
 
 * **File Extension Convention:** Update documentation to explicitly state that all rule files must use the `.rules` extension to be detected by the Git-Fetch PRM.
 
-#### 7. DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents
+#### 8. DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents
 
 * **Discord Integration Specifics:** Define exact Discord intents/permissions (DGL) and OAuth2 scopes (DAC).
 * **Rate Limiting:** The DAC design document must incorporate the specific logic for overall and per-source notification rate limiting.
-
-#### 8. Deployment Architecture Document
-
-* **PRM Configuration Definitions:** Include required environment variables for the Git-Fetch PRM container (`GIT_REPO_URL`, `GIT_BRANCH`, `GIT_TARGET_DIR`, `POLL_INTERVAL`, `SYNC_FAILURE_THRESHOLD`).
