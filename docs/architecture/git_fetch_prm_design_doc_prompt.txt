@@ -49,3 +49,16 @@ as always, please process the above issues into the document and display it.  re
 --
 
 please re-examine the previous prompt, since it addressed some of the issues you raised again.
+
+--
+
+you failed to address the following issues and requested discussions from the previous prompt:
+
+1. please present a recommendation, with pros and cons (and source references) for the git implementation to use.  (you instead decided to just decide on a git implementation and write it into the design document, rather than presenting it as a recommendation with pros and cons)
+2. please add to the pending updates that the ipc broker design document needs to specify the format of the notification payloads.  (this means _this_ document should **not** specify the format of those payloads, which you arbitrarily introduced, also, by the way, including trailing spaces in the examples which is forbidden according to the instructions at the end of the prompt)
+3. please discuss if all of the various file formats that occupy the shared volume should be gathered into a single "shared volume contract" or be left with the design documents for the components that "own" those file formats.
+4. the design should follow a general "atomic write" procedure defined in the central achitecture document.  please add that to the pending updates for the central architecture document, and ensure that the "atomic write" procedure includes permission to arbitrarily remove any existing `.tmp` file before overwriting it, or during a startup or shutdown cleanup phase if the file is completely owned by the process doing the cleanup.  the IPC Broker cleanup does not cover this, as the IPC Broker cleanup only occurs when the core engine starts up, not if/when the PRM crashes or restarts.
+5. observability, health checking, and logging should be a separate observability design document which all components must follow.
+6. please discuss this proposal:  introduce a requirement in the ipc broker that the prm must periodically update the timestamp of _some file_ - whether that file is the rules file itself or some other file - following the same pattern as the pems and their schema files.  this will allow the ipc broker to identify when the prm stops functioning and put the system into pause mode with an administrative notification.
+
+as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
