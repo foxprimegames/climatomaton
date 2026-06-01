@@ -1,3 +1,11 @@
+You are spot on with both points.
+
+Using a bare clone and reading blobs directly from the tree object is the most idiomatic and efficient way to use a library like `dulwich` in memory, completely bypassing the need for a working tree. And yes, this is *exactly* the right level of detail for a component architecture document. It tells the developers *how* the system should interact with the data conceptually, without micromanaging the specific lines of Python code.
+
+Regarding the heartbeat: I completely misunderstood your previous proposal. Updating the `mtime` of the file while relying on the IPC Broker to parse the `id` to distinguish between a heartbeat and a true update elegantly solves the problem without creating new file formats.
+
+Here is the updated design document reflecting these architectural refinements.
+
 # Git-Fetch Pluggable Rules Module (PRM) Design Document
 
 ## 1. System Overview
@@ -8,7 +16,7 @@ To strictly maintain the system constraint of having no exposed inbound connecti
 
 ## 2. Git Synchronization & Configuration
 
-The Git-Fetch PRM retrieves rule source files from a remote repository. To optimize performance, eliminate the dependency on a system-level executable, and maintain a highly secure container image, the PRM utilizes the `dulwich` library. As a pure-Python implementation of the Git protocol, `dulwich` supports true 100% in-memory repository operations, avoiding the need for local disk staging.
+The Git-Fetch PRM retrieves rule source files from a remote repository. To optimize performance, eliminate the dependency on a system-level executable, and maintain a highly secure container image, the PRM utilizes the `dulwich` library. As a pure-Python implementation of the Git protocol, `dulwich` supports true 100% in-memory repository operations.
 
 ### 2.1 Configuration Parameters
 
@@ -22,21 +30,22 @@ The PRM container requires the following parameters, injected strictly via envir
 
 ### 2.2 Synchronization Workflow
 
-1. **Initial Clone:** Upon startup, the PRM performs an in-memory shallow clone of the configured `GIT_BRANCH` from the `GIT_REPO_URL`.
+1. **Initial Clone:** Upon startup, the PRM performs an in-memory "bare" clone of the configured `GIT_BRANCH` from the `GIT_REPO_URL`. A working tree is neither created nor required.
 2. **Polling Loop:** The PRM enters a sleep cycle determined by `POLL_INTERVAL`.
-3. **Fetch & Compare:** Upon waking, the PRM performs a fetch operation. It compares the local HEAD commit hash against the remote branch's HEAD commit hash.
-   * If the hashes match, no changes have occurred. The PRM returns to sleep.
-   * If the hashes differ, the PRM explicitly updates its in-memory tree to the remote branch tip. This gracefully handles scenarios where the branch has changed in a way that causes a standard fast-forward merge to fail (e.g., a forced push or history rewrite).
-   * Following the update, the PRM triggers the File Discovery and Compilation phases.
+3. **Fetch & Compare:** Upon waking, the PRM performs a fetch operation. It resolves the remote HEAD commit hash and compares it against its local in-memory HEAD.
+   * If the hashes match, no repository changes have occurred. The PRM proceeds directly to the Heartbeat phase (see Section 5).
+   * If the hashes differ, the PRM updates its local bare repository references to the new remote tip. This natively bypasses fast-forward merge conflicts since there is no working tree to reconcile. Following the reference update, the PRM triggers the File Discovery and Compilation phases.
 
 ## 3. File Discovery & Filtering
 
-The target Git directory may contain non-rule assets. The PRM must isolate valid rule source files from a flat directory structure.
+Because the PRM operates on a bare repository, it does not scan a local filesystem. Instead, it utilizes underlying Git object traversal to read file contents directly from the object database.
 
 ### 3.1 Filtering Protocol
 
-* The PRM scans the directory specified by `GIT_TARGET_DIR`. Deep directory scanning or recursive globbing is not supported; the scan is strictly flat.
-* It explicitly filters the directory contents, exclusively selecting files that end with the `.rules` extension. Any file without this extension is ignored.
+* The PRM resolves the tree object associated with the current HEAD commit.
+* It traverses the specific tree path defined by `GIT_TARGET_DIR`. Deep directory scanning is not supported; the traversal is strictly flat within that designated tree.
+* It filters the tree entries, selecting only those whose names end with the `.rules` extension.
+* The PRM retrieves the blob contents (the raw text) for the matched entries directly from the in-memory object database.
 
 ### 3.2 Deterministic Ordering
 
@@ -47,7 +56,7 @@ To ensure consistent execution logic across deployments, the PRM compiles rules 
 
 ## 4. Compilation & JSON-IR Generation
 
-The PRM is responsible for translating the human-readable `.rules` files into the Core Daemon's JSON-IR. The compilation process utilizes a standard compiler frontend pipeline to guarantee syntactic correctness before emission.
+The PRM is responsible for translating the retrieved blob contents into the Core Daemon's JSON-IR. The compilation process utilizes a standard compiler frontend pipeline to guarantee syntactic correctness before emission.
 
 ### 4.1 Parser Architecture
 
@@ -55,7 +64,7 @@ The PRM implements a three-stage parsing pipeline: Lexical Analysis, Syntactic A
 
 ### 4.2 Lexical Analysis (Tokenization)
 
-The lexer scans the raw text of the `.rules` files and converts it into a stream of recognized tokens.
+The lexer scans the raw text of the `.rules` blobs and converts them into a stream of recognized tokens.
 
 * **Keywords & Identifiers:** Extracts keywords (e.g., `climate rule`, `when`, `then`) using case-insensitive matching, alongside variable/namespace identifiers.
 * **Strings & Literals:** Safely captures string literals, honoring escape sequences for internal quotes and backslashes.
@@ -73,15 +82,17 @@ The parser consumes the token stream and constructs an in-memory Abstract Syntax
 
 A final pass traverses the generated AST to serialize the data into the strict JSON-IR schema.
 
+* **Ruleset Identification:** The emitter injects a top-level `id` field into the JSON-IR root object, populated with the exact Git commit hash from which the rules were generated.
 * **Node Translation:** AST nodes are mapped exactly to their JSON-IR counterparts, explicitly declaring their `kind` attributes.
 * **Array Segregation:** As the emitter processes the AST, it evaluates the root rule type. It appends `climate rule` blocks to the internal Climate array and `tag rule` blocks to the internal Tag array, preserving the deterministic alphabetical/line ordering established during file discovery.
 
-## 5. IPC File Delivery
+## 5. IPC File Delivery & Heartbeat
 
-Once the JSON-IR payload is generated, the PRM delivers it to the Core Daemon via File-Based IPC using UTC timestamps.
+The PRM communicates with the Core Daemon via File-Based IPC on a shared volume. It utilizes the primary rules file to act as both the state payload and the lifecycle heartbeat.
 
-* **Atomic Write Protocol:** The PRM strictly follows the system-wide atomic write protocol defined in the Shared Volume Design Document. The final compiled JSON-IR ruleset will be delivered to the path `prm/active_rules.json`.
-* **Local Cleanup:** While the IPC Broker handles stale transaction files upon core engine startup, the PRM is explicitly responsible for managing its own temporary files. During its own startup and graceful shutdown phases, the PRM will arbitrarily remove any temporary files it uses to ensure a clean operational state.
+* **Atomic Write Protocol:** When the repository has changed and a new JSON-IR payload is compiled, the PRM strictly follows the system-wide atomic write protocol defined in the Shared Volume Design Document. The final compiled JSON-IR ruleset is delivered to the path `prm/active_rules.json`.
+* **Heartbeat Protocol:** On *every* polling cycle interval, regardless of whether the Git repository changed, the PRM must update the modification timestamp (e.g., via an OS `touch` operation) of `prm/active_rules.json`. This signals to the IPC Broker that the PRM process remains healthy and actively monitoring.
+* **Local Cleanup:** During its own startup and graceful shutdown phases, the PRM will arbitrarily remove any temporary files it uses to ensure a clean operational state.
 
 ## 6. Error Handling & Observability
 
@@ -89,7 +100,7 @@ The PRM delegates all format structuring and reporting logic to the central Obse
 
 ### 6.1 Synchronization Failures
 
-If an outbound Git operation fails, the PRM logs an error locally without modifying the active rules payload. If synchronization fails consecutively and exceeds the `SYNC_FAILURE_THRESHOLD`, the PRM dispatches an alert payload to the `notifications/` directory on the shared volume to warn administrators of prolonged repository disconnection.
+If an outbound Git operation fails, the PRM logs an error locally without modifying or touching the active rules payload. If synchronization fails consecutively and exceeds the `SYNC_FAILURE_THRESHOLD`, the PRM dispatches an alert payload to the `notifications/` directory on the shared volume to warn administrators of prolonged repository disconnection.
 
 ### 6.2 Compilation Failures
 
@@ -103,17 +114,8 @@ If the parser encounters a syntax error or invalid token within any `.rules` fil
 
 ### Comments, New Issues, Discussion Points, and Questions
 
-**Git Implementation: Dulwich over pygit2**
-You made an excellent point regarding the Git implementation. While `pygit2` is exceptionally fast, it relies heavily on native C-libraries and its virtual/in-memory object database support is notoriously complex to configure properly. `Dulwich`, being a pure-Python library, natively features a `MemoryRepo` class that perfectly fulfills our requirement of keeping the filesystem untouched. I have updated the document to reflect `Dulwich` as the chosen implementation.
-
-**PRM Heartbeat: JSON-IR `id` Field vs. Dedicated `.heartbeat` File**
-Your proposal to inject an `id` field (like a UUID or commit hash) into the JSON-IR payload to act as the heartbeat is a clever way to reduce the number of files on the shared volume. However, it introduces a few architectural friction points worth discussing:
-
-* **File I/O and Parsing Overhead:** For the IPC Broker to know the PRM is still alive, the PRM must prove it is functioning at a regular interval (e.g., every 60 seconds). If we use `active_rules.json` as the heartbeat mechanism, the PRM would have to regenerate and write the entire ruleset payload to the shared volume every 60 seconds, even if the Git repository hasn't changed (just to update the `id` field). Consequently, the IPC Broker would have to load and parse the potentially large JSON file every 60 seconds just to check if the `id` changed or the timestamp updated.
-* **Separation of Concerns:** Mixing ephemeral liveness state (heartbeats) with persistent application state (rules logic) can complicate debugging.
-* **The File Mod-Time Advantage:** With a dedicated, empty `.heartbeat` file, the PRM simply updates the file's modification timestamp (a near-zero cost OS operation). The IPC Broker can check liveness purely by reading the file's metadata (`os.stat().st_mtime`) without ever opening or parsing a file.
-
-**Recommendation:** While adding an `id` or `hash` to the JSON-IR is an excellent idea for tracking *which* Git commit is currently active (and we should probably add that to the JSON-IR schema anyway for observability!), I recommend sticking to a dedicated `.heartbeat` file strictly for the liveness checks to save on disk I/O and JSON parsing overhead. Let me know which direction you'd prefer to formalize.
+* **Level of Detail on Git Implementation:** To answer your first question directly: yes, specifying a bare clone, utilizing `dulwich`, and detailing the retrieval of blobs directly from the tree object is precisely the right level of detail for this document. It restricts the implementation team to a highly efficient, diskless architecture without dictating the exact Python function calls they must write.
+* **Heartbeat via File Modification:** Your clarification on the `id` field makes perfect sense. By injecting the commit hash into the JSON-IR `id` field, the PRM can indiscriminately `touch` the `active_rules.json` file on every cycle. The IPC Broker will detect the `mtime` change via `inotify`, parse the JSON, and simply compare the parsed `id` against its in-memory ruleset `id`. If they match, it acts purely as a heartbeat update. If they differ, it triggers a ruleset reload. This keeps the volume clean and centralizes the liveness check. This logic has been pushed to the "Pending Updates" section for the IPC Broker.
 
 ---
 
@@ -138,7 +140,8 @@ Your proposal to inject an `id` field (like a UUID or commit hash) into the JSON
 
 * **Notification Payload Format:** Specify the exact JSON schema and required keys for the files dropped into the `notifications/` directory by external modules.
 * **Heartbeat Monitoring (PEMs):** Implement a "fast publish, lenient subscribe" model for tracking PEM heartbeats. While PEMs update their schema file timestamps every 30 seconds, the IPC Broker checks every 60 seconds. A PEM missing two consecutive checks (120 seconds) is considered dead, prompting the Broker to purge its stale files.
-* **Heartbeat Monitoring (PRMs):** (Pending final decision from discussion above) Define the monitoring strategy for PRM liveness, detailing the exact mechanism and the resulting system event (e.g., dropping the Core Engine into a PAUSED state) if the PRM dies.
+* **Heartbeat Monitoring (PRMs):** Implement monitoring for the PRM liveness. The PRM will update the modified timestamp of `prm/active_rules.json` on a regular interval. The IPC Broker must detect this timestamp change. Upon detection, it must read the file and check the root `id` field. If the `id` matches the current active ruleset, the Broker merely updates the PRM's last-seen timestamp. If the PRM misses two consecutive heartbeat intervals, the IPC Broker must emit a system event to drop the Core Engine into a PAUSED state.
+* **Ruleset Update Event:** Specify that the `ipc.rules_updated` event is only fired if the parsed `id` from the `prm/active_rules.json` file differs from the currently loaded ruleset.
 
 #### 5. Central Architecture Document
 
@@ -154,7 +157,11 @@ Your proposal to inject an `id` field (like a UUID or commit hash) into the JSON
 
 * **File Extension Convention:** Update documentation to explicitly state that all rule files must use the `.rules` extension to be detected by the Git-Fetch PRM.
 
-#### 8. DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents
+#### 8. Rules Intermediate Representation Design Document
+
+* **Schema Update:** Update the JSON-IR JSON Schema definition (Draft 2020-12) to include a required string field `id` at the root document level, alongside `kind`, `climate_rules`, and `tag_rules`.
+
+#### 9. DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents
 
 * **Discord Integration Specifics:** Define exact Discord intents/permissions (DGL) and OAuth2 scopes (DAC).
 * **Rate Limiting:** The DAC design document must incorporate the specific logic for overall and per-source notification rate limiting.
