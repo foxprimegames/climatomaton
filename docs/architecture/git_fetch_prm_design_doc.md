@@ -1,9 +1,3 @@
-You are absolutely right. I bypassed the requested discussion phase in favor of dictating an implementation, and I overstepped by hardcoding those JSON payloads (complete with trailing spaces). Let's course-correct.
-
-I have stripped the preemptive decisions out of the document, aligned the error handling with the new central observability strategy you proposed, updated the IPC delivery section to rely on a central atomic write protocol, and detailed the requested discussions below.
-
-Here is the updated Git-Fetch PRM design document.
-
 # Git-Fetch Pluggable Rules Module (PRM) Design Document
 
 ## 1. System Overview
@@ -14,7 +8,7 @@ To strictly maintain the system constraint of having no exposed inbound connecti
 
 ## 2. Git Synchronization & Configuration
 
-The Git-Fetch PRM retrieves rule source files from a remote repository. The specific underlying technical implementation for executing Git protocol operations is pending final architectural review.
+The Git-Fetch PRM retrieves rule source files from a remote repository. To optimize performance, eliminate the dependency on a system-level executable, and maintain a highly secure container image, the PRM utilizes the `pygit2` library (native C-bindings for libgit2) to execute all Git protocol operations directly in memory.
 
 ### 2.1 Configuration Parameters
 
@@ -28,7 +22,7 @@ The PRM container requires the following parameters, injected strictly via envir
 
 ### 2.2 Synchronization Workflow
 
-1. **Initial Clone:** Upon startup, the PRM performs a shallow clone of the configured `GIT_BRANCH` from the `GIT_REPO_URL`.
+1. **Initial Clone:** Upon startup, the PRM performs an in-memory shallow clone of the configured `GIT_BRANCH` from the `GIT_REPO_URL`.
 2. **Polling Loop:** The PRM enters a sleep cycle determined by `POLL_INTERVAL`.
 3. **Fetch & Compare:** Upon waking, the PRM performs a fetch operation. It compares the local HEAD commit hash against the remote branch's HEAD commit hash.
    * If the hashes match, no changes have occurred. The PRM returns to sleep.
@@ -86,8 +80,8 @@ A final pass traverses the generated AST to serialize the data into the strict J
 
 Once the JSON-IR payload is generated, the PRM delivers it to the Core Daemon via File-Based IPC using UTC timestamps.
 
-* **Atomic Write Protocol:** The PRM strictly follows the system-wide atomic write procedure defined in the central architecture document. It writes the payload to `prm/active_rules.json.tmp` and executes a system rename to `prm/active_rules.json`.
-* **Local Cleanup:** While the IPC Broker handles stale transaction files upon core engine startup, the PRM is explicitly responsible for managing its own temporary files. During its own startup and graceful shutdown phases, the PRM will arbitrarily remove any existing `prm/active_rules.json.tmp` file to ensure a clean operational state.
+* **Atomic Write Protocol:** The PRM strictly follows the system-wide atomic write protocol defined in the central architecture document. The final compiled JSON-IR ruleset will be delivered to the path `prm/active_rules.json`.
+* **Local Cleanup:** While the IPC Broker handles stale transaction files upon core engine startup, the PRM is explicitly responsible for managing its own temporary files. During its own startup and graceful shutdown phases, the PRM will arbitrarily remove any temporary files it uses to ensure a clean operational state.
 
 ## 6. Error Handling & Observability
 
@@ -109,31 +103,19 @@ If the parser encounters a syntax error or invalid token within any `.rules` fil
 
 ### Comments, New Issues, Discussion Points, and Questions
 
-**1. Git Implementation Recommendation**
-We have three primary paths for implementing the Git operations in Python.
+**Discussion: PRM Heartbeat Implementation (Rules File vs. Dedicated Heartbeat File)**
 
-* **Option A: `GitPython**` (Wrapper)
-  * *Pros:* Very pythonic API, widely adopted, straightforward documentation.
-  * *Cons:* It is fundamentally a wrapper around the system's `git` binary. It requires a full Git installation inside the Docker container and runs operations via subprocess calls, which can be marginally slower and introduces a theoretical command-injection surface if inputs aren't sanitized.
-* **Option B: `pygit2**` (libgit2 Bindings)
-  * *Pros:* Native C-bindings. It is exceptionally fast, highly memory efficient, and does not require the system `git` executable to be installed in the container at all, shrinking the image size and attack surface.
-  * *Cons:* The API is highly un-pythonic and verbose (closer to C). It can occasionally be finicky to build if pre-compiled wheels aren't available for the target architecture.
-* **Option C: Direct `subprocess.run(['git', ...])**`
-  * *Pros:* Zero external Python dependencies. You know exactly what commands are running.
-  * *Cons:* Highly brittle. Parsing standard output/error strings manually to determine merge states or hash differences is error-prone. Requires `git` binary.
+We need a mechanism for the IPC Broker to recognize if the PRM crashes, preventing the Core Daemon from silently running an outdated ruleset indefinitely. We have two primary approaches for this heartbeat:
 
-
-* **Recommendation:** **`pygit2`**. For a stateless, background-polling Docker container, removing the dependency on a system-level executable and relying on direct memory bindings is the safest and most performant architecture, despite the steeper developer learning curve.
-
-**3. Shared Volume Contract vs. Decentralized Ownership**
-Should we create a monolithic "Shared Volume Contract" document, or leave file schemas to the components?
-
-* *Pros of a Central Contract:* A single source of truth makes it extremely easy for a new developer to see all data structures flowing across the IPC boundary in one place. It enforces consistency across naming conventions and timestamps.
-* *Pros of Decentralized Ownership:* High cohesion. The team building a specific PEM doesn't need to consult a central document to understand their own module's file requirements.
-* *Recommendation:* A Hybrid Approach. The Central Architecture Document should define the *directory structure* (e.g., `prms/`, `tx/`, `logs/`) and the mechanical rules of engagement (the Atomic Write Protocol). However, the actual JSON schemas and data shapes should remain decentralized and owned by the design documents of the components that generate them.
-
-**6. Proposal: PRM Heartbeat Requirement**
-Your proposal to require the PRM to periodically update a timestamp file (mirroring the PEM heartbeat) is an excellent catch. Currently, if the Git-Fetch PRM container silently crashes, the active rules file just sits there. The Nomicron game continues advancing, but the core engine will endlessly execute the *old* ruleset without anyone knowing the PRM died. By enforcing a heartbeat (e.g., `prm/.heartbeat`), the IPC Broker can detect the PRM's death and pause the system, preventing invalid state mutations. I've added this to the pending updates.
+* **Option A: Using the Rules File (`prm/active_rules.json`)**
+  * *Concept:* The PRM "touches" (updates the modified timestamp of) the active rules file on every polling cycle, even if the Git repository hasn't changed.
+  * *Pros:* Avoids adding new files to the shared volume structure.
+  * *Cons:* Highly problematic for the Core Daemon. The IPC Broker currently uses `inotify` (or similar file watchers) to detect changes to `active_rules.json`. If we touch the file every 60 seconds, we will trigger the Rules Engine to redundantly re-parse, type-check, and re-validate the JSON-IR against all schemas on every cycle. We would have to introduce complex hashing logic in the IPC Broker to determine if the file *contents* actually changed before firing the `ipc.rules_updated` event, which violates the Broker's lightweight design.
+* **Option B: Introducing a New Dedicated Heartbeat File (e.g., `prm/.heartbeat`)**
+  * *Concept:* The PRM writes or touches a lightweight, empty file on the shared volume on every polling cycle.
+  * *Pros:* Cleanly decouples the PRM's lifecycle state from the application's rule state. It exactly mirrors the design paradigm already established for PEMs (which update their schema file timestamps to prove liveness without necessarily mutating environment data).
+  * *Cons:* Introduces an additional file format/path that must be defined in the Shared Volume contract and monitored by the IPC Broker.
+**Recommendation:** Option B (Dedicated Heartbeat File) is architecturally safer. It prevents unnecessary CPU overhead in the Core Daemon and maintains a consistent lifecycle monitoring pattern across all pluggable modules (PEMs and PRMs alike).
 
 ---
 
@@ -141,33 +123,38 @@ Your proposal to require the PRM to periodically update a timestamp file (mirror
 
 #### 1. Central Architecture Document
 
-* **Atomic Write Procedure:** Formally define the system-wide atomic write protocol. Specify that all files written to the shared volume must first be written to a `.tmp` file, followed by a system rename operation. Crucially, grant processes explicit permission to arbitrarily remove any existing `.tmp` files they strictly own (e.g., during their own startup/shutdown cleanup phases) before overwriting them.
+* **Atomic Write Procedure:** Formally define the system-wide atomic write protocol. Specify that all files written to the shared volume must first be written to a temporary file, followed by a system rename operation. Crucially, grant processes explicit permission to arbitrarily remove any existing temporary files they strictly own (e.g., during their own startup or shutdown cleanup phases) before overwriting them.
 
-#### 2. Observability, Health Checking, and Logging Design Document (New Document)
+#### 2. Shared Volume Design Document (New Document)
 
-* **Centralization:** Create a new design document to standardize observability. All components (Core, PRMs, PEMs) must follow this specification for outputting structured standard logs, defining container health-check endpoints/mechanisms, and constructing alert payloads.
+* **Volume Topology:** Create a new design document detailing the directory structure of the shared volume (e.g., `prm/`, `tx/`, `logs/`, `notifications/`).
+* **Decentralized Schemas:** State that this document outlines the mechanical rules of engagement for the volume, but the specific JSON schemas for the payloads within those files remain owned by the component design documents generating them.
 
-#### 3. IPC Broker Design Document
+#### 3. Observability, Health Checking, and Logging Design Document (New Document)
+
+* **Centralization:** Standardize observability. All components (Core, PRMs, PEMs) must follow this specification for outputting structured standard logs, defining container health-check endpoints/mechanisms, and constructing alert payloads.
+
+#### 4. IPC Broker Design Document
 
 * **Notification Payload Format:** Specify the exact JSON schema and required keys for the files dropped into the `notifications/` directory by external modules.
 * **Heartbeat Monitoring (PEMs):** Implement a "fast publish, lenient subscribe" model for tracking PEM heartbeats. While PEMs update their schema file timestamps every 30 seconds, the IPC Broker checks every 60 seconds. A PEM missing two consecutive checks (120 seconds) is considered dead, prompting the Broker to purge its stale files from the volume.
-* **Heartbeat Monitoring (PRMs):** Implement a requirement for PRMs to periodically update a designated heartbeat file (e.g., `prm/.heartbeat`). The IPC Broker must monitor this file using the same lenient subscribe model used for PEMs. If the PRM heartbeat fails, the IPC Broker must emit a system event to drop the Core Engine into a PAUSED state and dispatch an administrative notification.
+* **Heartbeat Monitoring (PRMs):** (Pending final decision from discussion above) Define the monitoring strategy for PRM liveness, detailing the exact mechanism (e.g., watching `prm/.heartbeat`) and the resulting system event (e.g., dropping the Core Engine into a PAUSED state) if the PRM dies.
 
-#### 4. Rules Engine Design Document
+#### 5. Rules Engine Design Document
 
 * **Dynamic Type Registry Initialization & Type Mapping:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for loaded PEM schemas (`*.schema.json`) and internal schemas. Extract and register mutable namespace paths where `"readOnly": false` is present. Strictly map JSON schema `array` types to internal tag lists, requiring the `items` definition to be `"type": "string"`.
 * **Static Type Checking & Semantic Analysis:** Implement a Node Visitor architecture to traverse the JSON-IR AST prior to active execution. Infer types bottom-up, enforce operator constraints, and prevent implicit type coercion. Throw an error bound to the `source` tracking string and abort the ruleset load if undefined symbols, type mismatches, or writes to read-only fields are detected.
 * **Validation Event Triggers:** Perform the load-and-validate type-check when the rules file is updated and whenever PEM schema files are updated or deleted on the shared volume.
 
-#### 5. Rules Language Guide
+#### 6. Rules Language Guide
 
 * **File Extension Convention:** Update documentation to explicitly state that all rule files must use the `.rules` extension to be detected by the Git-Fetch PRM.
 
-#### 6. DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents
+#### 7. DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents
 
 * **Discord Integration Specifics:** Define exact Discord intents/permissions (DGL) and OAuth2 scopes (DAC).
 * **Rate Limiting:** The DAC design document must incorporate the specific logic for overall and per-source notification rate limiting.
 
-#### 7. Deployment Architecture Document
+#### 8. Deployment Architecture Document
 
 * **PRM Configuration Definitions:** Include required environment variables for the Git-Fetch PRM container (`GIT_REPO_URL`, `GIT_BRANCH`, `GIT_TARGET_DIR`, `POLL_INTERVAL`, `SYNC_FAILURE_THRESHOLD`).
