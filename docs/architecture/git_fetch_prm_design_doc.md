@@ -1,7 +1,3 @@
-To answer your question about the appropriate level of detail: For a component-level design document like this, you want to define the *architecture* of the parser and its data flow, rather than writing out the line-by-line implementation or repeating the full EBNF grammar. You should specify the distinct phases of compilation (Lexing, Parsing, Emission), how errors are trapped at each stage, and the chosen technical approach (e.g., using a parser generator versus a custom recursive descent approach). Because this system is being built in Python, specifying a parsing strategy that aligns with the Python ecosystem provides the right blueprint for the actual development work.
-
-Here is the updated Git-Fetch PRM design document with a fully expanded Section 4.
-
 # Git-Fetch Pluggable Rules Module (PRM) Design Document
 
 ## 1. System Overview
@@ -21,7 +17,6 @@ The PRM container requires the following parameters, injected strictly via envir
 * `GIT_REPO_URL`: The full URL to the target repository.
 * `GIT_BRANCH`: (Optional) The specific named branch to track. Defaults to `main`.
 * `GIT_TARGET_DIR`: The specific directory path within the repository where the rules are stored (e.g., `rules/`).
-* `GIT_AUTH_TOKEN`: (Optional) Personal Access Token or SSH key for private repositories.
 * `POLL_INTERVAL`: The integer duration (in seconds) between outbound fetch attempts.
 * `SYNC_FAILURE_THRESHOLD`: (Optional) The number of consecutive failed sync attempts permitted before generating an administrative alert. Defaults to `3`.
 
@@ -62,7 +57,7 @@ The PRM implements a three-stage parsing pipeline: Lexical Analysis, Syntactic A
 
 The lexer scans the raw text of the `.rules` files and converts it into a stream of recognized tokens.
 
-* **Keywords & Identifiers:** Extracts keywords (e.g., `climate rule`, `when`, `includes`) using case-insensitive matching, alongside variable/namespace identifiers.
+* **Keywords & Identifiers:** Extracts keywords (e.g., `climate rule`, `when`, `then`) using case-insensitive matching, alongside variable/namespace identifiers.
 * **Strings & Literals:** Safely captures string literals, honoring escape sequences for internal quotes and backslashes.
 * **Comment Stripping:** Explicitly identifies and strips all text enclosed within square brackets `[` `]`. These comments are completely discarded at the lexer stage and do not pass to the parser.
 * **Source Tracking:** The lexer attaches file origin and line number metadata to every emitted token. This is critical for constructing the required `source` tracking string for the final JSON-IR payload.
@@ -92,7 +87,7 @@ Once the JSON-IR payload is generated, the PRM delivers it to the Core Daemon vi
 
 ### 6.1 Synchronization Failures
 
-If an outbound Git operation fails (e.g., network timeout, authentication error), the PRM logs an `ERROR` to standard output without modifying the active rules payload. If synchronization fails consecutively across multiple polling cycles and exceeds the defined `SYNC_FAILURE_THRESHOLD`, the PRM must drop a specifically formatted JSON payload into the `notifications/{timestamp}_{id}.json` folder on the shared volume. This ensures Discord administrators are alerted to prolonged repository connection issues.
+If an outbound Git operation fails (e.g., network timeout, repository unavailability), the PRM logs an `ERROR` to standard output without modifying the active rules payload. If synchronization fails consecutively across multiple polling cycles and exceeds the defined `SYNC_FAILURE_THRESHOLD`, the PRM must drop a specifically formatted JSON payload into the `notifications/{timestamp}_{id}.json` folder on the shared volume. This ensures Discord administrators are alerted to prolonged repository connection issues.
 
 ### 6.2 Compilation Failures
 
@@ -106,9 +101,13 @@ If the parser encounters a syntax error or invalid token within any `.rules` fil
 
 ### Comments, New Issues, Discussion Points, and Questions
 
-* **Parser Tooling:** Using a library like Lark for the Python implementation is highly recommended because it can read the EBNF grammar almost verbatim. This minimizes the risk of the parser implementation drifting away from the documented language specification.
-* **Notification Rate Limiting for Compilations:** Since the PRM will continue to fail compilation on every polling cycle until the repository is fixed, it should maintain an internal cache of the last failed commit hash. It should only emit a `sys.notification` payload for a broken compilation once per unique commit to prevent flooding the administrative Discord channel.
-* **Alert Deduplication:** For synchronization failures, the Core Engine's Logging & Observability Manager already handles deduplication of identical alerts, but adding the `SYNC_FAILURE_THRESHOLD` prevents transient network blips from immediately queuing an alert.
+Following up on the sufficiency of this design document for direct translation into engineering tasks, the removal of `GIT_AUTH_TOKEN` successfully eliminates the authentication tooling ambiguity. However, the remaining architectural gaps must still be formalized into distinct issues or configuration parameters before a development team can systematically create story boundaries:
+
+* **Notification Schema Definition:** What are the mandatory keys and data types for the JSON files dumped into `notifications/`? Without this specification, developers cannot implement or test the alert payloads described in Sections 6.1 and 6.2.
+* **Stateless Container Loophole:** Because the `SYNC_FAILURE_THRESHOLD` counter and the compilation failure state are currently designed to be tracked in-memory, a container restart mid-failure will clear this state. If the repository remains unreachable, the restart will bypass the threshold constraint and dispatch an duplicate alert to administrators immediately on its first run. Is this acceptable, or should failure tracking be managed via a marker file on the shared volume?
+* **Orphaned File Management:** The document does not specify a cleanup behavior for stale files. If the container crashes mid-write, a `prm/active_rules.json.tmp` file will sit on the shared volume indefinitely. A startup initialization task should be added to safely purge `.tmp` files.
+* **Container Orchestration Health Checking:** How does the deployment environment monitor this module's lifecycle health? Defining a runtime token (e.g., updating a local heartbeat timestamp file or exposing a local shell script target) is required to facilitate container liveness checks.
+* **Structured Logging Format:** Section 6 mentions logging an `ERROR` to standard output. To properly integrate with automated log forwarders, we should declare a basic structured log template (e.g., standard keys like `timestamp`, `level`, `component`, `message`).
 
 ### Pending Updates for Other Documents
 
@@ -132,6 +131,4 @@ If the parser encounters a syntax error or invalid token within any `.rules` fil
 
 #### Deployment Architecture Document
 
-1. **PRM Configuration Definitions:** The deployment specifications must be updated to include the required environment variables for the Git-Fetch PRM container (`GIT_REPO_URL`, `GIT_BRANCH`, `GIT_TARGET_DIR`, `GIT_AUTH_TOKEN`, `POLL_INTERVAL`, `SYNC_FAILURE_THRESHOLD`), ensuring secrets management handles `GIT_AUTH_TOKEN` securely at deployment time.
-
-Is this level of detail aligned with how you are envisioning the handoff to the actual parser implementation phase?
+1. **PRM Configuration Definitions:** The deployment specifications must be updated to include the required environment variables for the Git-Fetch PRM container (`GIT_REPO_URL`, `GIT_BRANCH`, `GIT_TARGET_DIR`, `POLL_INTERVAL`, `SYNC_FAILURE_THRESHOLD`), reflecting the deprecation of authentication credentials for the current implementation phase.

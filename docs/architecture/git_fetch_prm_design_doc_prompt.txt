@@ -26,3 +26,22 @@ as always, please process the above issues into the document and display it.  re
 section 4 needs to be expanded with the design for the parser.  what level of detail is appropriate for this design document?
 
 as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
+
+--
+
+please discuss if this document is completely sufficient to create a testing and implementation plan detailed enough to organize into epics and stories.  list any missing, incomplete, or ambiguous information without making any changes to the documet yet.
+
+as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
+
+--
+
+1. please remove the git token configuration; for now, we will only support reading rules from a publicly-accessible (even if read-only) git repo.
+2. please present a recommendation, with pros and cons (and source references) for the git implementation to use.
+3. please add to the pending updates that the ipc broker design document needs to specify the format of the notification payloads.
+4. please discuss if all of the various file formats that occupy the shared volume should be gathered into a single "shared volume contract" or be left with the design documents for the components that "own" those file formats.
+5. the state persistence edge case is acceptable without further tracking.  the sync failures cannot be tracked based on a "failed commit" in any case, since a sync failure means you don't know what commit is causing the failure.
+6. the design should follow a general "atomic write" procedure defined in the central achitecture document.  please add that to the pending updates for the central architecture document, and ensure that the "atomic write" procedure includes permission to arbitrarily remove any existing `.tmp` file before overwriting it, or during a startup or shutdown cleanup phase if the file is completely owned by the process doing the cleanup.
+7. observability, health checking, and logging should be a separate observability design document which all components must follow.
+8. please discuss this proposal:  introduce a requirement in the ipc broker that the prm must periodically update the timestamp of _some file_ - whether that file is the rules file itself or some other file - following the same pattern as the pems and their schema files.  this will allow the ipc broker to identify when the prm stops functioning and put the system into pause mode with an administrative notification.
+
+as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
