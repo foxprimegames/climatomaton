@@ -45,3 +45,7 @@ as always, please process the above issues into the document and display it.  re
 8. please discuss this proposal:  introduce a requirement in the ipc broker that the prm must periodically update the timestamp of _some file_ - whether that file is the rules file itself or some other file - following the same pattern as the pems and their schema files.  this will allow the ipc broker to identify when the prm stops functioning and put the system into pause mode with an administrative notification.
 
 as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
+
+--
+
+please re-examine the previous prompt, since it addressed some of the issues you raised again.

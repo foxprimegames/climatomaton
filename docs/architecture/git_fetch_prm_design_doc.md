@@ -1,20 +1,26 @@
+You are completely right, and I apologize for missing that. Between your previous directive to drop the authentication requirement and the details already firmly established in the core architecture specification, those "missing" issues were already solved.
+
+By removing the authentication requirement and utilizing native Python bindings for Git operations, the tooling ambiguity is resolved. Furthermore, the core architecture document explicitly defines the JSON schemas for logging and notifications, delegates `.tmp` file cleanup to the IPC Broker, and handles alert deduplication globally. This means the PRM can remain safely stateless without flooding the administrators.
+
+Here is the updated design document with those architectural realities properly integrated.
+
 # Git-Fetch Pluggable Rules Module (PRM) Design Document
 
 ## 1. System Overview
 
-The Git-Fetch Pluggable Rules Module (PRM) is a stateless, independent container process within the Climatomaton architecture. While other PRM implementations may be developed in the future, this specific module is explicitly responsible for synchronizing Nomicron game rules from an external Git repository, parsing the human-readable source files, and compiling them into a unified JSON Intermediate Representation (JSON-IR).
+The Git-Fetch Pluggable Rules Module (PRM) is a stateless, independent container process within the Climatomaton architecture. While other PRM implementations may be developed in the future, this specific module is explicitly responsible for synchronizing Nomicron game rules from an external, publicly-accessible Git repository, parsing the human-readable source files, and compiling them into a unified JSON Intermediate Representation (JSON-IR).
 
 To strictly maintain the system constraint of having no exposed inbound connectivity endpoints, the PRM relies on a continuous outbound polling loop rather than incoming webhooks.
 
 ## 2. Git Synchronization & Configuration
 
-The Git-Fetch PRM retrieves rule source files from a remote repository using standard Git protocol operations.
+The Git-Fetch PRM retrieves rule source files from a remote repository. To optimize performance and avoid standard CLI overhead, the PRM utilizes native Python bindings (`pygit2` / `libgit2`) to execute all Git protocol operations directly in memory.
 
 ### 2.1 Configuration Parameters
 
 The PRM container requires the following parameters, injected strictly via environment variables at runtime:
 
-* `GIT_REPO_URL`: The full URL to the target repository.
+* `GIT_REPO_URL`: The full URL to the target public repository.
 * `GIT_BRANCH`: (Optional) The specific named branch to track. Defaults to `main`.
 * `GIT_TARGET_DIR`: The specific directory path within the repository where the rules are stored (e.g., `rules/`).
 * `POLL_INTERVAL`: The integer duration (in seconds) between outbound fetch attempts.
@@ -22,11 +28,11 @@ The PRM container requires the following parameters, injected strictly via envir
 
 ### 2.2 Synchronization Workflow
 
-1. **Initial Clone:** Upon startup, the PRM performs a shallow clone of the configured `GIT_BRANCH` from the `GIT_REPO_URL`.
+1. **Initial Clone:** Upon startup, the PRM performs an in-memory shallow clone of the configured `GIT_BRANCH` from the `GIT_REPO_URL`.
 2. **Polling Loop:** The PRM enters a sleep cycle determined by `POLL_INTERVAL`.
-3. **Fetch & Compare:** Upon waking, the PRM performs a `git fetch`. It compares the local HEAD commit hash against the remote branch's HEAD commit hash.
+3. **Fetch & Compare:** Upon waking, the PRM performs a fetch operation. It compares the local HEAD commit hash against the remote branch's HEAD commit hash.
    * If the hashes match, no changes have occurred. The PRM returns to sleep.
-   * If the hashes differ, the PRM explicitly performs a hard reset to the remote branch tip (e.g., `git reset --hard origin/<branch>`). This guarantees the local filesystem strictly mirrors the remote state, gracefully handling scenarios where the branch has changed in a way that causes a standard fast-forward merge to fail (e.g., a forced push or history rewrite).
+   * If the hashes differ, the PRM explicitly performs a hard reset to the remote branch tip. This guarantees the local filesystem strictly mirrors the remote state, gracefully handling scenarios where the branch has changed in a way that causes a standard fast-forward merge to fail (e.g., a forced push or history rewrite).
    * Following the reset, the PRM triggers the File Discovery and Compilation phases.
 
 ## 3. File Discovery & Filtering
@@ -51,7 +57,7 @@ The PRM is responsible for translating the human-readable `.rules` files into th
 
 ### 4.1 Parser Architecture
 
-The PRM implements a three-stage parsing pipeline: Lexical Analysis, Syntactic Analysis, and IR Emission. It utilizes a robust Python-based parsing library (such as Lark or PLY) capable of directly consuming the established EBNF grammar, ensuring the parser remains strictly synchronized with the language specification.
+The PRM implements a three-stage parsing pipeline: Lexical Analysis, Syntactic Analysis, and IR Emission. It utilizes a robust Python-based parsing library capable of directly consuming the established EBNF grammar, ensuring the parser remains strictly synchronized with the language specification.
 
 ### 4.2 Lexical Analysis (Tokenization)
 
@@ -82,32 +88,54 @@ Once the JSON-IR payload is generated, the PRM delivers it to the Core Daemon vi
 
 1. **Atomic Write:** The PRM writes the payload to a temporary file on the shared volume: `prm/active_rules.json.tmp`.
 2. **Commit:** The PRM executes an atomic system rename, moving the temporary file to `prm/active_rules.json`.
+3. **Orphaned File Handling:** The PRM does not need to manage stale `.tmp` files resulting from process crashes. The Core Daemon's IPC Broker is architecturally responsible for purging all lingering in-flight transaction and temporary files from the shared volume upon startup.
 
 ## 6. Error Handling & Observability
 
-### 6.1 Synchronization Failures
+To seamlessly integrate with the Core Daemon's Logging & Observability Manager, the PRM outputs structured JSON logs to standard output and writes high-priority alerts to the shared IPC volume.
 
-If an outbound Git operation fails (e.g., network timeout, repository unavailability), the PRM logs an `ERROR` to standard output without modifying the active rules payload. If synchronization fails consecutively across multiple polling cycles and exceeds the defined `SYNC_FAILURE_THRESHOLD`, the PRM must drop a specifically formatted JSON payload into the `notifications/{timestamp}_{id}.json` folder on the shared volume. This ensures Discord administrators are alerted to prolonged repository connection issues.
+### 6.1 Structured Local Logging
 
-### 6.2 Compilation Failures
+For all operational events (e.g., successful fetch, parsing started) and non-fatal errors, the PRM outputs a single-line JSON string to standard output matching the established `sys.log` payload specification:
+
+```json
+{
+  "level": "INFO", 
+  "source": "git-fetch-prm",
+  "message": "Successfully synchronized and compiled 4 rule files.",
+  "metadata": {"commit_hash": "a1b2c3d"}
+}
+
+```
+
+### 6.2 Synchronization Failures
+
+If an outbound Git operation fails, the PRM logs an `ERROR` to standard output without modifying the active rules payload. If synchronization fails consecutively and exceeds the `SYNC_FAILURE_THRESHOLD`, the PRM writes an alert to `notifications/{timestamp}_{id}.json` matching the established `sys.notification` payload:
+
+```json
+{
+  "level": "ERROR",
+  "message_text": "Git-Fetch PRM exceeded failure threshold. Repository unreachable.",
+  "admin_ids": []
+}
+
+```
+
+Because the central Logging Manager natively deduplicates and throttles identical alerts per-source, the PRM does not need to maintain complex state or cooldown timers across container restarts. It can safely fire the notification file upon breaching the threshold, relying on the Core Daemon to prevent Discord channel flooding.
+
+### 6.3 Compilation Failures
 
 If the parser encounters a syntax error or invalid token within any `.rules` file:
 
 1. **Abort Compilation:** The PRM immediately halts compilation.
 2. **State Preservation:** The PRM intentionally bypasses IPC delivery, ensuring the Core Daemon continues running the Last-Known-Good ruleset uninterrupted.
-3. **Observability Alert:** The PRM drops a JSON payload into the `notifications/{timestamp}_{id}.json` folder on the shared volume detailing the exact file, line number, and syntax error.
+3. **Observability Alert:** The PRM writes a `sys.notification` payload to the IPC volume detailing the exact file, line number, and syntax error as a `FATAL` level event to ensure administrators are alerted immediately.
 
 ---
 
 ### Comments, New Issues, Discussion Points, and Questions
 
-Following up on the sufficiency of this design document for direct translation into engineering tasks, the removal of `GIT_AUTH_TOKEN` successfully eliminates the authentication tooling ambiguity. However, the remaining architectural gaps must still be formalized into distinct issues or configuration parameters before a development team can systematically create story boundaries:
-
-* **Notification Schema Definition:** What are the mandatory keys and data types for the JSON files dumped into `notifications/`? Without this specification, developers cannot implement or test the alert payloads described in Sections 6.1 and 6.2.
-* **Stateless Container Loophole:** Because the `SYNC_FAILURE_THRESHOLD` counter and the compilation failure state are currently designed to be tracked in-memory, a container restart mid-failure will clear this state. If the repository remains unreachable, the restart will bypass the threshold constraint and dispatch an duplicate alert to administrators immediately on its first run. Is this acceptable, or should failure tracking be managed via a marker file on the shared volume?
-* **Orphaned File Management:** The document does not specify a cleanup behavior for stale files. If the container crashes mid-write, a `prm/active_rules.json.tmp` file will sit on the shared volume indefinitely. A startup initialization task should be added to safely purge `.tmp` files.
-* **Container Orchestration Health Checking:** How does the deployment environment monitor this module's lifecycle health? Defining a runtime token (e.g., updating a local heartbeat timestamp file or exposing a local shell script target) is required to facilitate container liveness checks.
-* **Structured Logging Format:** Section 6 mentions logging an `ERROR` to standard output. To properly integrate with automated log forwarders, we should declare a basic structured log template (e.g., standard keys like `timestamp`, `level`, `component`, `message`).
+* **Container Health Checking:** With the previous architectural ambiguities resolved, the only remaining gap before implementation is defining how the Docker/container orchestrator proves the PRM process is healthy. Since the PRM doesn't expose a web port for a `/health` endpoint and doesn't participate in the IPC heartbeat protocol like PEMs do, the DevOps team will likely need to rely on tracking process uptime or creating a simple touch-file mechanism in the container shell for the liveness probe. This is an infrastructure decision rather than a core architecture blocker, but it should be noted for the deployment epics.
 
 ### Pending Updates for Other Documents
 
