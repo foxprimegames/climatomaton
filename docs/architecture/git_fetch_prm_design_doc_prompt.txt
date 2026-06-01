@@ -104,3 +104,11 @@ as always, please process the above issues into the document and display it.  re
 4. we will need to decide how we are managing the various python apps and libraries developed for this project.  i assume that should be in an architecture or design level document, and not spread around the existing documents.  please discuss the way this should be organized.
 
 as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
+
+--
+
+1. how about **Clime** (`.clime`) for the name?  it's obviously derivative, but short, pronouncable, and (_because_ it's derivative) easy to know what it's for.
+2. since i've never used a python build system beyond `build`, please discuss the different python build systems, pros and cons.
+3. in the parser library design document, need to define the error notification / recovery process.  you've assumed an exception in section 6; we need to decide if this is the right way to go.
+
+as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
