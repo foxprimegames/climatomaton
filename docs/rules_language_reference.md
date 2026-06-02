@@ -1,6 +1,6 @@
-# Climatomaton Rule Language: Technical Reference
+# Clime Language Reference: Rules language specification for the Nomicron climate system
 
-This document serves as the formal specification for the Climatomaton Rule Language syntax, providing the necessary details for PRM parser developers to convert source rules into the target intermediate representation.
+This Clime Language Reference serves as the formal specification for the syntax of the rules used to manage the Nomicron climate, providing the necessary details for PRM parser developers to convert `.rules` source files into the target intermediate representation.
 
 ## 1. Lexical Structure & Grammar
 

@@ -1,6 +1,6 @@
-# Climatomaton Rule Language: User Guide
+# Clime User Guide: How to write rules for the Nomicron climate system
 
-Welcome to the Climatomaton Rule Language guide! This document is designed for Nomicron players and administrators who need to write or understand the rules that automatically manage the game's climate. The language is built to be as close to plain English as possible, making it easy to read and reducing the chance of accidental typos.
+Welcome to the Clime User Guide! This document is designed for Nomicron players and administrators who need to write or understand the rules that automatically manage the game's climate. The language is built to be as close to plain English as possible, making it easy to read and reducing the chance of accidental typos. Source files for the language use the `.rules` extension.
 
 ## 1. What Are Rules?
 
