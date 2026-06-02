@@ -61,3 +61,9 @@ process the above instructions into the pending updates list and render it.  ONL
 2. add the remaining notes into the pending updates list.
 
 process the above instructions into the pending updates list and render it.  ONLY make changes to the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of the pending updates list.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+1. please move the internal event bus design document to be completed immediately after the shared volume design document, as that information will be needed by all the other internal components.
+
+process the above instructions into the pending updates list and render it.  ONLY make changes to the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of the pending updates list.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
