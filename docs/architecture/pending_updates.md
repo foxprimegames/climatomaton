@@ -1,8 +1,8 @@
-### Pending Updates for Other Documents
+### Pending design document updates
 
 *Note: This list is organized in reverse chronological order relative to the sequence of completion (items to be completed last are at the top, while the highest priority item to be completed first is at the bottom). This prevents the need to renumber subsequent entries as completed documents are removed from the list.*
 
-#### 1. Deployment Architecture Document
+#### 1. Deployment Architecture Document (New Document)
 
 * **Shared Volume Requirements:** Specify that the deployed shared volume used to accommodate the IPC mechanisms must support the underlying file system operations required by the atomic write protocol.
 * **PRM Configuration Definitions:** Include required environment variables for the Git-Fetch PRM container (`GIT_REPO_URL`, `GIT_BRANCH`, `GIT_TARGET_DIR`, `POLL_INTERVAL`, `SYNC_FAILURE_THRESHOLD`).
@@ -20,12 +20,12 @@
 
 * **Centralization:** Standardize observability. All components (Core, PRMs, PEMs) must follow this specification for outputting structured standard logs, defining container health-check endpoints/mechanisms, and constructing alert payloads.
 
-#### 4. DAC (Discord API Client) Design Document
+#### 4. DAC (Discord API Client) Design Document (New Document)
 
 * **Discord Integration Specifics:** Define exact OAuth2 scopes (DAC).
 * **Rate Limiting:** The DAC design document must incorporate the specific logic for overall and per-source notification rate limiting.
 
-#### 5. DGL (Discord Gateway Listener) Design Document
+#### 5. DGL (Discord Gateway Listener) Design Document (New Document)
 
 * **Discord Integration Specifics:** Define exact Discord intents/permissions (DGL).
 
@@ -36,13 +36,13 @@
 * **Error Accumulation Strategy:** The parser must implement an error recovery strategy. Instead of fast-failing via exceptions, it should accumulate syntax errors and return a structured Result object (e.g., `success`, `errors`, `ast`), allowing callers to process multiple errors simultaneously.
 * **CLI Tooling:** Define the behavior of the standalone syntax checker CLI, detailing input arguments, exit codes for CI/CD integration, file-loading wrappers, and verbose error formatting for local debugging.
 
-#### 7. Rules Engine Design Document
+#### 7. Rules Engine Design Document (New Document)
 
 * **Dynamic Type Registry Initialization & Type Mapping:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for loaded PEM schemas. Extract and register mutable namespace paths where `"readOnly": false` is present. Strictly map JSON schema `array` types to internal tag lists, requiring the `items` definition to be `"type": "string"`.
 * **Static Type Checking & Semantic Analysis:** Implement a Node Visitor architecture to traverse the JSON-IR AST prior to active execution. Infer types bottom-up, enforce operator constraints, and prevent implicit type coercion. Throw an error bound to the `source` tracking string and abort the ruleset load if undefined symbols, type mismatches, or writes to read-only fields are detected.
 * **Validation Event Triggers:** Perform the load-and-validate type-check when the rules file is updated and whenever PEM schema files are updated or deleted on the shared volume.
 
-#### 8. IPC Broker Design Document
+#### 8. IPC Broker Design Document (New Document)
 
 * **Notification Payload Format:** Specify the exact JSON schema and required keys for the files dropped into the `notifications/` directory by external modules.
 * **Heartbeat Monitoring (PEMs):** Implement a "fast publish, lenient subscribe" model for tracking PEM heartbeats. While PEMs update their schema file timestamps every 30 seconds, the IPC Broker checks every 60 seconds. A PEM missing two consecutive checks (120 seconds) is considered dead, prompting the Broker to purge its stale files.
@@ -61,6 +61,39 @@
 
 ---
 
-### Discussion & Notes
+### Discussion & Component Verification
 
-The list has been successfully reordered and updated based on your exact priority constraints. The Central Architecture Document has been positioned at the absolute bottom as the primary starting point, while the Codebase and Deployment documents occupy the top positions as the final pieces of the sequencing puzzle. Additionally, the Discord components have been decoupled into individual entries for DAC and DGL to ensure every standalone design document is tracked discretely.
+Here is the verification of each system component and architecture document to ensure it either already exists as one of the uploaded files or is currently tracked in the pending updates list.
+
+**Existing Documents**
+
+* Central Architecture Document: Exists (`architecture.md`)
+* Rules Intermediate Representation Design Doc: Exists (`rules_intermediate_representation_design_doc.md`)
+* Rules Language Guide: Exists (`rules_language_guide.md`)
+* Rules Language Reference: Exists (`rules_language_reference.md`)
+* Git-Fetch PRM Design Doc: Exists (`git_fetch_prm_design_doc.md`)
+* PEM Design Doc: Exists (`pem_design_doc.md`)
+* Pending Updates List: Exists (`pending_updates.md`)
+
+**Tracked in Pending Updates List (New Documents)**
+
+* Deployment Architecture Document: Pending
+* Codebase & Repository Architecture Document: Pending
+* Observability, Health Checking, and Logging Design Document: Pending
+* Discord API Client (DAC) Component: Pending
+* Discord Gateway Listener (DGL) Component: Pending
+* Parser Library & CLI Tooling Design Document: Pending
+* Rules Engine Component: Pending
+* File-Based IPC Broker Component: Pending
+* Shared Volume Design Document: Pending
+
+**Missing Components (Not Existing, Not Pending)**
+The following core system components are defined in the central architecture, but they do not currently exist as separate uploaded design documents and are not listed in the pending updates list:
+
+* Internal Event Bus
+* Command Parser
+* EOT Parser
+* Environment Manager
+* State Rehydrator
+
+Would you like to add these missing core system components to the pending updates list as distinct design documents, or will their specifications be bundled directly into the main `architecture.md` file?
