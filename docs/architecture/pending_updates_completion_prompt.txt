@@ -33,3 +33,23 @@ please create an update entry for those five components that are not listed.
 for all components listed in the architecture document, please discuss (but do not yet update in the document list) any important notes to be covered in the document that are not already described in the update entry.
 
 process the above instructions into the pending updates list and render it.  ONLY make changes to the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of the pending updates list.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+1. you have the existing central architecture document, you can see that one of the core constraints is already "no inbound network connectivity".
+
+2. codeberg will not necessarily be the primary hosting platform.  this project may move to github to live on the same platform that hosts the nomicron code, but that has not yet been decided.
+
+3. why are you dictating the use of a file extension when the file extension is already dictated by the language guide?  why are you dictating unique rule ids when rules do not have ids in the intermediate representation?
+
+4. the command parser is not dealing with climate reports, it's dealing with bot commands and dms.  climate reports are only parsed in the state rehydrator.
+
+5. the state rehydrator never processes end-of-turn reports, period.  if rehydration is required, then the rehydrator initializes the climate (whether to a default or to the last climate report located), then, if there _were_ any end-of-turn reports found chronologically later than the most recent climate report, the system is paused and the administrators notified.  this is described in the central architecture document.
+
+6. why did you change the formatting and wording of existing entries in the pending update list?  i did not instruct you to do so, and you were explicitly instructed to only make changes as directed in the prompts.
+
+restore the wording and formatting of the pending update entries that you modified against instructions, keeping only the new entries that were requested.
+
+re-create the list of document notes taking the above points into consideration.
+
+process the above instructions into the pending updates list and render it.  ONLY make changes to the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of the pending updates list.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
