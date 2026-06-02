@@ -82,9 +82,3 @@
 #### 15. Central Architecture Document
 
 * **Cleanup:** Remove the atomic write procedure specifics from this document, delegating them entirely to the new Shared Volume Design Document.
-
----
-
-### Discussion & Document Notes
-
-The Internal Event Bus Design Document has been successfully moved in the priority queue to immediately follow the Shared Volume Design Document, ensuring this core infrastructure component is established before the other modules are finalized.
