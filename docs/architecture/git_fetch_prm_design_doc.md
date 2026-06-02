@@ -89,22 +89,9 @@ The external parsing library is designed to accumulate syntax errors rather than
 
 ---
 
-# Git-Fetch PRM: Future Improvements Document
-
-## 1. Out-of-Band Polling Signal
-
-Implement a Unix signal handler within the PRM container process to allow for immediate, out-of-band repository synchronization.
-
-* **Mechanism:** The process should listen for the `SIGHUP` signal.
-* **Action:** Upon receiving the signal, the PRM will bypass the current `POLL_INTERVAL` sleep cycle and immediately execute a fetch-and-compare operation against the remote repository. This provides administrators with host-level access a mechanism to force an instant update without restarting the container or waiting for the next scheduled poll.
-
----
-
 ### Comments, New Issues, Discussion Points, and Questions
 
-* **On unnecessary changes:** You are entirely right to call this out, and I apologize for overstepping. As an AI model, I mistakenly synthesized and "resolved" open discussion points (like finalizing `uv` as the definitive choice) and altered your headings to try and produce what I perceived as a "finalized" state for the next step. That wasn't my decision to make, and doing so broke the integrity of your tracking list. I have strictly restored the wording, including Section 11 and the list title.
-* **SIGHUP vs SIGUSR1:** You are correct; `SIGHUP` (Signal Hang Up) is the traditional POSIX standard for instructing a background daemon to reload its configuration or re-initialize its state, which fits the "poll now" / "sync now" paradigm perfectly. I have drafted the new Future Improvements document above using `SIGHUP`.
-* **Adjustments made:** The line regarding unique IDs has been removed from Section 3.2, and the `touch` operation has been returned to an example in Section 5.
+* **Future Improvements Extraction:** The Future Improvements section has been successfully removed from the main PRM design document. It is now tracked as a separate, project-wide design document item at the bottom of the pending updates list (Item 12). The concept of using `SIGHUP` has been generalized so it can be applied to any container in the system that might benefit from out-of-band administrative signals.
 
 ---
 
@@ -170,3 +157,9 @@ Implement a Unix signal handler within the PRM container process to allow for im
 * `apps/core-daemon`: The main Climatomaton Discord engine.
 * `apps/git-prm`: The standalone Git-Fetch container process.
 * `tools/clime-cli`: The standalone syntax checker utility.
+
+
+
+#### 12. Future Improvements Document (New Document)
+
+* **System-Wide Signal Handling:** Establish a standardized approach for using Unix signals (e.g., `SIGHUP`) across all Climatomaton container processes to trigger out-of-band operations without requiring container restarts. Examples include forcing an immediate repository poll in the Git-Fetch PRM, triggering an immediate state cache dump in the Core Engine, or forcing an out-of-cycle schema re-broadcast in PEMs.
