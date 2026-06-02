@@ -1,7 +1,3 @@
-You are absolutely right, and I apologize for overstepping. I incorrectly reworded and reformatted your original text when integrating the new updates. I have completely reverted the pending updates list to your exact original wording, and I have strictly applied only the specific additions and modifications you requested across previous prompts.
-
-Here is the corrected output.
-
 # Architecture Specification: Climatomaton
 
 ## 1. System Overview
@@ -207,51 +203,13 @@ The specific mechanism for identifying and authorizing Administrators (e.g., ver
 
 ---
 
-## 9. Diagrams
-
-### Core Component Lifecycle Flow
-
-```dot
-digraph AppLifecycle {
-    rankdir=TB;
-    node [shape=box, fontname="Helvetica"];
-    AW [label="App Wrapper", style=filled, fillcolor=lightgrey];
-    C [label="Core Components"];
-
-    AW -> C [label="app.initialize"];
-    C -> AW [label="app.ready"];
-    AW -> C [label="app.start"];
-    C -> C [label="Active Operation"];
-    AW -> C [label="app.prepare_for_shutdown"];
-    C -> AW [label="app.ready_for_shutdown"];
-}
-
-```
-
-### Core Execution Event Flow
-
-```dot
-digraph ExecutionFlow {
-    rankdir=LR;
-    node [shape=box, fontname="Helvetica"];
-    DGL [label="DGL (Gateway)"];
-    EP [label="EOT Parser"];
-    RE [label="Rules Engine"];
-    DAC [label="DAC (Client)"];
-
-    DGL -> EP [label="network.inbound"];
-    EP -> RE [label="game.eot_detected"];
-    RE -> DAC [label="network.outbound"];
-}
-
-```
-
----
-
 ### Comments & Discussion Points
 
-* The pending updates list below has been carefully reconstructed using your *exact* original text. I applied the specific insertions required by your instructions without altering or summarizing any existing context.
-* Based on your instruction to add the lifecycle steps "for each component other than the event bus and app wrapper," I added them to all active daemon components (Observability, DAC, DGL, Rules Engine, Command Parser, EOT Parser, Env Manager, IPC Broker). I skipped adding them to the `Parser Library & CLI Tooling` document and the `Shared Volume` document, as those represent an internal library package and a disk configuration respectively, not running services that attach to the event bus.
+* The diagrams section has been entirely removed from the central architecture document as requested.
+* The requirement to document the system event flow and lifecycle diagrams has been systematically appended to the pending update requirements for all applicable component-level design documents.
+* In the Deployment Architecture Document pending updates, the `Configuration Management` item has been strictly modified to note that the *method* of passing configuration information must be defined, removing the hardcoded requirement for a specific mounted configuration file.
+
+---
 
 ### Pending design document updates
 
@@ -268,7 +226,7 @@ digraph ExecutionFlow {
 * **Containerized Environment:** Outline a standard Docker containerized environment. Secret injection methods must be exclusively restricted to environment variables.
 * **Shared Volume Mounting:** The orchestration layer must support mounting a common, high-speed, POSIX-compliant shared volume across multiple containers (the Core Daemon, PRM, and PEMs) to facilitate the file-based IPC routing.
 * **Secrets Management:** Sensitive configurations (e.g., Discord Bot Tokens, Admin User IDs, Target Channel IDs) must be injected safely into the containers strictly via environment variables. The running containers cannot rely on the existence of, or integration with, a secret management system at runtime.
-* **Configuration Management:** Non-secret application configurations (e.g., standardizing internal operations and logging to the UTC timezone, logging verbosity, maximum IPC file size limits, expected PEM modules) will be managed via a standard configuration file mounted at a known, fixed location within the container filesystem.
+* **Configuration Management:** The method of passing non-secret configuration information (e.g., standardizing internal operations and logging to the UTC timezone, logging verbosity, maximum IPC file size limits, expected PEM modules) to the app and pluggable modules must be defined.
 * **Container Lifecycle & Health Checks:** The environment should be capable of automatically restarting failed subprocesses (PEMs/PRMs). The Core Daemon relies on external orchestration to keep the pluggable modules running if they crash.
 * **Log Aggregation:** Because the Logging Manager writes all local observability data to `stdout`/`stderr` using a native logger, the deployment environment must feature an agent or mechanism to capture, rotate, and aggregate standard output logs.
 * **Graceful Shutdown Signals:** The environment must issue standard termination signals (`SIGTERM`) and provide a brief grace period to allow the Event Bus and Rules Engine to finalize any in-flight file writes and network requests before exiting.
@@ -299,6 +257,7 @@ digraph ExecutionFlow {
   * Upon receiving an `app.abort` event, log the error contained within the event directly to stderr and exit with a non-0 exit code.
   * Upon receiving an `app.terminate_gracefully` event, it should send an `app.prepare_for_shutdown` event to all components.
   * After receiving the `app.ready_for_shutdown` event from all components, *or* after a given timeout, exit the app gracefully.
+* **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
 #### 5. Observability, Health Checking, and Logging Design Document (New Document)
 
@@ -306,6 +265,7 @@ digraph ExecutionFlow {
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
 * Each component, upon receiving the `app.start` event, begins normal processing.
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
+* **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
 #### 6. DAC (Discord API Client) Design Document (New Document)
 
@@ -314,6 +274,7 @@ digraph ExecutionFlow {
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
 * Each component, upon receiving the `app.start` event, begins normal processing.
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
+* **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
 #### 7. DGL (Discord Gateway Listener) Design Document (New Document)
 
@@ -321,13 +282,15 @@ digraph ExecutionFlow {
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
 * Each component, upon receiving the `app.start` event, begins normal processing.
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
+* **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
 #### 8. Parser Library & CLI Tooling Design Document (New Document)
 
-* **Library Specifications:** Detail the architecture of the shared Python parsing library that translates plain-English Clime files into JSON-IR.
+* **Library Specifications:** Detail the architecture of the shared Python parsing library that translates plain-English `.rules` files into JSON-IR.
 * **I/O Decoupling Requirement:** Explicitly specify that the library must perform no file operations. The functions for Lexing, Parsing, and Emitting must be designed to accept either static objects (strings, lists of strings, or populated AST objects) or iterators yielding the appropriate content, returning the resulting token stream, AST, or JSON-IR respectively.
 * **Error Accumulation Strategy:** The parser must implement an error recovery strategy. Instead of fast-failing via exceptions, it should accumulate syntax errors and return a structured Result object (e.g., `success`, `errors`, `ast`), allowing callers to process multiple errors simultaneously.
 * **CLI Tooling:** Define the behavior of the standalone syntax checker CLI, detailing input arguments, exit codes for CI/CD integration, file-loading wrappers, and verbose error formatting for local debugging.
+* **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
 #### 9. Rules Engine Design Document (New Document)
 
@@ -338,6 +301,7 @@ digraph ExecutionFlow {
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
 * Each component, upon receiving the `app.start` event, begins normal processing.
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
+* **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
 #### 10. Command Parser Design Document (New Document)
 
@@ -345,6 +309,7 @@ digraph ExecutionFlow {
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
 * Each component, upon receiving the `app.start` event, begins normal processing.
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
+* **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
 #### 11. EOT Parser Design Document (New Document)
 
@@ -352,6 +317,7 @@ digraph ExecutionFlow {
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
 * Each component, upon receiving the `app.start` event, begins normal processing.
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
+* **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
 #### 12. Environment Manager Design Document (New Document)
 
@@ -359,6 +325,7 @@ digraph ExecutionFlow {
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
 * Each component, upon receiving the `app.start` event, begins normal processing.
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
+* **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
 #### 13. State Rehydrator Design Document (New Document)
 
@@ -368,6 +335,7 @@ digraph ExecutionFlow {
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
 * Each component, upon receiving the `app.start` event, begins normal processing.
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
+* **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
 #### 14. IPC Broker Design Document (New Document)
 
@@ -378,15 +346,18 @@ digraph ExecutionFlow {
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
 * Each component, upon receiving the `app.start` event, begins normal processing.
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
+* **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
 #### 15. Internal Event Bus Design Document (New Document)
 
 * **Broker Implementation:** Detail the internal pub/sub message broker mechanics required for asynchronous event passing between core system components.
 * **Implementation Language:** Outline that the core implementation language across the event bus and core engine components will be Python, maximizing compatibility with the shared library components.
 * **Sender Identification:** Explicitly indicate that every message received from the message bus must be able to identify its sender. When any component attaches to the message bus, it must provide an identifier to use for when it sends messages.
+* **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
 #### 16. Shared Volume Design Document (New Document)
 
 * **Atomic Write Protocol:** Formally define the system-wide Atomic Write Protocol here. Specify that all files written to the shared volume must first be written to a temporary file, followed by a system rename operation. Grant processes explicit permission to arbitrarily remove any existing temporary files they strictly own before overwriting them.
 * **Volume Topology:** Detail the directory structure of the shared volume (e.g., `prm/`, `tx/`, `logs/`, `notifications/`).
 * **Decentralized Schemas:** State that this document outlines the mechanical rules of engagement, but the specific JSON schemas for the payloads remain owned by the component design documents generating them.
+* **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
