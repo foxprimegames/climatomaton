@@ -57,11 +57,11 @@ To guarantee the DGL never blocks and to maintain a fully event-driven execution
 
 ## 4. Communication Protocols (File-Based IPC)
 
-Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by writing atomic JSON payloads to directories. All file paths are strictly relative to the shared volume root. All timestamping for file names and internal operations must strictly utilize the **UTC timezone**.
+Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by writing JSON payloads to directories using the atomic write protocol. The atomic write protocol will be defined in the shared volume design document. All file paths are strictly relative to the shared volume root. All timestamping for file names and internal operations must strictly utilize the **UTC timezone**.
 
 ### 4.1 PRM Protocol (Rules Module)
 
-* **Push Rules:** The PRM writes a new compiled JSON-IR ruleset to `prm/active_rules.json.tmp`, then atomically renames it to its final filename on the shared volume. The specific structure and format of this JSON-IR ruleset are defined in the Rules Language Design Document.
+* **Push Rules:** The PRM writes a new compiled JSON-IR ruleset to its final filename on the shared volume using the atomic write protocol. The specific structure and format of this JSON-IR ruleset are defined in the Rules Language Design Document.
 * **Immediate Validation Pass:** The IPC Broker actively monitors the rules folder and the schemas folder on the shared volume. It triggers the Rules Engine to proactively parse and type-check incoming JSON-IR files immediately upon modification of the rules file, or whenever a PEM schema is added, updated, or deleted.
 * **Validation Error Recovery Policy:**
   * **LKG Fallback:** If a newly watched JSON-IR file fails semantic or static verification, the Rules Engine discards it, retains the prior working version (Last-Known-Good), logs the trace, and dispatches an admin alert via the Logging Manager.
@@ -70,8 +70,8 @@ Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by 
 
 ### 4.2 PEM Protocol (Environment Module)
 
-* **Schema Registration & Heartbeat:** As soon as the PEM starts up, it must write a static schema description file to `pems/{pem_namespace}.schema.json` on the shared volume, which the IPC Broker monitors. This file dictates the type schema and designates the read-only versus mutable state for the data the PEM will provide. The PEM must periodically update this file at an interval no greater than a defined maximum limit to indicate it is alive. Updates must be performed atomically (e.g., writing to a `.tmp` file first, then executing a rename operation). The exact structure and semantics are defined in the Pluggable Environment Module (PEM) Design Document.
-* **Environment Data Publication:** As soon as practical after the schema file is written, and whenever the represented content changes thereafter, the PEM must write its structured environment data (excluding the PEM's namespace prefix itself) to `pems/{pem_namespace}.json` on the shared volume. Updates must be performed atomically (e.g., via `.tmp` rename) to ensure the Rules Engine never reads partial state. The exact specification of this environment file will be defined in the Pluggable Environment Module (PEM) Design Document.
+* **Schema Registration & Heartbeat:** As soon as the PEM starts up, it must write a static schema description file to `pems/{pem_namespace}.schema.json` on the shared volume, which the IPC Broker monitors. This file dictates the type schema and designates the read-only versus mutable state for the data the PEM will provide. The PEM must periodically update this file at an interval no greater than a defined maximum limit to indicate it is alive. Updates must be performed using the atomic write protocol. The exact structure and semantics are defined in the Pluggable Environment Module (PEM) Design Document.
+* **Environment Data Publication:** As soon as practical after the schema file is written, and whenever the represented content changes thereafter, the PEM must write its structured environment data (excluding the PEM's namespace prefix itself) to `pems/{pem_namespace}.json` on the shared volume. Updates must be performed using the atomic write protocol to ensure the Rules Engine never reads partial state. The exact specification of this environment file will be defined in the Pluggable Environment Module (PEM) Design Document.
 * **Transaction Commit:** If rules mutate a PEM namespace, the Rules Engine generates a diff and writes it to `tx/req_{tx_id}_{namespace}.json` on the shared volume. The specific format of this transaction diff file is defined in the Pluggable Environment Module (PEM) Design Document.
 * **Acknowledgment:** The PEM detects and processes the transaction request from the shared volume, then writes an acknowledgment to `tx/ack_{tx_id}_{namespace}.json`. The specific format of this acknowledgment file is also defined in the PEM Design Document.
 * **Transaction Cleanup:** The IPC Broker detects the ACK file and fires an `ipc.pem_ack` event. Once the Rules Engine successfully posts the Discord report via the DAC, the IPC Broker deletes both the `req` and `ack` files from the volume.
@@ -184,3 +184,11 @@ While the specific hosting environment is not yet defined, the deployment strate
 5. **Log Aggregation:** Because the Logging Manager writes all local observability data to `stdout`/`stderr` using a native logger, the deployment environment must feature an agent or mechanism to capture, rotate, and aggregate standard output logs.
 6. **Graceful Shutdown Signals:** The environment must issue standard termination signals (`SIGTERM`) and provide a brief grace period to allow the Event Bus and Rules Engine to finalize any in-flight file writes and network requests before exiting.
 7. **Testing Environment:** Functional testing of the integrated system will be performed against a dedicated staging or private testing-only Discord server to ensure live Nomicron gameplay is completely isolated from development.
+
+---
+
+### Discussion & Notes
+
+* **Atomic Write Protocol Implementation:** The references to specific file renaming steps (like `.tmp` files) have been generalized to the "atomic write protocol" in sections 4, 4.1, and 4.2. As stated in Section 4, the exact mechanics of this protocol will need to be thoroughly outlined in the forthcoming Shared Volume Design Document.
+* **Section 6.1 Clarification:** In Section 6.1 (State Rehydration & Startup Workflow), I left the reference to `.tmp` files under the stale IPC file cleanup since the atomic write protocol itself will likely produce temporary files that require cleanup in the event of a crash. Let me know if you would like that abstracted away as well.
+* **Memory Swaps:** In section 4.1, the phrase "atomically swaps the active rules pointer" was retained since it refers to an internal memory reference within the Rules Engine, rather than a file system operation.
