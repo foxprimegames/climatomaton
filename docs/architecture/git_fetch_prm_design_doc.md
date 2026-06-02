@@ -45,7 +45,7 @@ Because the PRM operates on a bare repository, it does not scan a local file sys
 To ensure consistent execution logic across deployments, the PRM compiles rules based on an explicit, deterministic sequence:
 
 * The filtered list of `.rules` files is sorted alphabetically by filename in ascending order.
-* Rule authors wishing to enforce a specific execution priority among multiple files must utilize numeric prefixes in the filenames (e.g., `01_base.rules`, `02_overrides.rules`). Unique rule IDs are explicitly excluded from the language syntax to favor location-based ordering.
+* Rule authors wishing to enforce a specific execution priority among multiple files must utilize numeric prefixes in the filenames (e.g., `01_base.rules`, `02_overrides.rules`).
 
 ## 4. Compilation & JSON-IR Generation
 
@@ -68,7 +68,7 @@ The parser library is strictly decoupled from file system operations. The PRM fa
 The PRM communicates with the Core Daemon via File-Based IPC on a shared volume. It utilizes the primary rules file to act as both the state payload and the lifecycle heartbeat.
 
 * **Atomic Write Protocol:** When the repository has changed and a new JSON-IR payload is compiled, the PRM strictly follows the system-wide atomic write protocol defined in the Shared Volume Design Document. The final compiled JSON-IR ruleset is delivered to the path `prm/active_rules.json`.
-* **Heartbeat Protocol:** On every polling cycle interval, regardless of whether the Git repository changed, the PRM must update the modification timestamp (via an OS `touch` operation) of `prm/active_rules.json`. This signals to the IPC Broker that the PRM process remains healthy and actively monitoring.
+* **Heartbeat Protocol:** On every polling cycle interval, regardless of whether the Git repository changed, the PRM must update the modification timestamp (e.g., via an OS `touch` operation) of `prm/active_rules.json`. This signals to the IPC Broker that the PRM process remains healthy and actively monitoring.
 * **Local Cleanup:** During its own startup and graceful shutdown phases, the PRM will arbitrarily remove any temporary files it uses to ensure a clean operational state.
 
 ## 6. Error Handling & Observability
@@ -89,48 +89,57 @@ The external parsing library is designed to accumulate syntax errors rather than
 
 ---
 
-### Comments, New Issues, Discussion Points, and Questions
+# Git-Fetch PRM: Future Improvements Document
 
-Yes, this design document is absolutely ready to be broken down into an implementation plan. The boundaries are clean, the data flows are unidirectional, and the error-handling states are clearly mapped out. You can easily translate this into actionable Epics (e.g., Git Sync Engine, In-Memory Compiler Integration, File-Based IPC & Heartbeat) and highly detailed developer stories.
+## 1. Out-of-Band Polling Signal
 
-**1. Language Identifier (YAGNI Confirmation):** Following up on our previous discussion point, the decision to drop a explicit language identifier header inside individual files remains solid. Because the PRM architecture isolates file discovery strictly via the `.rules` extension and delegates compilation directly to an immutable workspace-linked library, we maintain full system future-proofing without forcing players to write technical boilerplate text.
+Implement a Unix signal handler within the PRM container process to allow for immediate, out-of-band repository synchronization.
 
-**2. Signal Handling for Forced Polls:** While the module operates entirely on an outbound loop to protect our zero-inbound connectivity constraint, we should consider implementing a Unix signal handler (e.g., `SIGUSR1`) within the Python process. This would allow an administrator with host-level access to trigger an immediate out-of-band repository poll without waiting for the `POLL_INTERVAL` to expire.
+* **Mechanism:** The process should listen for the `SIGHUP` signal.
+* **Action:** Upon receiving the signal, the PRM will bypass the current `POLL_INTERVAL` sleep cycle and immediately execute a fetch-and-compare operation against the remote repository. This provides administrators with host-level access a mechanism to force an instant update without restarting the container or waiting for the next scheduled poll.
 
 ---
 
-### Complete List of Pending Updates to Other Documents
+### Comments, New Issues, Discussion Points, and Questions
+
+* **On unnecessary changes:** You are entirely right to call this out, and I apologize for overstepping. As an AI model, I mistakenly synthesized and "resolved" open discussion points (like finalizing `uv` as the definitive choice) and altered your headings to try and produce what I perceived as a "finalized" state for the next step. That wasn't my decision to make, and doing so broke the integrity of your tracking list. I have strictly restored the wording, including Section 11 and the list title.
+* **SIGHUP vs SIGUSR1:** You are correct; `SIGHUP` (Signal Hang Up) is the traditional POSIX standard for instructing a background daemon to reload its configuration or re-initialize its state, which fits the "poll now" / "sync now" paradigm perfectly. I have drafted the new Future Improvements document above using `SIGHUP`.
+* **Adjustments made:** The line regarding unique IDs has been removed from Section 3.2, and the `touch` operation has been returned to an example in Section 5.
+
+---
+
+### Pending Updates for Other Documents
 
 #### 1. Shared Volume Design Document (New Document)
 
-* **Atomic Write Protocol:** Formally define the system-wide atomic write protocol. Specify that all files written to the shared volume must first be written to a temporary file, followed by an atomic system rename operation. Grant processes explicit permission to arbitrarily remove any existing temporary files they strictly own before overwriting them.
-* **Volume Topology:** Detail the directory layout of the shared volume (e.g., `prm/`, `tx/`, `logs/`, `notifications/`).
-* **Decentralized Schemas:** Explicitly state that this document outlines the mechanical rules of engagement, but the specific JSON schemas for payloads remain entirely owned by the component design documents generating them.
+* **Atomic Write Protocol:** Formally define the system-wide atomic write protocol here. Specify that all files written to the shared volume must first be written to a temporary file, followed by a system rename operation. Grant processes explicit permission to arbitrarily remove any existing temporary files they strictly own before overwriting them.
+* **Volume Topology:** Detail the directory structure of the shared volume (e.g., `prm/`, `tx/`, `logs/`, `notifications/`).
+* **Decentralized Schemas:** State that this document outlines the mechanical rules of engagement, but the specific JSON schemas for the payloads remain owned by the component design documents generating them.
 
 #### 2. Deployment Architecture Document
 
-* **Shared Volume Requirements:** Specify that the deployed shared volume used to accommodate IPC mechanisms must explicitly support the underlying file system operations required by the atomic write protocol (e.g., POSIX compliance for atomic renames).
+* **Shared Volume Requirements:** Specify that the deployed shared volume used to accommodate the IPC mechanisms must support the underlying file system operations required by the atomic write protocol.
 * **PRM Configuration Definitions:** Include required environment variables for the Git-Fetch PRM container (`GIT_REPO_URL`, `GIT_BRANCH`, `GIT_TARGET_DIR`, `POLL_INTERVAL`, `SYNC_FAILURE_THRESHOLD`).
 
 #### 3. Observability, Health Checking, and Logging Design Document (New Document)
 
-* **Standardization:** Standardize observability across the architecture. Define strict formatting for structured standard logs, establish container health-check endpoints/mechanisms, and construct the schema rules for alert payloads.
+* **Centralization:** Standardize observability. All components (Core, PRMs, PEMs) must follow this specification for outputting structured standard logs, defining container health-check endpoints/mechanisms, and constructing alert payloads.
 
 #### 4. IPC Broker Design Document
 
-* **Notification Payload Format:** Specify the exact JSON schema and required keys for files dropped into the `notifications/` directory by external modules.
-* **Heartbeat Monitoring (PEMs):** Implement a "fast publish, lenient subscribe" model for tracking Pluggable Environment Modules (PEMs). While PEMs update their schema file timestamps every 30 seconds, the IPC Broker checks every 60 seconds. A PEM missing two consecutive checks (120 seconds) is considered dead, prompting the Broker to purge its stale files.
-* **Heartbeat Monitoring (PRMs):** Implement monitoring for PRM liveness. The PRM will update the modified timestamp of `prm/active_rules.json` on a regular interval. The IPC Broker must detect this timestamp change. Upon detection, it must read the file and check the root `id` field. If the `id` matches the current active ruleset, the Broker merely updates the PRM's last-seen timestamp. If the PRM misses two consecutive heartbeat intervals, the IPC Broker must emit a system event to drop the Core Engine into a `PAUSED` state.
-* **Ruleset Update Event:** Specify that the `ipc.rules_updated` event is only fired if the parsed `id` from `prm/active_rules.json` differs from the currently loaded ruleset.
+* **Notification Payload Format:** Specify the exact JSON schema and required keys for the files dropped into the `notifications/` directory by external modules.
+* **Heartbeat Monitoring (PEMs):** Implement a "fast publish, lenient subscribe" model for tracking PEM heartbeats. While PEMs update their schema file timestamps every 30 seconds, the IPC Broker checks every 60 seconds. A PEM missing two consecutive checks (120 seconds) is considered dead, prompting the Broker to purge its stale files.
+* **Heartbeat Monitoring (PRMs):** Implement monitoring for the PRM liveness. The PRM will update the modified timestamp of `prm/active_rules.json` on a regular interval. The IPC Broker must detect this timestamp change. Upon detection, it must read the file and check the root `id` field. If the `id` matches the current active ruleset, the Broker merely updates the PRM's last-seen timestamp. If the PRM misses two consecutive heartbeat intervals, the IPC Broker must emit a system event to drop the Core Engine into a PAUSED state.
+* **Ruleset Update Event:** Specify that the `ipc.rules_updated` event is only fired if the parsed `id` from the `prm/active_rules.json` file differs from the currently loaded ruleset.
 
 #### 5. Central Architecture Document
 
-* **Cleanup:** Remove the detailed atomic write procedure specifics from this document, delegating them entirely to the new Shared Volume Design Document.
+* **Cleanup:** Remove the atomic write procedure specifics from this document, delegating them entirely to the new Shared Volume Design Document.
 
 #### 6. Rules Engine Design Document
 
 * **Dynamic Type Registry Initialization & Type Mapping:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for loaded PEM schemas. Extract and register mutable namespace paths where `"readOnly": false` is present. Strictly map JSON schema `array` types to internal tag lists, requiring the `items` definition to be `"type": "string"`.
-* **Static Type Checking & Semantic Analysis:** Implement a Node Visitor architecture to traverse the JSON-IR Abstract Syntax Tree (AST) prior to active execution. Infer types bottom-up, enforce operator constraints, and prevent implicit type coercion. Throw an error bound to the `source` tracking string and abort the ruleset load if undefined symbols, type mismatches, or writes to read-only fields are detected.
+* **Static Type Checking & Semantic Analysis:** Implement a Node Visitor architecture to traverse the JSON-IR AST prior to active execution. Infer types bottom-up, enforce operator constraints, and prevent implicit type coercion. Throw an error bound to the `source` tracking string and abort the ruleset load if undefined symbols, type mismatches, or writes to read-only fields are detected.
 * **Validation Event Triggers:** Perform the load-and-validate type-check when the rules file is updated and whenever PEM schema files are updated or deleted on the shared volume.
 
 #### 7. Rules Language Guide
@@ -143,7 +152,7 @@ Yes, this design document is absolutely ready to be broken down into an implemen
 
 #### 9. DGL (Discord Gateway Listener) & DAC (Discord API Client) Design Documents
 
-* **Discord Integration Specifics:** Define exact Discord gateway intents/permissions (DGL) and OAuth2 scopes (DAC).
+* **Discord Integration Specifics:** Define exact Discord intents/permissions (DGL) and OAuth2 scopes (DAC).
 * **Rate Limiting:** The DAC design document must incorporate the specific logic for overall and per-source notification rate limiting.
 
 #### 10. Parser Library & CLI Tooling Design Document (New Document)
@@ -155,8 +164,8 @@ Yes, this design document is absolutely ready to be broken down into an implemen
 
 #### 11. Codebase & Repository Architecture Document (New Document)
 
-* **Build System Configuration (`uv`):** Explicitly select `uv` as the monorepo workspace coordinator. Leverage `uv` workspace support to link the internal parser library, the standalone CLI tool, the Core Daemon, and the Git-Fetch PRM container locally without necessitating internal PyPI publishing workflows.
-* **Monorepo Layout:** Define a unified workspace layout:
+* **Build System Discussion (`uv` vs `hatch`):** While `hatch` is an officially endorsed PyPA project and fantastic for generic package building, `uv` (built by Astral) is recommended for this specific multi-component project. `uv` acts as an ultra-fast, drop-in replacement for `pip`, `venv`, and `pip-tools` written in Rust. Crucially, `uv` recently introduced Cargo-style "workspace" support. This allows us to define the Parser Library, the PRM, and the Core Engine as separate packages within the same repository, seamlessly linking them together locally without needing to publish the internal library to a PyPI index or wrangle complex local file references in standard `pyproject.toml` configurations.
+* **Monorepo Organization:** The document must define a unified workspace layout. A standard approach would separate concerns clearly, for example:
 * `libs/clime-parser`: The shared parsing library.
 * `apps/core-daemon`: The main Climatomaton Discord engine.
 * `apps/git-prm`: The standalone Git-Fetch container process.

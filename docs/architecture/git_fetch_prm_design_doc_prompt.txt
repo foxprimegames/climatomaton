@@ -143,3 +143,14 @@ as always, please process the above issues into the document and display it.  re
 (after the output did not conform to the output requirements...)
 
 please display the output as i asked, with the document first, then discussion/comments, then the full list of pending updates.
+
+--
+
+1. Please create a new "future improvements" document and add the suggestion for a "poll now" signal (i believe the traditional signal would be SIGHUP for this, would it not?)
+2. please remove the line you added to section 3 about unique rule ids.  they're not mentioned anywhere else, so there's no need to say that they're excluded.
+3. in the heartbeat protocol, please make the `touch` operation back into an example rather than a directive.
+4. Please rename the pending updates list back to `Pending Updates for Other Documents`.
+5. (Why are you making unnecessary changes to the document and the pending updates list that were not discussed?)
+6. please RESTORE the previous section 11.  You have made decisions that were not yours to make.
+
+as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
