@@ -41,3 +41,21 @@ I have uploaded the list of pending document updates.
 11. the state rehydration workflow currently in section 6.1, excluding the stale file cleanup, should be the initialization workflow for the state rehydrator component.  other than that, the state rehydrator does nothing except immediately respond to app wrapper events as appropriate.
 
 process the above instructions into the document under discussion and render it.  ONLY make changes to the document that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+0. in the previous update, i had to manually fix the header level for the pending updates list which you changed without instructions to do so.
+1. add all new events from the app wrapper workflow into the event bus description.
+2. step 4 of section 6.2 needs to say how the core daemon transitions to paused.  i'm assuming this is an event that gets published.  please add such event (and any corresponding unpause or resume event) to the event bus description, and add processing of those events to the pending updates for whichever component (most likely the rules engine) needs to be puased.  those events must be processed even if the component is in initialization, to ensure it doesn't start up in the wrong state.
+3. create diagrams (either in text form in the document, or GraphiViz `dot` diagrams that can be referenced) showing the various event flows that are described in the architecture.
+4. move section 8 to the pending updates list for the deployment architecture document.
+5. move the app workflow pending document update to between the codebase document and the observability document.
+6. introduce a testing protocol document to the pending updates list.
+7. remove the central architecture pending update, since we've done that as part of this conversation.
+8. in section 4, remove the "which will be" from the atomic write protocol parenthetical.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+(after viewing the results...)
+
+you reworded and reformatted parts of the pending updates list that were not part of the instructions.  undo those.  ONLY MAKE CHANGES which you are directed to make by the instructions.

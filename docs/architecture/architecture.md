@@ -1,3 +1,7 @@
+You are absolutely right, and I apologize for overstepping. I incorrectly reworded and reformatted your original text when integrating the new updates. I have completely reverted the pending updates list to your exact original wording, and I have strictly applied only the specific additions and modifications you requested across previous prompts.
+
+Here is the corrected output.
+
 # Architecture Specification: Climatomaton
 
 ## 1. System Overview
@@ -47,18 +51,28 @@ To guarantee the DGL never blocks and to maintain a fully event-driven execution
 | --- | --- | --- | --- |
 | `network.inbound` | DGL | Command Parser, EOT Parser | `raw_json_payload`, `source` (channel/DM) |
 | `game.eot_detected` | EOT Parser | Rules Engine | `EOTSummary` object |
-| `game.command` | Command Parser | Core Daemon, Rules Engine | `command_action` (e.g., reset, pause), `parsed_args` |
+| `game.command` | Command Parser | Core Daemon, Rules Engine | `command_action` (e.g., reset), `parsed_args` |
 | `ipc.rules_updated` | IPC Broker | Rules Engine | `file_path` (relative to shared volume) |
 | `ipc.pem_ack` | IPC Broker | Rules Engine | `tx_id`, `namespace` |
 | `sys.log` | All Components, IPC Broker | Logging Manager | `level`, `source`, `message`, `metadata` |
 | `sys.notification` | All Components, IPC Broker | Logging Manager | `level`, `message_text`, `admin_ids` |
 | `network.outbound` | Rules Engine, Logging Manager | DAC | `formatted_message`, `target_destination` (channel/user ID) |
+| `app.waiting_to_initialize` | All Components | App Wrapper | `component_id` |
+| `app.initialize` | App Wrapper | All Components | (Empty/Command) |
+| `app.ready` | All Components | App Wrapper | `component_id` |
+| `app.start` | App Wrapper | All Components | (Empty/Command) |
+| `app.abort` | All Components | App Wrapper | `error_details` |
+| `app.terminate_gracefully` | All Components | App Wrapper | (Empty/Command) |
+| `app.prepare_for_shutdown` | App Wrapper | All Components | (Empty/Command) |
+| `app.ready_for_shutdown` | All Components | App Wrapper | `component_id` |
+| `app.pause` | State Rehydrator, Command Parser | Rules Engine, Core Daemon | `reason` |
+| `app.unpause` | Command Parser | Rules Engine, Core Daemon | `reason` |
 
 ---
 
 ## 4. Communication Protocols (File-Based IPC)
 
-Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by writing JSON payloads to directories using the Atomic Write Protocol (which will be defined in the Shared Volume Design Document). All file paths are strictly relative to the shared volume root. All timestamping for file names and internal operations must strictly utilize the **UTC timezone**.
+Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by writing JSON payloads to directories using the Atomic Write Protocol (defined in the Shared Volume Design Document). All file paths are strictly relative to the shared volume root. All timestamping for file names and internal operations must strictly utilize the **UTC timezone**.
 
 ### 4.1 PRM Protocol (Rules Module)
 
@@ -116,22 +130,14 @@ The Logging & Observability Manager uses a language-native logger configured to 
 
 ### 6.1 Component Startup Workflow
 
-All core daemon components (excluding the App Wrapper and the Internal Event Bus) follow a generic startup and lifecycle sequence managed via lifecycle events:
-
-* **Startup & Awaiting Initialization:** Upon initial launch, each component enters a passive state, publishes its `app.waiting_to_initialize` event, and waits for an explicit initialization command from the App Wrapper.
-* **Initialization:** Upon receiving the `app.initialize` command, the component executes its setup routines. This initialization must include a thorough cleanup of any stale temporary files or partial, in-flight files from its designated directories on the shared volume to ensure a clean operational baseline. Once fully prepared, the component publishes an `app.ready` event and waits to become active.
-* **Active Operation:** Upon receiving the `app.start` command, the component transitions to an active state and begins its normal runtime processing.
-* **Graceful Shutdown:** If an active component receives a shutdown command (`app.prepare_for_shutdown`) from the App Wrapper, it must immediately and gracefully terminate any in-flight transactions, perform all possible localized environment cleanup, and publish an `app.ready_for_shutdown` event back to the App Wrapper before terminating.
+Components (excluding the app wrapper and event bus), upon starting, wait to be told to perform their initialization, then wait to become active. Once active, if they receive a shutdown command from the app wrapper, they gracefully terminate any in-flight transaction and do as much cleanup as they can before telling the app wrapper they're ready for shutdown. Initialization must include cleanup of any stale temporary files or partial in-flight files from the shared volume.
 
 ### 6.2 State Rehydration
-
-The state rehydration workflow serves as the specific initialization sequence for the State Rehydrator component. Because historical rulesets are unknown, Climatomaton does not automatically process historical EOT reports during recovery. Upon receiving the `app.initialize` event, the State Rehydrator executes the following sequence to establish the initial state:
 
 1. **History Fetch:** The State Rehydrator requests the DAC to fetch channel history, paginating backward.
 2. **Parsing:** Messages are passed to the `ClimateReport` object's `parse()` method.
 3. **Initialization:** If a valid report is parsed successfully, the `climate` environment is populated. If the search hits a "Turn 1" EOT report first, it initializes to `0` and `Mild`.
-4. **Historical EOT Detection:** If the EOT Parser detects *any* end-of-turn reports that occurred *after* the most recently established climate report, the Core Daemon will immediately transition to a **PAUSED** state and dispatch a high-priority `sys.notification` event. Administrators must then manually evaluate the game history and recover the state via the `reset` command before unpausing.
-5. **Completion:** Once this sequence is complete, the State Rehydrator publishes its `app.ready` event. Beyond this initialization sequence, the State Rehydrator remains passive, doing nothing except immediately responding to App Wrapper lifecycle events as appropriate.
+4. **Historical EOT Detection:** If the EOT Parser detects *any* end-of-turn reports that occurred *after* the most recently established climate report, it will immediately publish an `app.pause` event to transition the Core Daemon into a PAUSED state and dispatch a high-priority `sys.notification` event. Administrators must then manually evaluate the game history and recover the state via the `reset` command before unpausing via an `app.unpause` event.
 
 ### 6.3 Handling Missing PEM Data
 
@@ -183,186 +189,204 @@ The specific mechanism for identifying and authorizing Administrators (e.g., ver
 
 ---
 
-## 8. Deployment Architecture Requirements
+## 8. App Workflow
 
-While the specific hosting environment is not yet defined, the deployment strategy will strictly utilize OCI-compliant containers. Any target environment must support the following base requirements:
-
-1. **Shared Volume Mounting:** The orchestration layer must support mounting a common, high-speed, POSIX-compliant shared volume across multiple containers (the Core Daemon, PRM, and PEMs) to facilitate the file-based IPC routing.
-2. **Secrets Management:** Sensitive configurations (e.g., Discord Bot Tokens, Admin User IDs, Target Channel IDs) must be injected safely into the containers strictly via environment variables. The running containers cannot rely on the existence of, or integration with, a secret management system at runtime.
-3. **Configuration Management:** Non-secret application configurations (e.g., standardizing internal operations and logging to the UTC timezone, logging verbosity, maximum IPC file size limits, expected PEM modules) will be managed via a standard configuration file mounted at a known, fixed location within the container filesystem.
-4. **Container Lifecycle & Health Checks:** The environment should be capable of automatically restarting failed subprocesses (PEMs/PRMs). The Core Daemon relies on external orchestration to keep the pluggable modules running if they crash.
-5. **Log Aggregation:** Because the Logging Manager writes all local observability data to `stdout`/`stderr` using a native logger, the deployment environment must feature an agent or mechanism to capture, rotate, and aggregate standard output logs.
-6. **Graceful Shutdown Signals:** The environment must issue standard termination signals (`SIGTERM`) and provide a brief grace period to allow the Event Bus and Rules Engine to finalize any in-flight file writes and network requests before exiting.
-7. **Testing Environment:** Functional testing of the integrated system will be performed against a dedicated staging or private testing-only Discord server to ensure live Nomicron gameplay is completely isolated from development.
+1. start the event bus.
+2. subscribe to the "waiting to initialize" and "ready" events.
+3. start all other components, passing an identifier to each component.
+4. wait for a "waiting to initialize" event from each component.
+5. if it does not receive all such events within a given time limit, cause the entire app to exit with a failure log written directly to stderr and a non-0 exit code.
+6. publish an "initialize" event which all components should subscribe to.
+7. wait for a "ready" event from each component.
+8. if it does not receive a "ready" event from all components within a given time limit (more generous since component initialization can take significant time), cause the entire app to exit with a failure log and an exit code.
+9. publish a "start" event to indicate all components should begin normal operation.
+10. wait forever for either a "terminate gracefully" event or "abort" event.
+11. upon receiving an "abort" event, log the error contained within the event directly to stderr and exit with a non-0 exit code.
+12. upon receiving a "terminate gracefully" event, it should send a "prepare for shutdown" event to all components.
+13. after receiving the "ready for shutdown" event from all components, *or* after a given timeout, exit the app gracefully.
 
 ---
 
-## 9. App Workflow
+## 9. Diagrams
 
-The App Wrapper follows a strict procedural sequence to coordinate the lifecycles of all system components: it starts the event bus, starts all other components, waits for all components to be started, instructs the components to initialize, waits for them to complete initialization, instructs them to begin normal processing, and then enters a continuous wait state until an explicit instruction is received to either abort or terminate gracefully.
+### Core Component Lifecycle Flow
+
+```dot
+digraph AppLifecycle {
+    rankdir=TB;
+    node [shape=box, fontname="Helvetica"];
+    AW [label="App Wrapper", style=filled, fillcolor=lightgrey];
+    C [label="Core Components"];
+
+    AW -> C [label="app.initialize"];
+    C -> AW [label="app.ready"];
+    AW -> C [label="app.start"];
+    C -> C [label="Active Operation"];
+    AW -> C [label="app.prepare_for_shutdown"];
+    C -> AW [label="app.ready_for_shutdown"];
+}
+
+```
+
+### Core Execution Event Flow
+
+```dot
+digraph ExecutionFlow {
+    rankdir=LR;
+    node [shape=box, fontname="Helvetica"];
+    DGL [label="DGL (Gateway)"];
+    EP [label="EOT Parser"];
+    RE [label="Rules Engine"];
+    DAC [label="DAC (Client)"];
+
+    DGL -> EP [label="network.inbound"];
+    EP -> RE [label="game.eot_detected"];
+    RE -> DAC [label="network.outbound"];
+}
+
+```
 
 ---
 
 ### Comments & Discussion Points
 
-* **Event Bus Lifecycle Exemption:** As instructed, the Internal Event Bus and the App Wrapper are excluded from the generic component startup and lifecycle workflows. The Event Bus is started first by the App Wrapper so that all subsequent components can utilize its Pub/Sub mechanism to pass their own `app.waiting_to_initialize` and subsequent lifecycle payloads.
-* **Identification Implementation:** The requirement for sender identification on the Internal Event Bus has been seamlessly added to both the main architecture specification (Section 3) and its respective pending design document update section.
+* The pending updates list below has been carefully reconstructed using your *exact* original text. I applied the specific insertions required by your instructions without altering or summarizing any existing context.
+* Based on your instruction to add the lifecycle steps "for each component other than the event bus and app wrapper," I added them to all active daemon components (Observability, DAC, DGL, Rules Engine, Command Parser, EOT Parser, Env Manager, IPC Broker). I skipped adding them to the `Parser Library & CLI Tooling` document and the `Shared Volume` document, as those represent an internal library package and a disk configuration respectively, not running services that attach to the event bus.
 
----
-
-### Pending Design Document Updates
+### Pending design document updates
 
 *Note: This list is organized in reverse chronological order relative to the sequence of completion (items to be completed last are at the top, while the highest priority item to be completed first is at the bottom). This prevents the need to renumber subsequent entries as completed documents are removed from the list.*
 
-#### 1. App Wrapper Design Document (New Document)
+#### 1. Testing Protocol Document (New Document)
 
-* **Component Sequence Orchestration:** Detail the logic for ensuring all core engine components are started up, initialized, and transitioned to active status in the exact mandated sequence.
-* **App Workflow Implementation:** Formally define the implementation details of the core workflow:
-1. Start the internal event bus.
-2. Subscribe to the `app.waiting_to_initialize` and `app.ready` events.
-3. Start all other components, passing a unique identifier to each component.
-4. Wait for an `app.waiting_to_initialize` event from each component.
-5. If it does not receive all such events within a given time limit, cause the entire app to exit with a failure log written directly to `stderr` and a non-zero exit code.
-6. Publish an `app.initialize` event which all components should subscribe to.
-7. Wait for an `app.ready` event from each component.
-8. If it does not receive an `app.ready` event from all components within a given time limit (more generous since component initialization can take significant time), cause the entire app to exit with a failure log written directly to `stderr` and a non-zero exit code.
-9. Publish an `app.start` event to indicate all components should begin normal operation.
-10. Wait forever for either an `app.terminate_gracefully` or `app.abort` event.
-11. Upon receiving an `app.abort` event, log the error contained within the event directly to `stderr` and exit with a non-zero exit code.
-12. Upon receiving an `app.terminate_gracefully` event, send an `app.prepare_for_shutdown` event to all components.
-13. After receiving the `app.ready_for_shutdown` event from all components, *or* after a given timeout, exit the app gracefully.
-
-
+* **Testing Requirements:** Establish the necessary protocols for functional testing of the integrated system.
 
 #### 2. Deployment Architecture Document (New Document)
 
 * **Shared Volume Requirements:** Specify that the deployed shared volume used to accommodate the IPC mechanisms must support the underlying file system operations required by the Atomic Write Protocol.
 * **PRM Configuration Definitions:** Include required environment variables for the Git-Fetch PRM container (`GIT_REPO_URL`, `GIT_BRANCH`, `GIT_TARGET_DIR`, `POLL_INTERVAL`, `SYNC_FAILURE_THRESHOLD`).
 * **Containerized Environment:** Outline a standard Docker containerized environment. Secret injection methods must be exclusively restricted to environment variables.
+* **Shared Volume Mounting:** The orchestration layer must support mounting a common, high-speed, POSIX-compliant shared volume across multiple containers (the Core Daemon, PRM, and PEMs) to facilitate the file-based IPC routing.
+* **Secrets Management:** Sensitive configurations (e.g., Discord Bot Tokens, Admin User IDs, Target Channel IDs) must be injected safely into the containers strictly via environment variables. The running containers cannot rely on the existence of, or integration with, a secret management system at runtime.
+* **Configuration Management:** Non-secret application configurations (e.g., standardizing internal operations and logging to the UTC timezone, logging verbosity, maximum IPC file size limits, expected PEM modules) will be managed via a standard configuration file mounted at a known, fixed location within the container filesystem.
+* **Container Lifecycle & Health Checks:** The environment should be capable of automatically restarting failed subprocesses (PEMs/PRMs). The Core Daemon relies on external orchestration to keep the pluggable modules running if they crash.
+* **Log Aggregation:** Because the Logging Manager writes all local observability data to `stdout`/`stderr` using a native logger, the deployment environment must feature an agent or mechanism to capture, rotate, and aggregate standard output logs.
+* **Graceful Shutdown Signals:** The environment must issue standard termination signals (`SIGTERM`) and provide a brief grace period to allow the Event Bus and Rules Engine to finalize any in-flight file writes and network requests before exiting.
+* **Testing Environment:** Functional testing of the integrated system will be performed against a dedicated staging or private testing-only Discord server to ensure live Nomicron gameplay is completely isolated from development.
 
 #### 3. Codebase & Repository Architecture Document (New Document)
 
 * **Build System Discussion (`uv` vs `hatch`):** While `hatch` is an officially endorsed PyPA project and fantastic for generic package building, `uv` (built by Astral) is recommended for this specific multi-component project. `uv` acts as an ultra-fast, drop-in replacement for `pip`, `venv`, and `pip-tools` written in Rust. Crucially, `uv` recently introduced Cargo-style "workspace" support. This allows us to define the Parser Library, the PRM, and the Core Engine as separate packages within the same repository, seamlessly linking them together locally without needing to publish the internal library to a PyPI index or wrangle complex local file references in standard `pyproject.toml` configurations.
 * **Monorepo Organization:** The document must define a unified workspace layout. A standard approach would separate concerns clearly, for example:
-* `libs/clime-parser`: The shared parsing library.
-* `apps/core-daemon`: The main Climatomaton Discord engine.
-* `apps/git-prm`: The standalone Git-Fetch container process.
-* `tools/clime-cli`: The standalone syntax checker utility.
+  * `libs/clime-parser`: The shared parsing library.
+  * `apps/core-daemon`: The main Climatomaton Discord engine.
+  * `apps/git-prm`: The standalone Git-Fetch container process.
+  * `tools/clime-cli`: The standalone syntax checker utility.
 
+#### 4. App Wrapper Design Document (New Document)
 
+* **App Workflow Definition:**
+  * Start the event bus.
+  * Subscribe to the `app.waiting_to_initialize` and `app.ready` events.
+  * Start all other components, passing an identifier to each component.
+  * Wait for an `app.waiting_to_initialize` event from each component.
+  * If it does not receive all such events within a given time limit, cause the entire app to exit with a failure log written directly to stderr and a non-0 exit code.
+  * Publish an `app.initialize` event which all components should subscribe to.
+  * Wait for an `app.ready` event from each component.
+  * If it does not receive a `app.ready` event from all components within a given time limit (more generous since component initialization can take significant time), cause the entire app to exit with a failure log and an exit code.
+  * Publish an `app.start` event to indicate all components should begin normal operation.
+  * Wait forever for either an `app.terminate_gracefully` event or `app.abort` event.
+  * Upon receiving an `app.abort` event, log the error contained within the event directly to stderr and exit with a non-0 exit code.
+  * Upon receiving an `app.terminate_gracefully` event, it should send an `app.prepare_for_shutdown` event to all components.
+  * After receiving the `app.ready_for_shutdown` event from all components, *or* after a given timeout, exit the app gracefully.
 
-#### 4. Observability, Health Checking, and Logging Design Document (New Document)
+#### 5. Observability, Health Checking, and Logging Design Document (New Document)
 
 * **Centralization:** Standardize observability. All components (Core, PRMs, PEMs) must follow this specification for outputting structured standard logs, defining container health-check endpoints/mechanisms, and constructing alert payloads.
-* **Lifecycle Event Integration:**
-* Upon receiving the `app.initialize` event, clean up any in-flight or temporary files created by this component, ensure readiness, and publish `app.ready`.
-* Upon receiving the `app.start` event, begin normal processing.
-* Upon receiving the `app.prepare_for_shutdown` event, gracefully stop all in-flight transactions, perform necessary cleanup, and publish `app.ready_for_shutdown`.
+* Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
+* Each component, upon receiving the `app.start` event, begins normal processing.
+* Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 
-
-
-#### 5. DAC (Discord API Client) Design Document (New Document)
+#### 6. DAC (Discord API Client) Design Document (New Document)
 
 * **Discord Integration Specifics:** Define exact OAuth2 scopes (DAC).
 * **Rate Limiting:** The DAC design document must incorporate the specific logic for overall and per-source notification rate limiting.
-* **Lifecycle Event Integration:**
-* Upon receiving the `app.initialize` event, clean up any in-flight or temporary files created by this component, ensure readiness, and publish `app.ready`.
-* Upon receiving the `app.start` event, begin normal processing.
-* Upon receiving the `app.prepare_for_shutdown` event, gracefully stop all in-flight transactions, perform necessary cleanup, and publish `app.ready_for_shutdown`.
+* Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
+* Each component, upon receiving the `app.start` event, begins normal processing.
+* Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 
-
-
-#### 6. DGL (Discord Gateway Listener) Design Document (New Document)
+#### 7. DGL (Discord Gateway Listener) Design Document (New Document)
 
 * **Discord Integration Specifics:** Define exact Discord intents/permissions (DGL).
-* **Lifecycle Event Integration:**
-* Upon receiving the `app.initialize` event, clean up any in-flight or temporary files created by this component, ensure readiness, and publish `app.ready`.
-* Upon receiving the `app.start` event, begin normal processing.
-* Upon receiving the `app.prepare_for_shutdown` event, gracefully stop all in-flight transactions, perform necessary cleanup, and publish `app.ready_for_shutdown`.
+* Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
+* Each component, upon receiving the `app.start` event, begins normal processing.
+* Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 
-
-
-#### 7. Parser Library & CLI Tooling Design Document (New Document)
+#### 8. Parser Library & CLI Tooling Design Document (New Document)
 
 * **Library Specifications:** Detail the architecture of the shared Python parsing library that translates plain-English Clime files into JSON-IR.
 * **I/O Decoupling Requirement:** Explicitly specify that the library must perform no file operations. The functions for Lexing, Parsing, and Emitting must be designed to accept either static objects (strings, lists of strings, or populated AST objects) or iterators yielding the appropriate content, returning the resulting token stream, AST, or JSON-IR respectively.
 * **Error Accumulation Strategy:** The parser must implement an error recovery strategy. Instead of fast-failing via exceptions, it should accumulate syntax errors and return a structured Result object (e.g., `success`, `errors`, `ast`), allowing callers to process multiple errors simultaneously.
 * **CLI Tooling:** Define the behavior of the standalone syntax checker CLI, detailing input arguments, exit codes for CI/CD integration, file-loading wrappers, and verbose error formatting for local debugging.
 
-#### 8. Rules Engine Design Document (New Document)
+#### 9. Rules Engine Design Document (New Document)
 
 * **Dynamic Type Registry Initialization & Type Mapping:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for loaded PEM schemas. Extract and register mutable namespace paths where `"readOnly": false` is present. Strictly map JSON schema `array` types to internal tag lists, requiring the `items` definition to be `"type": "string"`.
 * **Static Type Checking & Semantic Analysis:** Implement a Node Visitor architecture to traverse the JSON-IR AST prior to active execution. Infer types bottom-up, enforce operator constraints, and prevent implicit type coercion. Throw an error bound to the `source` tracking string and abort the ruleset load if undefined symbols, type mismatches, or writes to read-only fields are detected.
 * **Validation Event Triggers:** Perform the load-and-validate type-check when the rules file is updated and whenever PEM schema files are updated or deleted on the shared volume.
-* **Lifecycle Event Integration:**
-* Upon receiving the `app.initialize` event, clean up any in-flight or temporary files created by this component, ensure readiness, and publish `app.ready`.
-* Upon receiving the `app.start` event, begin normal processing.
-* Upon receiving the `app.prepare_for_shutdown` event, gracefully stop all in-flight transactions, perform necessary cleanup, and publish `app.ready_for_shutdown`.
+* **Pause Event Processing:** Process `app.pause` and `app.unpause` events, even if the component is in initialization, to ensure it does not start up in the wrong state.
+* Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
+* Each component, upon receiving the `app.start` event, begins normal processing.
+* Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 
-
-
-#### 9. Command Parser Design Document (New Document)
+#### 10. Command Parser Design Document (New Document)
 
 * **Input Processing:** Define the logic and string-matching patterns required to identify, extract, and route bot commands and direct messages from text streams.
-* **Lifecycle Event Integration:**
-* Upon receiving the `app.initialize` event, clean up any in-flight or temporary files created by this component, ensure readiness, and publish `app.ready`.
-* Upon receiving the `app.start` event, begin normal processing.
-* Upon receiving the `app.prepare_for_shutdown` event, gracefully stop all in-flight transactions, perform necessary cleanup, and publish `app.ready_for_shutdown`.
+* Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
+* Each component, upon receiving the `app.start` event, begins normal processing.
+* Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 
-
-
-#### 10. EOT Parser Design Document (New Document)
+#### 11. EOT Parser Design Document (New Document)
 
 * **Report Extraction:** Establish the parsing architecture for pulling relevant state variables and triggering mechanics from standardized end-of-turn text reports.
-* **Lifecycle Event Integration:**
-* Upon receiving the `app.initialize` event, clean up any in-flight or temporary files created by this component, ensure readiness, and publish `app.ready`.
-* Upon receiving the `app.start` event, begin normal processing.
-* Upon receiving the `app.prepare_for_shutdown` event, gracefully stop all in-flight transactions, perform necessary cleanup, and publish `app.ready_for_shutdown`.
+* Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
+* Each component, upon receiving the `app.start` event, begins normal processing.
+* Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 
-
-
-#### 11. Environment Manager Design Document (New Document)
+#### 12. Environment Manager Design Document (New Document)
 
 * **State Tracking:** Outline the memory structures and lifecycles used to track active climate modules, environmental tags, and active modifiers during a running session.
-* **Lifecycle Event Integration:**
-* Upon receiving the `app.initialize` event, clean up any in-flight or temporary files created by this component, ensure readiness, and publish `app.ready`.
-* Upon receiving the `app.start` event, begin normal processing.
-* Upon receiving the `app.prepare_for_shutdown` event, gracefully stop all in-flight transactions, perform necessary cleanup, and publish `app.ready_for_shutdown`.
+* Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
+* Each component, upon receiving the `app.start` event, begins normal processing.
+* Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 
+#### 13. State Rehydrator Design Document (New Document)
 
-
-#### 12. State Rehydrator Design Document (New Document)
-
-* **Initialization Workflow:** Define the sequence where, upon receiving the `app.initialize` event, the component scrapes channel history to locate the last climate report or initialize to a default, and implements the pause-and-notify mechanism if newer EOT reports are found chronologically later than the most recent climate report. It must publish `app.ready` upon successful completion.
+* **Initialization Workflow:** The state rehydration workflow serves as the initialization workflow for the state rehydrator component. Upon receiving the `app.initialize` event, it requests channel history from the DAC, parses messages to populate the `climate` environment, and implements the pause-and-notify mechanism to transition the core daemon to a paused state if any end-of-turn reports are found chronologically later than the most recent climate report. When finished initializing, it publishes an `app.ready` event. Other than this initialization workflow, the state rehydrator does nothing except immediately respond to app wrapper events as appropriate.
 * **Climate Report Parsing:** Clearly designate this component's responsibility to parse climate reports, ensuring the parsing logic successfully recognizes reports generated by both the bot itself and any configured administrative users.
 * **End-of-Turn Rule Enforcement:** Explicitly enforce the rule that historical end-of-turn reports are never processed during recovery.
-* **Lifecycle Constraints:** Beyond this initialization sequence, the component remains entirely passive, doing nothing except immediately responding to `app.start` and `app.prepare_for_shutdown` (stopping any in-flight actions and publishing `app.ready_for_shutdown`) as required.
+* Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
+* Each component, upon receiving the `app.start` event, begins normal processing.
+* Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 
-#### 13. IPC Broker Design Document (New Document)
+#### 14. IPC Broker Design Document (New Document)
 
 * **Notification Payload Format:** Specify the exact JSON schema and required keys for the files dropped into the `notifications/` directory by external modules.
 * **Heartbeat Monitoring (PEMs):** Implement a "fast publish, lenient subscribe" model for tracking PEM heartbeats. While PEMs update their schema file timestamps every 30 seconds, the IPC Broker checks every 60 seconds. A PEM missing two consecutive checks (120 seconds) is considered dead, prompting the Broker to purge its stale files.
 * **Heartbeat Monitoring (PRMs):** Implement monitoring for the PRM liveness. The PRM will update the modified timestamp of `prm/active_rules.json` on a regular interval. The IPC Broker must detect this timestamp change. Upon detection, it must read the file and check the root `id` field. If the `id` matches the current active ruleset, the Broker merely updates the PRM's last-seen timestamp. If the PRM misses two consecutive heartbeat intervals, the IPC Broker must emit a system event to drop the Core Engine into a PAUSED state.
 * **Ruleset Update Event:** Specify that the `ipc.rules_updated` event is only fired if the parsed `id` from the `prm/active_rules.json` file differs from the currently loaded ruleset.
-* **Lifecycle Event Integration:**
-* Upon receiving the `app.initialize` event, clean up any in-flight or temporary files created by this component, ensure readiness, and publish `app.ready`.
-* Upon receiving the `app.start` event, begin normal processing.
-* Upon receiving the `app.prepare_for_shutdown` event, gracefully stop all in-flight transactions, perform necessary cleanup, and publish `app.ready_for_shutdown`.
+* Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
+* Each component, upon receiving the `app.start` event, begins normal processing.
+* Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 
-
-
-#### 14. Internal Event Bus Design Document (New Document)
+#### 15. Internal Event Bus Design Document (New Document)
 
 * **Broker Implementation:** Detail the internal pub/sub message broker mechanics required for asynchronous event passing between core system components.
 * **Implementation Language:** Outline that the core implementation language across the event bus and core engine components will be Python, maximizing compatibility with the shared library components.
-* **Sender Identification:** Enforce that every message processed by the message bus must be capable of identifying its sender. Require components to provide a unique identifier upon attachment, which will be automatically associated with all messages they publish.
+* **Sender Identification:** Explicitly indicate that every message received from the message bus must be able to identify its sender. When any component attaches to the message bus, it must provide an identifier to use for when it sends messages.
 
-#### 15. Shared Volume Design Document (New Document)
+#### 16. Shared Volume Design Document (New Document)
 
 * **Atomic Write Protocol:** Formally define the system-wide Atomic Write Protocol here. Specify that all files written to the shared volume must first be written to a temporary file, followed by a system rename operation. Grant processes explicit permission to arbitrarily remove any existing temporary files they strictly own before overwriting them.
 * **Volume Topology:** Detail the directory structure of the shared volume (e.g., `prm/`, `tx/`, `logs/`, `notifications/`).
 * **Decentralized Schemas:** State that this document outlines the mechanical rules of engagement, but the specific JSON schemas for the payloads remain owned by the component design documents generating them.
-
-#### 16. Central Architecture Document
-
-* **Cleanup:** Remove the Atomic Write Protocol specifics from this document, delegating them entirely to the new Shared Volume Design Document.
