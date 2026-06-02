@@ -85,21 +85,17 @@ The external parsing library is designed to accumulate syntax errors rather than
 
 1. **Abort Update:** The PRM discards the invalid AST and halts the update process.
 2. **State Preservation:** The PRM intentionally bypasses IPC delivery, ensuring the Core Daemon continues running the Last-Known-Good ruleset uninterrupted.
-3. **Observability Alert:** The PRM takes the complete array of accumulated errors provided by the library and packages them into a *single* high-priority alert payload dispatched to the `notifications/` directory. This ensures administrators receive a comprehensive list of all syntax errors in one notification, rather than a flood of individual alerts.
+3. **Observability Alert:** The PRM takes the complete array of accumulated errors provided by the library and packages them into a single high-priority alert payload dispatched to the `notifications/` directory. This ensures administrators receive a comprehensive list of all syntax errors in one notification, rather than a flood of individual alerts.
 
 ---
 
 ### Comments, New Issues, Discussion Points, and Questions
 
-**1. Compiling all errors vs. a simpler PRM model:**
-You raised an excellent point about keeping the PRM simple. Because the parser library is doing the heavy lifting of accumulating errors (as decided in the previous iteration), the PRM doesn't need complex error-handling logic. It simply receives the final "Result" object from the library. If `success` is false, the PRM just takes the `errors` array from that object and dumps it entirely into a single `sys.notification` payload. This achieves the best of both worlds: the PRM remains a very simple orchestrator, but the Discord administrators still receive a comprehensive, single-message list of every typo in the repository (which is incredibly helpful if someone bypassed CI/CD or edited files directly in the GitHub/Codeberg UI). I have updated Section 6.2 to reflect this flow.
+**1. Language Identifier & Future-Proofing:**
+Regarding the need for a language identifier (like `#! clime` or a specific frontmatter header) at the top of the `.rules` files: I strongly recommend treating this as YAGNI (You Aren't Gonna Need It), especially for a short-lived game project.
 
-**2. Convincing you on `.rules` vs. `.clime`:**
-I strongly advocate for sticking with `.rules`.
-
-* **User Intent & Clarity:** Nomicron players are not software engineers learning a new tech stack; they are playing a game. When they navigate to the repository, a folder full of `.rules` files immediately tells them *exactly* what those files do. A proprietary extension like `.clime` forces a cognitive translation ("What is a clime file? Oh, it's a rules file").
-* **Tooling Compatibility:** Generic text editors and web-based IDEs (like Codeberg's built-in file editor) will often fall back to plain-text rendering for unknown extensions. While `.rules` is also custom, it is much more commonly mapped by users to YAML or plain-text highlighters in their editors natively.
-* **Separation of Concepts:** "Clime" is a great name for the *language specification* and the *parser library* (e.g., `import clime_parser`), but the files themselves contain the game's rules. Calling them `.rules` prioritizes plain-English usability, which is the foundational design goal of this DSL. I have reverted the document to use `.rules` based on this argument, but if you still prefer `.clime` for branding purposes, we can easily swap it back!
+* **Simplicity:** The core design goal is to make these files read like plain English for players. Introducing technical boilerplate at the top breaks that illusion immediately.
+* **System Boundaries:** The system is already sufficiently future-proofed by its architecture. The Core Daemon only understands the JSON-IR. If, in a future campaign, you decide to write rules in a completely different language (e.g., Python, Lua, or a new version of Clime), you would simply swap out the PRM container for a new one that parses that new language and emits the same JSON-IR. The file extension `.rules` just tells the Git-Fetch PRM which files to grab; it's an operational configuration rather than a strict language standard.
 
 ---
 
@@ -152,8 +148,8 @@ I strongly advocate for sticking with `.rules`.
 
 #### 10. Parser Library & CLI Tooling Design Document (New Document)
 
-* **Library Specifications:** Detail the architecture of the shared Python parsing library that translates plain-English `.rules` files into JSON-IR.
-* **I/O Decoupling Requirement:** Explicitly specify that the library must perform **no file operations**. The functions for Lexing, Parsing, and Emitting must be designed to accept either static objects (strings, lists of strings, or populated AST objects) *or* iterators yielding the appropriate content, returning the resulting token stream, AST, or JSON-IR respectively.
+* **Library Specifications:** Detail the architecture of the shared Python parsing library that translates plain-English Clime files into JSON-IR.
+* **I/O Decoupling Requirement:** Explicitly specify that the library must perform no file operations. The functions for Lexing, Parsing, and Emitting must be designed to accept either static objects (strings, lists of strings, or populated AST objects) or iterators yielding the appropriate content, returning the resulting token stream, AST, or JSON-IR respectively.
 * **Error Accumulation Strategy:** The parser must implement an error recovery strategy. Instead of fast-failing via exceptions, it should accumulate syntax errors and return a structured Result object (e.g., `success`, `errors`, `ast`), allowing callers to process multiple errors simultaneously.
 * **CLI Tooling:** Define the behavior of the standalone syntax checker CLI, detailing input arguments, exit codes for CI/CD integration, file-loading wrappers, and verbose error formatting for local debugging.
 

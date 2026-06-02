@@ -122,3 +122,14 @@ as always, please process the above issues into the document and display it.  re
 5. since we now have a planned document for the codebase and repository, please move the discussions for points 3 and 4 into the pending updates for the codebase and repository architecture.
 
 as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
+
+--
+
+(had to start a new chat because the tokens ran out and it updated [poisoned] the conversation using the "lite" model)
+
+based on the uploaded architecture document, the existing design documents, the current pending document update list, and the design document for the git-fetch PRM that we've been working on in a previous conversation (plus the prompts that led to it), let's continue the conversation.
+
+1. i agree with using `.rules` as the file extension - but does that mean that we need to introduce a language identifier at the beginning of the rules file, if we want to "future-proof" against different language models coming in?  or is that too much for a project that's likely only going to be used for a few months?
+2. in the first bullet point for the parser library document, instead of referencing `.rules` files, call them Clime files.  that way the extension doesn't matter
+
+as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
