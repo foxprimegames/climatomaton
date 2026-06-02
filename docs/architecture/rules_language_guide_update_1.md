@@ -195,7 +195,7 @@ then
 
 # Clime Language Reference: Rules language specification for the Nomicron climate system
 
-This Clime Language Reference serves as the formal specification for the Clime Rule Language syntax, providing the necessary details for PRM parser developers to convert `.rules` source files into the target intermediate representation.
+This Clime Language Reference serves as the formal specification for the syntax of the rules used to manage the Nomicron climate, providing the necessary details for PRM parser developers to convert `.rules` source files into the target intermediate representation.
 
 ## 1. Lexical Structure & Grammar
 
@@ -366,7 +366,4 @@ Note: `Comment` is handled at the lexer level and may interleave between any val
 
 ### Implementation Notes
 
-* **Titles and Referencing:** The files have been explicitly titled and referenced internally as the "Clime User Guide" and "Clime Language Reference" as requested.
-* **Markdown Formatting Correction:** The typo in Section 6 of the Language Reference was corrected, changing `*Convention Note:` to `*Convention Note:*`.
-* **Restoring Details:** The explicit instruction detailing that `Comment` is handled at the lexer level was preserved at the end of Section 7 of the Language Reference.
-* **Spacing & Asterisks:** All lines end cleanly without trailing whitespace, and no independent, single-spaced double asterisks were required in code formatting, fulfilling all stylistic specifications.
+As requested, I have updated the introductory sentence of the **Clime Language Reference** to explicitly state that it serves as the formal specification for the syntax of the rules used to manage the Nomicron climate. All prior structural and formatting requirements, including removing any trailing whitespace and keeping modifications strictly to the prompt specifications, remain correctly in place.

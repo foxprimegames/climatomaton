@@ -17,3 +17,9 @@ Please update the two documents as requested.  Please render the language guide 
 5. Please restore the reference guide's section 7 note about comments being handled by the lexer.
 
 Please update the two documents as requested.  Please render the language guide first, followed by the language reference, and leave any discussion, issues, comments, or questions to after the two documents.  Please _only_ make changes as needed to exactly fulfill the prompt.  Please make sure that, if you need to represent two asterisks by themselves in code format, that you represent them as two separate code-formatted asterisks with a space in between.  Please avoid ending any text lines with whitespace.
+
+--
+
+1. In the reference introduction, say it's the formal specification for the syntax of the rules used to manage the Nomicron climate.
+
+Please update the two documents as requested.  Please render the language guide first, followed by the language reference, and leave any discussion, issues, comments, or questions to after the two documents.  Please _only_ make changes as needed to exactly fulfill the prompt.  Please make sure that, if you need to represent two asterisks by themselves in code format, that you represent them as two separate code-formatted asterisks with a space in between.  Please avoid ending any text lines with whitespace.
