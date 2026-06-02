@@ -1,0 +1,69 @@
+----
+
+(Upload in order:  architecture.md, rules_intermediate_representation_design_doc.md, rules_language_guide.md, rules_language_reference.md, git_fetch_prm_design_doc.md, pem_design_doc.md, and pending_updates.md)
+
+I have uploaded the architecture document, existing design documents, and the current pending document update list for the Nomicron climate system project.
+
+The document we are working on now is the pending document update list itself.
+
+Let's complete existing entries or add new entries into the pending document update list for every design document that needs to be written.
+
+The documents should be listed in reverse chronological order from the way order they should be completed, so that, as documents are removed from the list, other documents do not have to be renumbered.  Please include a note to that effect in the header of the document.
+
+The first priority to complete should be the overall architecture document.
+
+The last items to complete should be the codebase document and the deployment document, respectively.
+
+process the above instructions into the pending updates list and render it.  ONLY make changes to the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of the pending updates list.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+please change the title to just say "Pending design document updates"
+
+assuming that the documents i uploaded are all the design documents that exist, please mark each new design document as such.
+
+in the discussion comments, please list each component of the system and/or required or recommended architecture document and verify that each either already exists or is in the pending update list.
+
+process the above instructions into the pending updates list and render it.  ONLY make changes to the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of the pending updates list.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+please create an update entry for those five components that are not listed.
+
+for all components listed in the architecture document, please discuss (but do not yet update in the document list) any important notes to be covered in the document that are not already described in the update entry.
+
+process the above instructions into the pending updates list and render it.  ONLY make changes to the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of the pending updates list.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+1. you have the existing central architecture document, you can see that one of the core constraints is already "no inbound network connectivity".
+
+2. codeberg will not necessarily be the primary hosting platform.  this project may move to github to live on the same platform that hosts the nomicron code, but that has not yet been decided.
+
+3. why are you dictating the use of a file extension when the file extension is already dictated by the language guide?  why are you dictating unique rule ids when rules do not have ids in the intermediate representation?
+
+4. the command parser is not dealing with climate reports, it's dealing with bot commands and dms.  climate reports are only parsed in the state rehydrator.
+
+5. the state rehydrator never processes end-of-turn reports, period.  if rehydration is required, then the rehydrator initializes the climate (whether to a default or to the last climate report located), then, if there _were_ any end-of-turn reports found chronologically later than the most recent climate report, the system is paused and the administrators notified.  this is described in the central architecture document.
+
+6. why did you change the formatting and wording of existing entries in the pending update list?  i did not instruct you to do so, and you were explicitly instructed to only make changes as directed in the prompts.
+
+restore the wording and formatting of the pending update entries that you modified against instructions, keeping only the new entries that were requested.
+
+re-create the list of document notes taking the above points into consideration.
+
+process the above instructions into the pending updates list and render it.  ONLY make changes to the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of the pending updates list.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+1. i do not believe the hosting platform will have any bearing on the codebase and repository architecture.  remove that from the potential document updates under consideration.
+
+2. add the remaining notes into the pending updates list.
+
+process the above instructions into the pending updates list and render it.  ONLY make changes to the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of the pending updates list.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+1. please move the internal event bus design document to be completed immediately after the shared volume design document, as that information will be needed by all the other internal components.
+
+process the above instructions into the pending updates list and render it.  ONLY make changes to the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of the pending updates list.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
