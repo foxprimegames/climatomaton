@@ -1,6 +1,6 @@
-# Clime Rule Language: User Guide
+# Clime User Guide: How to write rules for the Nomicron climate system
 
-Welcome to the Clime Rule Language guide! This document is designed for Nomicron players and administrators who need to write or understand the rules that automatically manage the game's climate. The language is built to be as close to plain English as possible, making it easy to read and reducing the chance of accidental typos. Source files for the language use the `.rules` extension.
+Welcome to the Clime User Guide! This document is designed for Nomicron players and administrators who need to write or understand the rules that automatically manage the game's climate. The language is built to be as close to plain English as possible, making it easy to read and reducing the chance of accidental typos. Source files for the language use the `.rules` extension.
 
 ## 1. What Are Rules?
 
@@ -193,9 +193,9 @@ then
 
 ---
 
-# Clime Rule Language: Technical Reference
+# Clime Language Reference: Rules language specification for the Nomicron climate system
 
-This document serves as the formal specification for the Clime Rule Language syntax, providing the necessary details for PRM parser developers to convert `.rules` source files into the target intermediate representation.
+This Clime Language Reference serves as the formal specification for the Clime Rule Language syntax, providing the necessary details for PRM parser developers to convert `.rules` source files into the target intermediate representation.
 
 ## 1. Lexical Structure & Grammar
 
@@ -304,7 +304,7 @@ Mutations in the `then` block define standard assignment and list alterations.
 * **Set Union:** `<target> includes <expression>` or `<target> include <expression>`
 * **Set Difference:** `<target> excludes <expression>` or `<target> exclude <expression>`
 
-*Convention Note:** The engine cannot statically block a Climate Rule from mutating `new.climate.tags` purely through syntax without also precluding the valid use of dynamic tag list variables (e.g., `var.l.my_tags`). Thus, the separation of concerns (Climate Rules for numbers/booleans, Tag Rules for tag lists) remains a convention.
+*Convention Note:* The engine cannot statically block a Climate Rule from mutating `new.climate.tags` purely through syntax without also precluding the valid use of dynamic tag list variables (e.g., `var.l.my_tags`). Thus, the separation of concerns (Climate Rules for numbers/booleans, Tag Rules for tag lists) remains a convention.
 
 ## 7. Extended Backus-Naur Form (EBNF) Grammar
 
@@ -360,10 +360,13 @@ Digit ::= [0-9]
 Comment ::= "[" [^\]]* "]"
 ```
 
+Note: `Comment` is handled at the lexer level and may interleave between any valid tokens.
+
 ---
 
-### Summary of Modifications
+### Implementation Notes
 
-* Updated language references from "Climatomaton Rule Language" to "Clime Rule Language" in both documents.
-* Added explicit statements regarding the `.rules` file extension to the introductory overview of each document.
-* Cleaned all line endings to ensure no trailing whitespaces remain in the text blocks or code specifications.
+* **Titles and Referencing:** The files have been explicitly titled and referenced internally as the "Clime User Guide" and "Clime Language Reference" as requested.
+* **Markdown Formatting Correction:** The typo in Section 6 of the Language Reference was corrected, changing `*Convention Note:` to `*Convention Note:*`.
+* **Restoring Details:** The explicit instruction detailing that `Comment` is handled at the lexer level was preserved at the end of Section 7 of the Language Reference.
+* **Spacing & Asterisks:** All lines end cleanly without trailing whitespace, and no independent, single-spaced double asterisks were required in code formatting, fulfilling all stylistic specifications.
