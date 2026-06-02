@@ -1,11 +1,7 @@
 ----
 
-Based on the uploaded architecture document (and prompts that generated and updated it), the existing rules intermediate language document (and prompts that generated it), and the pending updates list, we need to process the updates for the intermediate language.
+I have uploaded the architecture document, other design documents, language guide and reference, and pending document updates list for the Nomicron climate system "climatomaton".
 
-as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
+please implement the update(s) requested for the rules intermediate representation design document.
 
---
-
-The pem design document already includes the information suggested in the update list.
-
-as always, please process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  place any comments, new issues, other discussion points, or questions after the end of the document.  please also include the full list of updates needed to any other documents that were mentioned in this prompt or response or any previous prompt or response; place that list of updates after any comments, new issues, discussion points, and questions.  finally, please avoid any trailing spaces in your output.
+process the above issues into the document and display it.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  always place any comments, new issues, other discussion points, or questions after the end of the document.  always include the full list of updates needed to any other documents that were mentioned in this prompt or response, any previous prompt or response, or the uploaded updates document; place that list of updates after any comments, new issues, discussion points, and questions.  ONLY make changes to the document or pending updates list that were discussed in the prompt.  avoid any trailing spaces in your output.
