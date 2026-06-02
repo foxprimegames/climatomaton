@@ -203,6 +203,7 @@ To decouple the PRM's source-language parser from the Core Daemon's execution en
 ```json
 {
   "kind": "ruleset", // Always "ruleset" to identify the root document node
+  "id": "ruleset_v1_0_0", // A unique tracking identifier for the specific version of the ruleset
   "climate_rules": [ // Ordered array of rule objects executed first
     {
       /* Rule Object */
@@ -337,6 +338,7 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
   "type": "object",
   "properties": {
     "kind": { "const": "ruleset" },
+    "id": { "type": "string" },
     "climate_rules": {
       "type": "array",
       "items": { "$ref": "#/$defs/rule" }
@@ -346,7 +348,7 @@ This formally defines the validation constraints for the JSON-IR payload sent fr
       "items": { "$ref": "#/$defs/rule" }
     }
   },
-  "required": ["kind", "climate_rules", "tag_rules"],
+  "required": ["kind", "id", "climate_rules", "tag_rules"],
   "additionalProperties": false,
   "$defs": {
     "identifier": {
