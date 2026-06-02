@@ -187,27 +187,14 @@ The specific mechanism for identifying and authorizing Administrators (e.g., ver
 
 ## 8. App Workflow
 
-1. start the event bus.
-2. subscribe to the "waiting to initialize" and "ready" events.
-3. start all other components, passing an identifier to each component.
-4. wait for a "waiting to initialize" event from each component.
-5. if it does not receive all such events within a given time limit, cause the entire app to exit with a failure log written directly to stderr and a non-0 exit code.
-6. publish an "initialize" event which all components should subscribe to.
-7. wait for a "ready" event from each component.
-8. if it does not receive a "ready" event from all components within a given time limit (more generous since component initialization can take significant time), cause the entire app to exit with a failure log and an exit code.
-9. publish a "start" event to indicate all components should begin normal operation.
-10. wait forever for either a "terminate gracefully" event or "abort" event.
-11. upon receiving an "abort" event, log the error contained within the event directly to stderr and exit with a non-0 exit code.
-12. upon receiving a "terminate gracefully" event, it should send a "prepare for shutdown" event to all components.
-13. after receiving the "ready for shutdown" event from all components, *or* after a given timeout, exit the app gracefully.
+The App Wrapper coordinates the lifecycle of all system components through a strict procedural sequence. It begins by starting the internal event bus and subscribing to necessary initialization and readiness events. It then launches all other components, passing unique identifiers to each, and waits for them to signal they are ready to initialize. Upon receiving these signals, the App Wrapper publishes a global initialization event, waits for all components to report they are ready, and then broadcasts a start event to commence normal operations. The App Wrapper then waits indefinitely for a signal to abort or terminate gracefully. If an abort signal is received, it logs the error and immediately exits with a failure code. If a graceful termination signal is received, it instructs all components to prepare for shutdown and exits gracefully once all components confirm their readiness or a predefined timeout is reached.
 
 ---
 
 ### Comments & Discussion Points
 
-* The diagrams section has been entirely removed from the central architecture document as requested.
-* The requirement to document the system event flow and lifecycle diagrams has been systematically appended to the pending update requirements for all applicable component-level design documents.
-* In the Deployment Architecture Document pending updates, the `Configuration Management` item has been strictly modified to note that the *method* of passing configuration information must be defined, removing the hardcoded requirement for a specific mounted configuration file.
+* Section 8 has been transformed into a concise narrative summary. The granular, step-by-step logic will reside in the pending App Wrapper Design Document.
+* The Parser Library & CLI Tooling pending update document has been restored strictly to your original wording regarding "plain-English Clime files," reversing my accidental alteration.
 
 ---
 
@@ -286,7 +273,7 @@ The specific mechanism for identifying and authorizing Administrators (e.g., ver
 
 #### 8. Parser Library & CLI Tooling Design Document (New Document)
 
-* **Library Specifications:** Detail the architecture of the shared Python parsing library that translates plain-English `.rules` files into JSON-IR.
+* **Library Specifications:** Detail the architecture of the shared Python parsing library that translates plain-English Clime files into JSON-IR.
 * **I/O Decoupling Requirement:** Explicitly specify that the library must perform no file operations. The functions for Lexing, Parsing, and Emitting must be designed to accept either static objects (strings, lists of strings, or populated AST objects) or iterators yielding the appropriate content, returning the resulting token stream, AST, or JSON-IR respectively.
 * **Error Accumulation Strategy:** The parser must implement an error recovery strategy. Instead of fast-failing via exceptions, it should accumulate syntax errors and return a structured Result object (e.g., `success`, `errors`, `ast`), allowing callers to process multiple errors simultaneously.
 * **CLI Tooling:** Define the behavior of the standalone syntax checker CLI, detailing input arguments, exit codes for CI/CD integration, file-loading wrappers, and verbose error formatting for local debugging.
