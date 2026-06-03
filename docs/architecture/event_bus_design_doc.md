@@ -24,7 +24,7 @@ Every message traversing the bus must be explicitly traceable to its origin. To 
 
 ## 4. Topic Registry
 
-The bus strictly manages the following predefined topics to route data between the Core Daemon and its pluggable subsystems.
+The bus strictly manages the following currently defined topics to route data between the Core Daemon and its pluggable subsystems.
 
 | Topic | Publisher | Subscriber(s) | Payload / Data Communicated |
 | --- | --- | --- | --- |
@@ -51,7 +51,7 @@ The bus strictly manages the following predefined topics to route data between t
 
 ## 5. Event and Response Envelopes
 
-To standardize communication, the `EventBusWrapper` strictly enforces a generic schema for all messages and their corresponding asynchronous replies.
+To standardize communication, the `EventBusWrapper` strictly enforces a generic schema for all messages and implements a strict lifecycle for managing responses.
 
 ### 5.1 Event Schema
 
@@ -63,20 +63,27 @@ When a publisher dispatches a payload, the wrapper constructs an `Event` object 
 * **`timestamp_utc`**: An ISO-8601 formatted UTC timestamp.
 * **`payload`**: The generic, topic-specific data payload (can accommodate arbitrary structures based on the event type).
 
-### 5.2 Response Schema
+### 5.2 Response Lifecycle & Schema
 
-For events that require or trigger a direct return structure, the subscriber returns a `Response` object containing:
+When a subscriber receives an `Event`, it processes the payload and determines the response lifecycle by returning a value to the wrapper. The wrapper evaluates the return value as follows:
+
+* **No Response:** The subscriber returns `None`. The wrapper takes no further action, and no response event is generated.
+* **Successful Response:** The subscriber returns a generic data payload. The wrapper constructs a `Response` object containing the originating `event_id`, a `status` of `"success"`, and the returned payload. The wrapper then encapsulates this `Response` within a new `Event` object and publishes it back to the original publisher.
+* **Exception State:** The subscriber raises an unhandled exception. The wrapper intercepts the exception and proceeds to the error handling procedure outlined in Section 6.
+
+**Response Schema:**
+When generated, the encapsulated `Response` object contains:
 
 * **`event_id`**: The UUID matching the original `Event`.
-* **`status`**: A string indicating the outcome (e.g., `success` or `error`).
-* **`data`**:
-  * If `status` is `success`, this contains the successful custom response payload.
-  * If `status` is `error`, this contains the serialized exception information and stack trace.
+* **`status`**: A string indicating `"success"` or `"exception"`.
+* **`data`**: The custom payload or the serialized exception details.
 
 ## 6. Error Handling & Isolation
 
 Because subscriber callbacks execute asynchronously within the native event loop, the `EventBusWrapper` implements a strict isolation and logging policy to maintain system stability.
 
 1. **Execution Wrapping:** The wrapper executes all subscriber callbacks within a safe `try/except` block.
-2. **Exception Capture:** If a subscriber raises an unhandled exception, it is caught by the wrapper, preventing the background broker loop from crashing. The wrapper then constructs an `error` status `Response` containing the exception data.
-3. **Logging & Recursive Guard:** Upon catching an exception, the wrapper automatically attempts to publish a `sys.log` event to route the error to the Logging Manager. To prevent infinite recursive error loops (e.g., if a failure occurs while processing the `sys.log` event itself), the wrapper utilizes a strict fallback. If an exception occurs *during* the handling or dispatch of an error event, the wrapper bypasses the event bus entirely and dumps the critical failure directly to standard error (`stderr`).
+2. **Exception Capture & Routing:** If a subscriber raises an unhandled exception, the wrapper intercepts it to prevent the background broker loop from crashing. It then evaluates the originating event to prevent recursive error loops:
+  * If the originating `Event` already contained a `Response` object with a `status` of `"exception"`, the wrapper bypasses the event bus entirely and dumps the new exception directly to standard error (`stderr`).
+  * If the originating `Event` did not contain a `Response` object, or the wrapped `Response` object did not have a `status` of `"exception"`, the wrapper constructs a `Response` object containing the originating `event_id`, a `status` of `"exception"`, and the serialized exception data. This `Response` object is then wrapped in a new `Event` and published back to the original publisher.
+  * *Note:* Independently of the response routing above, the wrapper also generates and publishes a standard `sys.log` event detailing the intercepted exception to ensure it reaches the Logging Manager.

@@ -34,3 +34,24 @@ process the above instructions into the document under discussion and render it.
 to address both issues: let's define a _generic_ schema for an event and a response that can have custom payloads based on event types.  the response should indicate whether the event was processed successfully, in which case the response will contain the successful event response data, or raised an exception, in which case the response will contain the exception information.  i agree that the exception should also be logged (which entails another event being published to the logging manager, which means there needs to be a way to catch recursively-generated error responses)
 
 process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+1. for the list of topics, use the descriptor "currently defined" topics.
+2. does this make sense for how response objects are managed?
+   * for section 5.2, the subscriber should return a generic (to the event system) payload to be returned to the publisher, should return `None` to indicate no payload to be returned to the publisher, or should raise an exception to indicate an error state.
+   * if the subscriber returns None, then no response event is sent back to the publisher.
+   * if the subscriber returns a payload, the wrapper should take that payload and wrap it in an Response object containing the originating event's id and a status of "success", then wrap that Response object in a new event object for delivery to the original publisher.
+   * if the subscriber raises an exception, then the wrapper should go through the error handling procedure:
+     * if the original event wrapped a Response object with a status of `exception`, then send this exception directly to `stderr`.
+     * if the original event did not wrap a Response object, or the wrapped Response object did not have a status of `exception`, then wrap the exception in a Response object containing the originating event's id and a status of "exception" and wrap that Response object in a new event object for delivery to the original publisher.
+
+if there is a better way to structure that response generation logic, do so.
+
+i do not fully understand the pub/sub broker described in the reference article, so these questions / assumptions may be trivial:
+
+1. i assume that publishing an event returns immediately without waiting for the event to be consumed.
+2. does the wrapper return the event id, or even the full event object, to the publisher?
+3. i assume that, when the event broker calls the subscribers, it does so asynchronously so all subscribers are running "in parallel" and the event broker continues to immediately respond to new events being published.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
