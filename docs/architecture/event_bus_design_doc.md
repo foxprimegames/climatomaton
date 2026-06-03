@@ -68,15 +68,17 @@ When a publisher dispatches a payload, the wrapper constructs an `Event` object 
 When a subscriber receives an `Event`, it processes the payload and determines the response lifecycle by returning a value to the wrapper. The wrapper evaluates the return value as follows:
 
 * **No Response:** The subscriber returns `None`. The wrapper takes no further action, and no response event is generated.
-* **Successful Response:** The subscriber returns a generic data payload. The wrapper constructs a `Response` object containing the originating `event_id`, a `status` of `"success"`, and the returned payload. The wrapper then encapsulates this `Response` within a new `Event` object and publishes it back to the original publisher.
+* **Successful Response:** The subscriber returns a generic data payload. The wrapper constructs a `Response` object containing the originating event's ID assigned to `correlation_id`, a `status` of `"success"`, and the returned payload. The wrapper then encapsulates this `Response` within a new `Event` object and publishes it back to the original publisher.
 * **Exception State:** The subscriber raises an unhandled exception. The wrapper intercepts the exception and proceeds to the error handling procedure outlined in Section 6.
 
 **Response Schema:**
 When generated, the encapsulated `Response` object contains:
 
-* **`event_id`**: The UUID matching the original `Event`.
+* **`correlation_id`**: The UUID matching the `event_id` of the original `Event` that triggered the response.
 * **`status`**: A string indicating `"success"` or `"exception"`.
-* **`data`**: The custom payload or the serialized exception details.
+* **`data`**:
+  * For `"success"`: The custom payload returned by the subscriber.
+  * For `"exception"`: An error payload explicitly containing both the exception instance itself and the traceback object (as tracebacks are not always cleanly attached depending on how the loop caught them).
 
 ## 6. Error Handling & Isolation
 
@@ -84,6 +86,6 @@ Because subscriber callbacks execute asynchronously within the native event loop
 
 1. **Execution Wrapping:** The wrapper executes all subscriber callbacks within a safe `try/except` block.
 2. **Exception Capture & Routing:** If a subscriber raises an unhandled exception, the wrapper intercepts it to prevent the background broker loop from crashing. It then evaluates the originating event to prevent recursive error loops:
-  * If the originating `Event` already contained a `Response` object with a `status` of `"exception"`, the wrapper bypasses the event bus entirely and dumps the new exception directly to standard error (`stderr`).
-  * If the originating `Event` did not contain a `Response` object, or the wrapped `Response` object did not have a `status` of `"exception"`, the wrapper constructs a `Response` object containing the originating `event_id`, a `status` of `"exception"`, and the serialized exception data. This `Response` object is then wrapped in a new `Event` and published back to the original publisher.
-  * *Note:* Independently of the response routing above, the wrapper also generates and publishes a standard `sys.log` event detailing the intercepted exception to ensure it reaches the Logging Manager.
+   * If the originating `Event` already contained a `Response` object with a `status` of `"exception"`, the wrapper bypasses the event bus entirely and dumps the new exception directly to standard error (`stderr`).
+   * If the originating `Event` did not contain a `Response` object, or the wrapped `Response` object did not have a `status` of `"exception"`, the wrapper constructs a `Response` object containing the originating event's ID assigned to `correlation_id`, a `status` of `"exception"`, and the exception payload (the exception and traceback). This `Response` object is then wrapped in a new `Event` and published back to the original publisher.
+3. **Logging & Recursive Guard:** Independently of the response routing above, the wrapper also attempts to generate and publish a standard `sys.log` event detailing the intercepted exception to ensure it reaches the Logging Manager. To prevent infinite recursive error loops (e.g., if the Logging Manager itself crashes while processing a log event), the wrapper inspects the `topic` of the originating `Event`. If the originating `topic` was `sys.log`, the wrapper assumes the observability pipeline is compromised. It skips publishing a new `sys.log` event and instead dumps the critical failure and traceback directly to `stderr`.
