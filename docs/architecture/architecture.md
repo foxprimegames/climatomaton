@@ -85,7 +85,7 @@ Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by 
 * **Environment Data Publication:** As soon as practical after the schema file is written, and whenever the represented content changes thereafter, the PEM must write its structured environment data (excluding the PEM's namespace prefix itself) to `pems/{pem_namespace}.json` on the shared volume. Updates must be performed using the Atomic Write Protocol to ensure the Rules Engine never reads partial state. The exact specification of this environment file will be defined in the Pluggable Environment Module (PEM) Design Document.
 * **Transaction Commit:** If rules mutate a PEM namespace, the Rules Engine generates a diff and writes it to `tx/req_{tx_id}_{namespace}.json` on the shared volume. The specific format of this transaction diff file is defined in the Pluggable Environment Module (PEM) Design Document.
 * **Acknowledgment:** The PEM detects and processes the transaction request from the shared volume, then writes an acknowledgment to `tx/ack_{tx_id}_{namespace}.json`. The specific format of this acknowledgment file is also defined in the PEM Design Document.
-* **Transaction Cleanup:** The IPC Broker detects the ACK file and fires an `ipc.pem_ack` event. Once the Rules Engine successfully posts the Discord report via the DAC, the IPC Broker deletes both the `req` and `ack` files from the volume.
+* **Transaction Cleanup:** The IPC Broker detects the ACK file and fires an `ipc.pem_ack` to the Event Bus. Once the Rules Engine successfully posts the Discord report via the DAC, the IPC Broker deletes both the `req` and `ack` files from the volume.
 * **PEM Deregistration/Cleanup:** If a PEM crashes and fails to update its schema file within the heartbeat TTL (Time-To-Live), the Environment Manager automatically unloads the schema from memory, and the IPC Broker deletes both the stale `{pem_namespace}.schema.json` and `{pem_namespace}.json` files from the volume.
 
 ### 4.3 Logging & Notification Protocol
@@ -193,8 +193,8 @@ The App Wrapper coordinates the lifecycle of all system components through a str
 
 ### Comments & Discussion Points
 
-* Section 8 has been transformed into a concise narrative summary. The granular, step-by-step logic will reside in the pending App Wrapper Design Document.
-* The Parser Library & CLI Tooling pending update document has been restored strictly to your original wording regarding "plain-English Clime files," reversing my accidental alteration.
+* **Restoring the Logging & Observability Manager:** As requested, the component has been restored as Item 10 in Section 2.2, shifting the App Wrapper down to Item 11.
+* **Splitting the Pending Updates:** The pending updates section has been updated. The previous unified observability entry is now successfully divided into a high-level procedure tracking document (Item 5) and a concrete component design document (Item 6) complete with its lifecycle and workflow diagram tracking.
 
 ---
 
@@ -246,15 +246,19 @@ The App Wrapper coordinates the lifecycle of all system components through a str
   * After receiving the `app.ready_for_shutdown` event from all components, *or* after a given timeout, exit the app gracefully.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 5. Observability, Health Checking, and Logging Design Document (New Document)
+#### 5. Health Checking and Observability Procedures Document (New Document)
 
-* **Centralization:** Standardize observability. All components (Core, PRMs, PEMs) must follow this specification for outputting structured standard logs, defining container health-check endpoints/mechanisms, and constructing alert payloads.
+* **Procedures:** Standardize general health checking and observability procedures to be followed by all components (Core, PRMs, PEMs) for outputting structured standard logs, defining container health-check endpoints/mechanisms, and constructing alert payloads.
+
+#### 6. Logging & Observability Manager Design Document (New Document)
+
+* **Component Specifications:** Detail the internal architecture, event handling, routing logic, and data structures of the Logging & Observability Manager component.
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
 * Each component, upon receiving the `app.start` event, begins normal processing.
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 6. DAC (Discord API Client) Design Document (New Document)
+#### 7. DAC (Discord API Client) Design Document (New Document)
 
 * **Discord Integration Specifics:** Define exact OAuth2 scopes (DAC).
 * **Rate Limiting:** The DAC design document must incorporate the specific logic for overall and per-source notification rate limiting.
@@ -263,7 +267,7 @@ The App Wrapper coordinates the lifecycle of all system components through a str
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 7. DGL (Discord Gateway Listener) Design Document (New Document)
+#### 8. DGL (Discord Gateway Listener) Design Document (New Document)
 
 * **Discord Integration Specifics:** Define exact Discord intents/permissions (DGL).
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
@@ -271,15 +275,14 @@ The App Wrapper coordinates the lifecycle of all system components through a str
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 8. Parser Library & CLI Tooling Design Document (New Document)
+#### 9. Parser Library & CLI Tooling Design Document (New Document)
 
 * **Library Specifications:** Detail the architecture of the shared Python parsing library that translates plain-English Clime files into JSON-IR.
 * **I/O Decoupling Requirement:** Explicitly specify that the library must perform no file operations. The functions for Lexing, Parsing, and Emitting must be designed to accept either static objects (strings, lists of strings, or populated AST objects) or iterators yielding the appropriate content, returning the resulting token stream, AST, or JSON-IR respectively.
 * **Error Accumulation Strategy:** The parser must implement an error recovery strategy. Instead of fast-failing via exceptions, it should accumulate syntax errors and return a structured Result object (e.g., `success`, `errors`, `ast`), allowing callers to process multiple errors simultaneously.
 * **CLI Tooling:** Define the behavior of the standalone syntax checker CLI, detailing input arguments, exit codes for CI/CD integration, file-loading wrappers, and verbose error formatting for local debugging.
-* **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 9. Rules Engine Design Document (New Document)
+#### 10. Rules Engine Design Document (New Document)
 
 * **Dynamic Type Registry Initialization & Type Mapping:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for loaded PEM schemas. Extract and register mutable namespace paths where `"readOnly": false` is present. Strictly map JSON schema `array` types to internal tag lists, requiring the `items` definition to be `"type": "string"`.
 * **Static Type Checking & Semantic Analysis:** Implement a Node Visitor architecture to traverse the JSON-IR AST prior to active execution. Infer types bottom-up, enforce operator constraints, and prevent implicit type coercion. Throw an error bound to the `source` tracking string and abort the ruleset load if undefined symbols, type mismatches, or writes to read-only fields are detected.
@@ -290,7 +293,7 @@ The App Wrapper coordinates the lifecycle of all system components through a str
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 10. Command Parser Design Document (New Document)
+#### 11. Command Parser Design Document (New Document)
 
 * **Input Processing:** Define the logic and string-matching patterns required to identify, extract, and route bot commands and direct messages from text streams.
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
@@ -298,7 +301,7 @@ The App Wrapper coordinates the lifecycle of all system components through a str
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 11. EOT Parser Design Document (New Document)
+#### 12. EOT Parser Design Document (New Document)
 
 * **Report Extraction:** Establish the parsing architecture for pulling relevant state variables and triggering mechanics from standardized end-of-turn text reports.
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
@@ -306,7 +309,7 @@ The App Wrapper coordinates the lifecycle of all system components through a str
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 12. Environment Manager Design Document (New Document)
+#### 13. Environment Manager Design Document (New Document)
 
 * **State Tracking:** Outline the memory structures and lifecycles used to track active climate modules, environmental tags, and active modifiers during a running session.
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
@@ -314,7 +317,7 @@ The App Wrapper coordinates the lifecycle of all system components through a str
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 13. State Rehydrator Design Document (New Document)
+#### 14. State Rehydrator Design Document (New Document)
 
 * **Initialization Workflow:** The state rehydration workflow serves as the initialization workflow for the state rehydrator component. Upon receiving the `app.initialize` event, it requests channel history from the DAC, parses messages to populate the `climate` environment, and implements the pause-and-notify mechanism to transition the core daemon to a paused state if any end-of-turn reports are found chronologically later than the most recent climate report. When finished initializing, it publishes an `app.ready` event. Other than this initialization workflow, the state rehydrator does nothing except immediately respond to app wrapper events as appropriate.
 * **Climate Report Parsing:** Clearly designate this component's responsibility to parse climate reports, ensuring the parsing logic successfully recognizes reports generated by both the bot itself and any configured administrative users.
@@ -324,7 +327,7 @@ The App Wrapper coordinates the lifecycle of all system components through a str
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 14. IPC Broker Design Document (New Document)
+#### 15. IPC Broker Design Document (New Document)
 
 * **Notification Payload Format:** Specify the exact JSON schema and required keys for the files dropped into the `notifications/` directory by external modules.
 * **Heartbeat Monitoring (PEMs):** Implement a "fast publish, lenient subscribe" model for tracking PEM heartbeats. While PEMs update their schema file timestamps every 30 seconds, the IPC Broker checks every 60 seconds. A PEM missing two consecutive checks (120 seconds) is considered dead, prompting the Broker to purge its stale files.
@@ -335,16 +338,14 @@ The App Wrapper coordinates the lifecycle of all system components through a str
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 15. Internal Event Bus Design Document (New Document)
+#### 16. Internal Event Bus Design Document (New Document)
 
 * **Broker Implementation:** Detail the internal pub/sub message broker mechanics required for asynchronous event passing between core system components.
 * **Implementation Language:** Outline that the core implementation language across the event bus and core engine components will be Python, maximizing compatibility with the shared library components.
 * **Sender Identification:** Explicitly indicate that every message received from the message bus must be able to identify its sender. When any component attaches to the message bus, it must provide an identifier to use for when it sends messages.
-* **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 16. Shared Volume Design Document (New Document)
+#### 17. Shared Volume Design Document (New Document)
 
 * **Atomic Write Protocol:** Formally define the system-wide Atomic Write Protocol here. Specify that all files written to the shared volume must first be written to a temporary file, followed by a system rename operation. Grant processes explicit permission to arbitrarily remove any existing temporary files they strictly own before overwriting them.
 * **Volume Topology:** Detail the directory structure of the shared volume (e.g., `prm/`, `tx/`, `logs/`, `notifications/`).
 * **Decentralized Schemas:** State that this document outlines the mechanical rules of engagement, but the specific JSON schemas for the payloads remain owned by the component design documents generating them.
-* **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.

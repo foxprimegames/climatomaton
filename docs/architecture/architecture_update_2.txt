@@ -73,3 +73,16 @@ process the above instructions into the document under discussion and render it.
 2. you changed the wording of the library specifications header in the parser library pending document.  undo that.  ONLY MAKE CHANGES THAT ARE INSTRUCTED.
 
 process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+1. observability, health checking, and logging are concepts that need to be implemented; they are not core components.
+2. the parser library is not a core component; it is a library that is used by external tooling and the PRMs.
+3. the internal event bus does not implement any workflows; it is the method by which the other workflows are implemented.
+4. the shared volume is an ipc mechanism, not a core component.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+(after being informed about the logging/observability component :eyeroll:)
+
+my apologies:  i forgot that the observability and logging manager _is_ a component.  please restore that to the component list.  the pending update needs to be split between the design doc _for that component_ and the general health checking and obsevability procedures to be followed by everything.
