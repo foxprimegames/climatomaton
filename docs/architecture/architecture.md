@@ -35,7 +35,7 @@ Climatomaton consists of the **Core Daemon** and its **Pluggable Subprocesses** 
 8. **State Rehydrator:** A high-level logic process that calls the DAC to fetch historical messages on startup and passes them to the `ClimateReport` object to establish the initial `climate.` namespace.
 9. **File-Based IPC Broker:** Manage local communication with the PRM and PEMs via shared container volumes. It utilizes file system event watchers (`inotify`) to detect changes and translates them into internal events.
 10. **Logging & Observability Manager:** A centralized component that ingests all logs, observability metrics, and notifications from the Core Daemon, PRM, and PEMs. It formats these for the local system and selectively routes high-severity alerts to Discord administrators.
-11. **App Wrapper:** Ensures all core engine components are started up, initialized, and transitioned to active processing in the appropriate sequence, supervising the overall application lifecycle.
+11. **App Wrapper:** Ensures all core engine components are started up, initialized, and transitioned to active processing in the appropriate sequence, supervising the overall application lifecycle. It acts as the central health management framework and coordinator for all internal components, executing deeper runtime validation than standard process tracking.
 
 ---
 
@@ -63,6 +63,8 @@ To guarantee the DGL never blocks and to maintain a fully event-driven execution
 | `app.ready_for_shutdown` | All Components | App Wrapper | `component_id` |
 | `app.pause` | State Rehydrator, Command Parser | Rules Engine, Core Daemon | `reason` |
 | `app.unpause` | Command Parser | Rules Engine, Core Daemon | `reason` |
+| `app.health_query` | App Wrapper | All Components | `query_payload` (JSON) |
+| `app.health_response` | All Components | App Wrapper | `status_payload` (JSON) |
 
 ---
 
