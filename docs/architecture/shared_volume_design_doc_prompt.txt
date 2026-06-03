@@ -9,3 +9,19 @@ This session will be working on the shared volume design document.
 Create an intial version of that document based on the information in the uploaded files.
 
 Process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  Always place any comments, new issues, other discussion points, or questions after the end of document.  Always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  Remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  Avoid any trailing spaces in your output.
+
+--
+
+1. discuss moving the transactional files into the `pems` directory rather than having a separate `tx` directory.  alternatively, the `tx` directory could be moved into the `pems` directory.  what are the pros and cons for each?
+2. discuss using the shared volume as a health check for every component and pluggable module, for example, by using a directory such as `health/` and having each component, the PRM, and each PEM indicate that it is still running by touching a file in that directory.  with the understanding that it is not a full health check, what are the pros and cons of this solution?
+
+Process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  Always place any comments, new issues, other discussion points, or questions after the end of document.  Always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  Remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  Avoid any trailing spaces in your output.
+
+(after the requested discussions were added directly into the design doc...)
+
+please move the discussions out of the document and into the comments section.
+
+(after reading the discussions...)
+
+1. i agree to keep the transaction files in a top-level `tx` directory.  however, i would like the file name format to change to have the PEM namespace at the start of the filename, rather than the end.
+2. agreed that the file-based heartbeat is a shallow liveness check.  however, given that one of the core restraints is _no inbound connectivity_ to the containers, what is your recommendation for implementing a health check?
