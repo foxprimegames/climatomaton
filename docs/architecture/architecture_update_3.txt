@@ -1,0 +1,15 @@
+reformatting mapping for nested lists under a bullet point:
+
+:map q :.,/^$/s;^*;  *;<CR>+
+
+----
+
+(upload architecture.md and the pending updates list)
+
+Given the uploaded architecture and pending updates list, please process the pending update for the architecture document.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+(after reviewing the output)
+
+please remove the note about the master event registry expansion.
