@@ -1,3 +1,7 @@
+reformatting mapping for nested lists under a bullet point:
+
+:map q :.,/^$/s;^*;  *;<CR>+
+
 ----
 
 (upload: architecture.md, pem_design_doc.md, git_fetch_prm_design_doc.md, pending_updates.md)
@@ -25,3 +29,26 @@ please move the discussions out of the document and into the comments section.
 
 1. i agree to keep the transaction files in a top-level `tx` directory.  however, i would like the file name format to change to have the PEM namespace at the start of the filename, rather than the end.
 2. agreed that the file-based heartbeat is a shallow liveness check.  however, given that one of the core restraints is _no inbound connectivity_ to the containers, what is your recommendation for implementing a health check?
+
+--
+
+in the comments, discuss:
+what if the app wrapper was given responsibility of monitoring the health status of the individual components, and keeps a file updated (either in the epheneral container filesystem or the shared volume) with that health status?
+a set of events could be added to the central architecture and app wrapper component design doc that allow the app wrapper to query the health of every component.
+any component that responds and indicates it is not healthy, or doesn't respond within a time limit, is marked as unhealthy.
+the file could report an overall health (unhealthy if any component is unhealthy) and the sets of healthy and unhealthy components.
+if the file's timestamp is too old, that means the app wrapper itself is unhealthy and so the entire system cannot be trusted.
+
+Process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  Always place any comments, new issues, other discussion points, or questions after the end of document.  Always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  Remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  Avoid any trailing spaces in your output.
+
+(after seeing the discussion points repeated with no "discussion", and a rehash of the questions from the previous prompts)
+
+the discussions about the `tx` directory and the shared volume file-based health system can be closed; i mostly agreed with your logic.  the app wrapper event-based health system was a possible partial solution for the non-shared-volume-file-based health check system.  i wanted to start a _discussion_ about that app wrapper event-based system, not just have you repeat it with a different format.
+
+(after reviewing the discussion)
+
+formalize that decision in the pending updates list for the app wrapper component.  also add it to a pending update for the central architecture document (at the end of the list so it's next to be processed); the health management aspect of the app wrapper needs to be described and the events need to be added to the full event list.
+
+(after seeing the central architecture document described as "new")
+
+the central architecture document is not new; it was uploaded at the beginning of this conversation.
