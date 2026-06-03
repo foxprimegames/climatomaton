@@ -4,37 +4,23 @@
 
 The Internal Event Bus is the central messaging backbone of the Core Daemon. It operates as an entirely in-memory, lightweight Pub/Sub broker, facilitating asynchronous Event-Driven Architecture (EDA) across all components. To strictly adhere to the requirement for a stateless system, the event bus utilizes no external database or persistent message queue services (such as Redis or RabbitMQ). It routes ephemeral data payloads instantly to active subscribers, ensuring that input/output operations remain decoupled from core logic execution.
 
-## 2. Implementation Options for Python 3
+## 2. Implementation Strategy
 
-To satisfy the strict system constraints—requiring **no external message broker** and **no synchronous solutions**—the architecture must rely entirely on native Python 3 asynchronous primitives. Below is an evaluation of the primary pathways, including the specific architecture proposed by Hash Block.
+The Event Bus utilizes a pure-Python, asynchronous callback engine based on the architecture described in ["How I built an in-memory Pub/Sub engine in Python with only 80 lines" by Hash Block](https://medium.com/@connect.hashblock/how-i-built-an-in-memory-pub-sub-engine-in-python-with-only-80-lines-eb42d30f0160).
 
-### Option A: Standard Library `asyncio.Queue` Custom Broker
+This specific implementation is a structural design pattern consisting of a single, highly optimized class utilizing `asyncio` and `defaultdict`. It is not available as a standalone PyPI package. By integrating this source code directly into the shared libraries, the project completely avoids external dependencies while strictly satisfying the "no external message broker" and "no synchronous solutions" constraints.
 
-* **Mechanism:** The event bus maintains a single central incoming `asyncio.Queue`. When a component subscribes to a topic, the bus provisions a dedicated outgoing `asyncio.Queue` for that component. A background Broker Loop continually reads from the central queue and pushes messages into the respective subscribers' queues.
-* **Evaluation:** Highly compliant. It enforces a strict asynchronous producer-consumer separation but introduces minor overhead for managing multiple internal queue objects.
+### 2.1 The EventBus Wrapper
 
-### Option B: Hash Block Async Callback Engine (Highly Applicable)
-
-This approach refers to the pure-Python, 80-line in-memory dispatcher design pattern. It utilizes a `defaultdict(list)` to map string-based topics directly to a collection of asynchronous coroutine functions (`Callable[[Any], Coroutine]`).
-
-* **Mechanism:** When an event is published, the engine iterates over the subscribers registered to that topic and directly schedules or executes the handlers asynchronously within the native event loop (e.g., using `asyncio.create_task` or a fanned-out loop).
-* **Evaluation:** Fully applicable and optimal for this project. It features zero third-party library dependencies, eliminates external brokers entirely, and operates natively within the `asyncio` loop to prevent any synchronous blocking or micro-blocking of the main daemon.
-
-### Option C: Synchronous Libraries (Dismissed)
-
-Libraries such as PyPubSub or Blinker rely on a synchronous execution model where publishing an event directly invokes callback functions on the current thread.
-
-* **Evaluation:** Violates core constraints. A slow or blocking operation in a subscriber would block the publisher, stalling the entire Core Daemon.
-
-**Selection:** Option B (the Hash Block async callback model) provides the cleanest and most lightweight baseline, as it eliminates the boilerplate of individual sub-queues while guaranteeing full asynchronous, non-blocking execution.
+To satisfy the strict requirements of the Core Daemon without modifying the original Hash Block implementation, the raw `PubSub` class is encapsulated within a custom `EventBusWrapper`. All system components interact exclusively with this wrapper. The wrapper provides the standard `subscribe()` interface (passing it directly to the underlying engine) but overrides the `publish()` behavior to construct standardized envelopes.
 
 ## 3. Sender Identification & Registration
 
-Every message traversing the bus must be explicitly traceable to its origin. To enforce this:
+Every message traversing the bus must be explicitly traceable to its origin. To enforce this, the `EventBusWrapper` handles the following workflow:
 
-1. **Attachment:** When a component initializes and attaches to the Internal Event Bus, it must pass a unique string identifier (e.g., `core.rules_engine`, `dgl.listener`).
-2. **Encapsulation:** Components do not format the final message envelope. They call an async publish method, providing the topic and the payload. The Event Bus automatically wraps this payload into a standard `Event` object, injecting the registered component's identifier as the `sender_id` alongside a UTC timestamp.
-3. **Delivery:** Subscribers receive this fully formed `Event` object, ensuring they can reliably route responses (such as `app.health_response`) or trace the origin of an `app.abort` signal.
+1. **Attachment:** When a component initializes and attaches to the wrapper, it must pass a unique string identifier (e.g., `core.rules_engine`, `dgl.listener`). The wrapper provisions a bound publisher interface specific to that component.
+2. **Encapsulation:** Components do not format the final message envelope. They call the bound publish method, providing only the topic and the payload. The wrapper automatically wraps this payload into a standard `Event` object, injecting the registered component's identifier as the `sender_id` alongside a UTC timestamp, and then passes the complete object to the underlying `PubSub` engine.
+3. **Delivery:** Subscribers receive this fully formed `Event` object from the underlying engine, ensuring they can reliably route responses (such as `app.health_response`) or trace the origin of an `app.abort` signal.
 
 ## 4. Topic Registry
 

@@ -18,3 +18,13 @@ process the above instructions into the document under discussion and render it.
 2. Is the pub/sub engine listed in https://medium.com/@connect.hashblock/how-i-built-an-in-memory-pub-sub-engine-in-python-with-only-80-lines-eb42d30f0160 applicable to this project?
 
 process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+let's go with the hashblock solution.  include a reference to the source article in the design document, and note any modifications or wrappers around that solution needed to meet the requirements of this project (wrappers would be preferred over modifications).  also, please identify if the hashblock solution is available in pypi, since i do not see the problem with making use of external dependencies to avoid re-inventing the wheel.
+
+is there anything else missing from this document, or needing expansion?
+
+note - only include items in the document itself that are actually part of the design document; leave discussions, comments, questions, answers, etc., to the discussion part of the output.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
