@@ -48,3 +48,35 @@ The bus strictly manages the following predefined topics to route data between t
 | `app.unpause` | Command Parser | Rules Engine, Core Daemon | `reason` |
 | `app.health_query` | App Wrapper | All Components | `query_payload` (JSON) |
 | `app.health_response` | All Components | App Wrapper | `status_payload` (JSON) |
+
+## 5. Event and Response Envelopes
+
+To standardize communication, the `EventBusWrapper` strictly enforces a generic schema for all messages and their corresponding asynchronous replies.
+
+### 5.1 Event Schema
+
+When a publisher dispatches a payload, the wrapper constructs an `Event` object containing:
+
+* **`event_id`**: A unique UUID string generated at the time of publication.
+* **`topic`**: The routing string (e.g., `game.eot_detected`).
+* **`sender_id`**: The unique identifier of the component that published the event.
+* **`timestamp_utc`**: An ISO-8601 formatted UTC timestamp.
+* **`payload`**: The generic, topic-specific data payload (can accommodate arbitrary structures based on the event type).
+
+### 5.2 Response Schema
+
+For events that require or trigger a direct return structure, the subscriber returns a `Response` object containing:
+
+* **`event_id`**: The UUID matching the original `Event`.
+* **`status`**: A string indicating the outcome (e.g., `success` or `error`).
+* **`data`**:
+  * If `status` is `success`, this contains the successful custom response payload.
+  * If `status` is `error`, this contains the serialized exception information and stack trace.
+
+## 6. Error Handling & Isolation
+
+Because subscriber callbacks execute asynchronously within the native event loop, the `EventBusWrapper` implements a strict isolation and logging policy to maintain system stability.
+
+1. **Execution Wrapping:** The wrapper executes all subscriber callbacks within a safe `try/except` block.
+2. **Exception Capture:** If a subscriber raises an unhandled exception, it is caught by the wrapper, preventing the background broker loop from crashing. The wrapper then constructs an `error` status `Response` containing the exception data.
+3. **Logging & Recursive Guard:** Upon catching an exception, the wrapper automatically attempts to publish a `sys.log` event to route the error to the Logging Manager. To prevent infinite recursive error loops (e.g., if a failure occurs while processing the `sys.log` event itself), the wrapper utilizes a strict fallback. If an exception occurs *during* the handling or dispatch of an error event, the wrapper bypasses the event bus entirely and dumps the critical failure directly to standard error (`stderr`).
