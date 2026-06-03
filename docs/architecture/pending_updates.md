@@ -144,8 +144,3 @@
 * **Broker Implementation:** Detail the internal pub/sub message broker mechanics required for asynchronous event passing between core system components.
 * **Implementation Language:** Outline that the core implementation language across the event bus and core engine components will be Python, maximizing compatibility with the shared library components.
 * **Sender Identification:** Explicitly indicate that every message received from the message bus must be able to identify its sender. When any component attaches to the message bus, it must provide an identifier to use for when it sends messages.
-
-#### 17. Central Architecture Document
-
-* **App Wrapper Health Management Framework:** Define and detail the architectural layer where the App Wrapper acts as the central health coordinator for all internal components, executing deeper runtime validation than standard process tracking.
-* **Master Event Registry Expansion:** Add the specific health monitoring query and response events to the system's global event list, defining their expected JSON data structures and synchronous resolution constraints.
