@@ -11,3 +11,10 @@ Based on the uploaded architecture document and list of pending document updates
 Given that this will be implemented in Python, will not have a database component, and I would prefer it to remain lightweight, discuss the options for implementing an internal event bus suitable for pub/sub style asynchronous operation.
 
 process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+1. no external message broker, no synchronous solution.
+2. Is the pub/sub engine listed in https://medium.com/@connect.hashblock/how-i-built-an-in-memory-pub-sub-engine-in-python-with-only-80-lines-eb42d30f0160 applicable to this project?
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.

@@ -6,33 +6,27 @@ The Internal Event Bus is the central messaging backbone of the Core Daemon. It 
 
 ## 2. Implementation Options for Python 3
 
-Given the strict constraint against database dependencies and the need for a highly asynchronous, lightweight environment, there are a few primary pathways for implementing the Pub/Sub broker natively in Python 3.
+To satisfy the strict system constraints—requiring **no external message broker** and **no synchronous solutions**—the architecture must rely entirely on native Python 3 asynchronous primitives. Below is an evaluation of the primary pathways, including the specific architecture proposed by Hash Block.
 
-### Option A: Standard Library `asyncio.Queue` (Recommended)
+### Option A: Standard Library `asyncio.Queue` Custom Broker
 
-This approach leverages Python's built-in `asyncio` primitives to construct a custom message router.
+* **Mechanism:** The event bus maintains a single central incoming `asyncio.Queue`. When a component subscribes to a topic, the bus provisions a dedicated outgoing `asyncio.Queue` for that component. A background Broker Loop continually reads from the central queue and pushes messages into the respective subscribers' queues.
+* **Evaluation:** Highly compliant. It enforces a strict asynchronous producer-consumer separation but introduces minor overhead for managing multiple internal queue objects.
 
-* **Mechanism:** The event bus maintains a single central incoming `asyncio.Queue`. When a component subscribes to a topic, the bus provisions a dedicated outgoing `asyncio.Queue` for that component. A dedicated background task (the "Broker Loop") continuously awaits the central queue, reads incoming events, and immediately fans them out by placing them into the specific outgoing queues of all registered subscribers for that topic.
-* **Advantages:** Zero external dependencies, robust handling of high-concurrency event loops, and native compatibility with the decoupled async operations required by the Core Daemon. It enforces strict non-blocking behavior.
-* **Disadvantages:** Requires custom boilerplate to manage subscriber registration, queue provisioning, and graceful teardown during application shutdown.
+### Option B: Hash Block Async Callback Engine (Highly Applicable)
 
-### Option B: PyPubSub
+This approach refers to the pure-Python, 80-line in-memory dispatcher design pattern. It utilizes a `defaultdict(list)` to map string-based topics directly to a collection of asynchronous coroutine functions (`Callable[[Any], Coroutine]`).
 
-A popular, lightweight publish-subscribe library for Python.
+* **Mechanism:** When an event is published, the engine iterates over the subscribers registered to that topic and directly schedules or executes the handlers asynchronously within the native event loop (e.g., using `asyncio.create_task` or a fanned-out loop).
+* **Evaluation:** Fully applicable and optimal for this project. It features zero third-party library dependencies, eliminates external brokers entirely, and operates natively within the `asyncio` loop to prevent any synchronous blocking or micro-blocking of the main daemon.
 
-* **Mechanism:** Components use a unified API to `subscribe()` to string-based topics and `sendMessage()` to broadcast payloads.
-* **Advantages:** Exceptionally simple API, built-in topic tree management, and excellent debugging capabilities.
-* **Disadvantages:** Primarily designed for synchronous execution. While it can be wrapped in `asyncio.to_thread` or executed within async tasks, it does not natively yield to the Python event loop during dense fan-out operations, potentially causing micro-blocking in a high-throughput async daemon.
+### Option C: Synchronous Libraries (Dismissed)
 
-### Option C: Blinker
+Libraries such as PyPubSub or Blinker rely on a synchronous execution model where publishing an event directly invokes callback functions on the current thread.
 
-A fast Python in-process signaling library.
+* **Evaluation:** Violates core constraints. A slow or blocking operation in a subscriber would block the publisher, stalling the entire Core Daemon.
 
-* **Mechanism:** Utilizes a signal-based architecture where topics are instantiated as `Signal` objects. Senders emit signals, and connected receivers execute their callback functions.
-* **Advantages:** Extremely fast and highly optimized for in-memory object dispatch.
-* **Disadvantages:** Like PyPubSub, it is fundamentally synchronous. Dispatching a signal directly invokes the connected receiver functions on the same thread, violating the strict decoupling required to guarantee publishers are never blocked by subscriber execution times.
-
-**Selection:** Option A (`asyncio.Queue` custom broker) is the most viable path. It guarantees the necessary asynchronous, non-blocking boundaries between publishers and subscribers without introducing external state or dependencies.
+**Selection:** Option B (the Hash Block async callback model) provides the cleanest and most lightweight baseline, as it eliminates the boilerplate of individual sub-queues while guaranteeing full asynchronous, non-blocking execution.
 
 ## 3. Sender Identification & Registration
 
