@@ -44,6 +44,7 @@
   * Upon receiving an `app.abort` event, log the error contained within the event directly to stderr and exit with a non-0 exit code.
   * Upon receiving an `app.terminate_gracefully` event, it should send an `app.prepare_for_shutdown` event to all components.
   * After receiving the `app.ready_for_shutdown` event from all components, *or* after a given timeout, exit the app gracefully.
+* **Event-Based Health Monitoring:** Detail the explicit requirements for the App Wrapper to routinely dispatch health queries across the internal event bus, enforce response timeouts per component, and maintain a serialized health status file containing sets of healthy/unhealthy subsystems alongside a rolling UTC liveness timestamp.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
 #### 5. Health Checking and Observability Procedures Document (New Document)
@@ -144,8 +145,7 @@
 * **Implementation Language:** Outline that the core implementation language across the event bus and core engine components will be Python, maximizing compatibility with the shared library components.
 * **Sender Identification:** Explicitly indicate that every message received from the message bus must be able to identify its sender. When any component attaches to the message bus, it must provide an identifier to use for when it sends messages.
 
-#### 17. Shared Volume Design Document (New Document)
+#### 17. Central Architecture Document
 
-* **Atomic Write Protocol:** Formally define the system-wide Atomic Write Protocol here. Specify that all files written to the shared volume must first be written to a temporary file, followed by a system rename operation. Grant processes explicit permission to arbitrarily remove any existing temporary files they strictly own before overwriting them.
-* **Volume Topology:** Detail the directory structure of the shared volume (e.g., `prm/`, `tx/`, `logs/`, `notifications/`).
-* **Decentralized Schemas:** State that this document outlines the mechanical rules of engagement, but the specific JSON schemas for the payloads remain owned by the component design documents generating them.
+* **App Wrapper Health Management Framework:** Define and detail the architectural layer where the App Wrapper acts as the central health coordinator for all internal components, executing deeper runtime validation than standard process tracking.
+* **Master Event Registry Expansion:** Add the specific health monitoring query and response events to the system's global event list, defining their expected JSON data structures and synchronous resolution constraints.
