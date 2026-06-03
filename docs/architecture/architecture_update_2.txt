@@ -1,0 +1,88 @@
+----
+
+i have uploaded the current architecture document for climatomaton.
+
+please change any references to atomic changes to files to instead read as using the atomic write protocol.  the atomic write protocol will be defined in the shared volume design document.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+I have uploaded the list of pending document updates.
+
+1. please capitalize Atomic Write Protocol where it is referenced.
+2. in the first reference to that protocol, indicate where it's defined in a parenthetical, not as a separate statement.
+3. please add a component to represent the app wrapper that ensures all the components are started up in the appropriate order, and add the design document for that component to the list of pending document updates.
+4. a new section needs to be created called "app workflow" to describe the general procedure followed by the app wrapper: start the event bus, start all other components, wait for the components to be started, tell the components to initialize, wait for them to be initialized, tell them to start processing, then wait "forever" until told to either abort or terminate gracefully.
+5. the details of the app workflow as described here need to be included in the pending updates for the app wrapper component.  please give each event an appropriate name, following the pattern laid out by existing events.
+   1. start the event bus.
+   2. subscribe to the "waiting to initialize" and "ready" events.
+   3. start all other components, passing an identifier to each component.
+   4. wait for a "waiting to initialize" event from each component.
+   5. if it does not receive all such events within a given time limit, cause the entire app to exit with a failure log written directly to stderr and a non-0 exit code.
+   6. publish an "initialize" event which all components should subscribe to.
+   7. wait for a "ready" event from each component.
+   8. if it does not receive a "ready" event from all components within a given time limit (more generous since component initialization can take significant time), cause the entire app to exit with a failure log and an exit code.
+   9. publish a "start" event to indicate all components should begin normal operation.
+   10. wait forever for either a "terminate gracefully" event or "abort" event.
+   11. upon receiving an "abort" event, log the error contained within the event directly to stderr and exit with a non-0 exit code.
+   12. upon receiving a "terminate gracefully" event, it should send a "prepare for shutdown" event to all components.
+   13. after receiving the "ready for shutdown" event from all components, _or_ after a given timeout, exit the app gracefully.
+6. the events described above and how they affect the component workflow need to be added to the pending updates list for every component besides the app wrapper and event bus.
+7. the event bus should be updated to indicate, if it's not already specified, that every message received from the message bus must be able to identify its sender.  when any component attaches to the message bus, it must provide an identifier to use for when it sends messages.
+8. section 6.1 should be split up into two parts:  Component Startup Workflow and State Rehydration.
+9. The component startup workflow (other than the app wrapper and event bus) should be generic:
+   * components, upon starting, wait to be told to perform their initialization, then wait to become active.  once active, if they receive a shutdown command from the app wrapper, they gracefully terminate any in-flight transaction and do as much cleanup as they can before telling the app wrapper they're ready for shutdown.
+   * initialization must include cleanup of any stale temporary files or partial in-flight files from the shared volume.
+10. the following workflow needs to be added to the pending updates list for each component other than the event bus and app wrapper.
+   * each component, upon receiving the "initialize" event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function.  when it is finished initializing, it publishes a "ready" event.
+   * each component, upon receiving the "start" event, begins normal processing.
+   * each component, upon receiving the "prepare for shutdown" event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the "ready for shutdown" event.
+11. the state rehydration workflow currently in section 6.1, excluding the stale file cleanup, should be the initialization workflow for the state rehydrator component.  other than that, the state rehydrator does nothing except immediately respond to app wrapper events as appropriate.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+0. in the previous update, i had to manually fix the header level for the pending updates list which you changed without instructions to do so.
+1. add all new events from the app wrapper workflow into the event bus description.
+2. step 4 of section 6.2 needs to say how the core daemon transitions to paused.  i'm assuming this is an event that gets published.  please add such event (and any corresponding unpause or resume event) to the event bus description, and add processing of those events to the pending updates for whichever component (most likely the rules engine) needs to be puased.  those events must be processed even if the component is in initialization, to ensure it doesn't start up in the wrong state.
+3. create diagrams (either in text form in the document, or GraphiViz `dot` diagrams that can be referenced) showing the various event flows that are described in the architecture.
+4. move section 8 to the pending updates list for the deployment architecture document.
+5. move the app workflow pending document update to between the codebase document and the observability document.
+6. introduce a testing protocol document to the pending updates list.
+7. remove the central architecture pending update, since we've done that as part of this conversation.
+8. in section 4, remove the "which will be" from the atomic write protocol parenthetical.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+(after viewing the results...)
+
+you reworded and reformatted parts of the pending updates list that were not part of the instructions.  undo those.  ONLY MAKE CHANGES which you are directed to make by the instructions.
+
+--
+
+1. on second thought, remove the workflow diagrams from this document, and add their requirement to each of the components' pending updates.
+2. in the deployment architecture document, instead of specifying that configuration information will be managed via a configuration file, say instead that the method of passing configuration information to the app and pluggable modules must be defined.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+1. please present the section 8 app workflow in narrative form, summarizing to make it easier to read.  the details will be in the app workflow design document.
+2. you changed the wording of the library specifications header in the parser library pending document.  undo that.  ONLY MAKE CHANGES THAT ARE INSTRUCTED.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+1. observability, health checking, and logging are concepts that need to be implemented; they are not core components.
+2. the parser library is not a core component; it is a library that is used by external tooling and the PRMs.
+3. the internal event bus does not implement any workflows; it is the method by which the other workflows are implemented.
+4. the shared volume is an ipc mechanism, not a core component.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+(after being informed about the logging/observability component :eyeroll:)
+
+my apologies:  i forgot that the observability and logging manager _is_ a component.  please restore that to the component list.  the pending update needs to be split between the design doc _for that component_ and the general health checking and obsevability procedures to be followed by everything.

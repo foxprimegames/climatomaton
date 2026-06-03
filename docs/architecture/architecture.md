@@ -35,33 +35,44 @@ Climatomaton consists of the **Core Daemon** and its **Pluggable Subprocesses** 
 8. **State Rehydrator:** A high-level logic process that calls the DAC to fetch historical messages on startup and passes them to the `ClimateReport` object to establish the initial `climate.` namespace.
 9. **File-Based IPC Broker:** Manage local communication with the PRM and PEMs via shared container volumes. It utilizes file system event watchers (`inotify`) to detect changes and translates them into internal events.
 10. **Logging & Observability Manager:** A centralized component that ingests all logs, observability metrics, and notifications from the Core Daemon, PRM, and PEMs. It formats these for the local system and selectively routes high-severity alerts to Discord administrators.
+11. **App Wrapper:** Ensures all core engine components are started up, initialized, and transitioned to active processing in the appropriate sequence, supervising the overall application lifecycle.
 
 ---
 
 ## 3. Internal Event Bus Specification
 
-To guarantee the DGL never blocks and to maintain a fully event-driven execution model, the Core Daemon relies on a central Pub/Sub topic architecture. All core engine operations are asynchronous with respect to the Internal Event Bus; no component may block other components from publishing or receiving events.
+To guarantee the DGL never blocks and to maintain a fully event-driven execution model, the Core Daemon relies on a central Pub/Sub topic architecture. All core engine operations are asynchronous with respect to the Internal Event Bus; no component may block other components from publishing or receiving events. Every message published to or received from the message bus must be explicitly capable of identifying its sender. When any component attaches to the message bus, it must provide a unique identifier that the bus will automatically associate with all messages sent by that component.
 
 | Topic | Publisher | Subscriber(s) | Payload / Data Communicated |
 | --- | --- | --- | --- |
 | `network.inbound` | DGL | Command Parser, EOT Parser | `raw_json_payload`, `source` (channel/DM) |
 | `game.eot_detected` | EOT Parser | Rules Engine | `EOTSummary` object |
-| `game.command` | Command Parser | Core Daemon, Rules Engine | `command_action` (e.g., reset, pause), `parsed_args` |
+| `game.command` | Command Parser | Core Daemon, Rules Engine | `command_action` (e.g., reset), `parsed_args` |
 | `ipc.rules_updated` | IPC Broker | Rules Engine | `file_path` (relative to shared volume) |
 | `ipc.pem_ack` | IPC Broker | Rules Engine | `tx_id`, `namespace` |
 | `sys.log` | All Components, IPC Broker | Logging Manager | `level`, `source`, `message`, `metadata` |
 | `sys.notification` | All Components, IPC Broker | Logging Manager | `level`, `message_text`, `admin_ids` |
 | `network.outbound` | Rules Engine, Logging Manager | DAC | `formatted_message`, `target_destination` (channel/user ID) |
+| `app.waiting_to_initialize` | All Components | App Wrapper | `component_id` |
+| `app.initialize` | App Wrapper | All Components | (Empty/Command) |
+| `app.ready` | All Components | App Wrapper | `component_id` |
+| `app.start` | App Wrapper | All Components | (Empty/Command) |
+| `app.abort` | All Components | App Wrapper | `error_details` |
+| `app.terminate_gracefully` | All Components | App Wrapper | (Empty/Command) |
+| `app.prepare_for_shutdown` | App Wrapper | All Components | (Empty/Command) |
+| `app.ready_for_shutdown` | All Components | App Wrapper | `component_id` |
+| `app.pause` | State Rehydrator, Command Parser | Rules Engine, Core Daemon | `reason` |
+| `app.unpause` | Command Parser | Rules Engine, Core Daemon | `reason` |
 
 ---
 
 ## 4. Communication Protocols (File-Based IPC)
 
-Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by writing atomic JSON payloads to directories. All file paths are strictly relative to the shared volume root. All timestamping for file names and internal operations must strictly utilize the **UTC timezone**.
+Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by writing JSON payloads to directories using the Atomic Write Protocol (defined in the Shared Volume Design Document). All file paths are strictly relative to the shared volume root. All timestamping for file names and internal operations must strictly utilize the **UTC timezone**.
 
 ### 4.1 PRM Protocol (Rules Module)
 
-* **Push Rules:** The PRM writes a new compiled JSON-IR ruleset to `prm/active_rules.json.tmp`, then atomically renames it to its final filename on the shared volume. The specific structure and format of this JSON-IR ruleset are defined in the Rules Language Design Document.
+* **Push Rules:** The PRM writes a new compiled JSON-IR ruleset to its final filename on the shared volume using the Atomic Write Protocol. The specific structure and format of this JSON-IR ruleset are defined in the Rules Language Design Document.
 * **Immediate Validation Pass:** The IPC Broker actively monitors the rules folder and the schemas folder on the shared volume. It triggers the Rules Engine to proactively parse and type-check incoming JSON-IR files immediately upon modification of the rules file, or whenever a PEM schema is added, updated, or deleted.
 * **Validation Error Recovery Policy:**
   * **LKG Fallback:** If a newly watched JSON-IR file fails semantic or static verification, the Rules Engine discards it, retains the prior working version (Last-Known-Good), logs the trace, and dispatches an admin alert via the Logging Manager.
@@ -70,11 +81,11 @@ Climatomaton uses **File-Based IPC via Shared Volumes**. Modules communicate by 
 
 ### 4.2 PEM Protocol (Environment Module)
 
-* **Schema Registration & Heartbeat:** As soon as the PEM starts up, it must write a static schema description file to `pems/{pem_namespace}.schema.json` on the shared volume, which the IPC Broker monitors. This file dictates the type schema and designates the read-only versus mutable state for the data the PEM will provide. The PEM must periodically update this file at an interval no greater than a defined maximum limit to indicate it is alive. Updates must be performed atomically (e.g., writing to a `.tmp` file first, then executing a rename operation). The exact structure and semantics are defined in the Pluggable Environment Module (PEM) Design Document.
-* **Environment Data Publication:** As soon as practical after the schema file is written, and whenever the represented content changes thereafter, the PEM must write its structured environment data (excluding the PEM's namespace prefix itself) to `pems/{pem_namespace}.json` on the shared volume. Updates must be performed atomically (e.g., via `.tmp` rename) to ensure the Rules Engine never reads partial state. The exact specification of this environment file will be defined in the Pluggable Environment Module (PEM) Design Document.
+* **Schema Registration & Heartbeat:** As soon as the PEM starts up, it must write a static schema description file to `pems/{pem_namespace}.schema.json` on the shared volume, which the IPC Broker monitors. This file dictates the type schema and designates the read-only versus mutable state for the data the PEM will provide. The PEM must periodically update this file at an interval no greater than a defined maximum limit to indicate it is alive. Updates must be performed using the Atomic Write Protocol. The exact structure and semantics are defined in the Pluggable Environment Module (PEM) Design Document.
+* **Environment Data Publication:** As soon as practical after the schema file is written, and whenever the represented content changes thereafter, the PEM must write its structured environment data (excluding the PEM's namespace prefix itself) to `pems/{pem_namespace}.json` on the shared volume. Updates must be performed using the Atomic Write Protocol to ensure the Rules Engine never reads partial state. The exact specification of this environment file will be defined in the Pluggable Environment Module (PEM) Design Document.
 * **Transaction Commit:** If rules mutate a PEM namespace, the Rules Engine generates a diff and writes it to `tx/req_{tx_id}_{namespace}.json` on the shared volume. The specific format of this transaction diff file is defined in the Pluggable Environment Module (PEM) Design Document.
 * **Acknowledgment:** The PEM detects and processes the transaction request from the shared volume, then writes an acknowledgment to `tx/ack_{tx_id}_{namespace}.json`. The specific format of this acknowledgment file is also defined in the PEM Design Document.
-* **Transaction Cleanup:** The IPC Broker detects the ACK file and fires an `ipc.pem_ack` event. Once the Rules Engine successfully posts the Discord report via the DAC, the IPC Broker deletes both the `req` and `ack` files from the volume.
+* **Transaction Cleanup:** The IPC Broker detects the ACK file and fires an `ipc.pem_ack` to the Event Bus. Once the Rules Engine successfully posts the Discord report via the DAC, the IPC Broker deletes both the `req` and `ack` files from the volume.
 * **PEM Deregistration/Cleanup:** If a PEM crashes and fails to update its schema file within the heartbeat TTL (Time-To-Live), the Environment Manager automatically unloads the schema from memory, and the IPC Broker deletes both the stale `{pem_namespace}.schema.json` and `{pem_namespace}.json` files from the volume.
 
 ### 4.3 Logging & Notification Protocol
@@ -113,17 +124,18 @@ The Logging & Observability Manager uses a language-native logger configured to 
 
 ## 6. Environment & Execution Workflows
 
-### 6.1 State Rehydration & Startup Workflow
+### 6.1 Component Startup Workflow
 
-Because historical rulesets are unknown, Climatomaton **does not** automatically process historical EOT reports during recovery. Upon startup, or if memory is cleared, the following sequence occurs:
+Components (excluding the app wrapper and event bus), upon starting, wait to be told to perform their initialization, then wait to become active. Once active, if they receive a shutdown command from the app wrapper, they gracefully terminate any in-flight transaction and do as much cleanup as they can before telling the app wrapper they're ready for shutdown. Initialization must include cleanup of any stale temporary files or partial in-flight files from the shared volume.
 
-1. **Stale IPC File Cleanup:** The IPC Broker explicitly purges all lingering, in-flight transaction files (e.g., `req_*`, `ack_*`, `.tmp`) from the shared volume to guarantee a clean slate.
-2. **History Fetch:** The State Rehydrator requests the DAC to fetch channel history, paginating backward.
-3. **Parsing:** Messages are passed to the `ClimateReport` object's `parse()` method.
-4. **Initialization:** If a valid report is parsed successfully, the `climate` environment is populated. If the search hits a "Turn 1" EOT report first, it initializes to `0` and `Mild`.
-5. **Historical EOT Detection:** If the EOT Parser detects *any* end-of-turn reports that occurred *after* the most recently established climate report, the Core Daemon will immediately transition to a **PAUSED** state and dispatch a high-priority `sys.notification` event. Administrators must then manually evaluate the game history and recover the state via the `reset` command before unpausing.
+### 6.2 State Rehydration
 
-### 6.2 Handling Missing PEM Data
+1. **History Fetch:** The State Rehydrator requests the DAC to fetch channel history, paginating backward.
+2. **Parsing:** Messages are passed to the `ClimateReport` object's `parse()` method.
+3. **Initialization:** If a valid report is parsed successfully, the `climate` environment is populated. If the search hits a "Turn 1" EOT report first, it initializes to `0` and `Mild`.
+4. **Historical EOT Detection:** If the EOT Parser detects *any* end-of-turn reports that occurred *after* the most recently established climate report, it will immediately publish an `app.pause` event to transition the Core Daemon into a PAUSED state and dispatch a high-priority `sys.notification` event. Administrators must then manually evaluate the game history and recover the state via the `reset` command before unpausing via an `app.unpause` event.
+
+### 6.3 Handling Missing PEM Data
 
 If a **new, live** EOT arrives, but the PRM rules rely on a PEM namespace that has not initialized or is missing data:
 
@@ -131,7 +143,7 @@ If a **new, live** EOT arrives, but the PRM rules rely on a PEM namespace that h
 2. **Notification:** The Rules Engine fires a `sys.notification` event detailing the missing required PEM data.
 3. **Resolution:** Once the missing PEM writes its schema and data files to the shared volume, the Rules Engine restarts the processing of the pending EOT from the beginning to ensure the newly provided data satisfies the rules evaluation requirements.
 
-### 6.3 Rules Execution Workflow
+### 6.4 Rules Execution Workflow
 
 Triggered when a `game.eot_detected` event is received and all required PEM data is validated.
 
@@ -141,7 +153,7 @@ Triggered when a `game.eot_detected` event is received and all required PEM data
 4. **Mutations:** Climate rules mutate `new.climate.value`, `var.*`, or other mapped numeric fields. Tag rules mutate `new.climate.tags` or other mapped tag-list fields.
 5. **Commit & Report:** Transaction diffs are written by the Rules Engine to `tx/` awaiting asynchronous PEM ACKs. The `ClimateReport` object generates the formatted string, and a `network.outbound` event is fired.
 
-### 6.4 Natural English List Formatting
+### 6.5 Natural English List Formatting
 
 When the `ClimateReport` object formats the string, it applies standard English list rules:
 
@@ -173,14 +185,6 @@ The specific mechanism for identifying and authorizing Administrators (e.g., ver
 
 ---
 
-## 8. Deployment Architecture Requirements
+## 8. App Workflow
 
-While the specific hosting environment is not yet defined, the deployment strategy will strictly utilize OCI-compliant containers. Any target environment must support the following base requirements:
-
-1. **Shared Volume Mounting:** The orchestration layer must support mounting a common, high-speed, POSIX-compliant shared volume across multiple containers (the Core Daemon, PRM, and PEMs) to facilitate the file-based IPC routing.
-2. **Secrets Management:** Sensitive configurations (e.g., Discord Bot Tokens, Admin User IDs, Target Channel IDs) must be injected safely into the containers strictly via environment variables. The running containers cannot rely on the existence of, or integration with, a secret management system at runtime.
-3. **Configuration Management:** Non-secret application configurations (e.g., standardizing internal operations and logging to the UTC timezone, logging verbosity, maximum IPC file size limits, expected PEM modules) will be managed via a standard configuration file mounted at a known, fixed location within the container filesystem.
-4. **Container Lifecycle & Health Checks:** The environment should be capable of automatically restarting failed subprocesses (PEMs/PRMs). The Core Daemon relies on external orchestration to keep the pluggable modules running if they crash.
-5. **Log Aggregation:** Because the Logging Manager writes all local observability data to `stdout`/`stderr` using a native logger, the deployment environment must feature an agent or mechanism to capture, rotate, and aggregate standard output logs.
-6. **Graceful Shutdown Signals:** The environment must issue standard termination signals (`SIGTERM`) and provide a brief grace period to allow the Event Bus and Rules Engine to finalize any in-flight file writes and network requests before exiting.
-7. **Testing Environment:** Functional testing of the integrated system will be performed against a dedicated staging or private testing-only Discord server to ensure live Nomicron gameplay is completely isolated from development.
+The App Wrapper coordinates the lifecycle of all system components through a strict procedural sequence. It begins by starting the internal event bus and subscribing to necessary initialization and readiness events. It then launches all other components, passing unique identifiers to each, and waits for them to signal they are ready to initialize. Upon receiving these signals, the App Wrapper publishes a global initialization event, waits for all components to report they are ready, and then broadcasts a start event to commence normal operations. The App Wrapper then waits indefinitely for a signal to abort or terminate gracefully. If an abort signal is received, it logs the error and immediately exits with a failure code. If a graceful termination signal is received, it instructs all components to prepare for shutdown and exits gracefully once all components confirm their readiness or a predefined timeout is reached.
