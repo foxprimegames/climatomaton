@@ -138,9 +138,3 @@
 * Each component, upon receiving the `app.start` event, begins normal processing.
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
-
-#### 16. Internal Event Bus Design Document (New Document)
-
-* **Broker Implementation:** Detail the internal pub/sub message broker mechanics required for asynchronous event passing between core system components.
-* **Implementation Language:** Outline that the core implementation language across the event bus and core engine components will be Python, maximizing compatibility with the shared library components.
-* **Sender Identification:** Explicitly indicate that every message received from the message bus must be able to identify its sender. When any component attaches to the message bus, it must provide an identifier to use for when it sends messages.
