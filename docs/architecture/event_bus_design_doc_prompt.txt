@@ -71,3 +71,11 @@ To redirect your question asking if i feel the design document is functionally c
 2. would you be able to create an implementation plan (epics and stories) complete enough for developers to act on and complete the work needed for this component?
 
 process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+1. i did not ask you to generate the implementation plan; i only asked if you could.  remove the pending implementation plan.
+2. i also asked if you could create an implementation plan *that could be developed to code*, which you did not address.
+3. please combine the recursive exception handling guard with the recursive logging exception guard, if possible.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
