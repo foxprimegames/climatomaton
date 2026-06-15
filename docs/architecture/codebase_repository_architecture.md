@@ -24,29 +24,20 @@ The monorepo defines a unified workspace layout that clearly separates concerns 
 
 ## 4. Deployment Configuration Organization
 
-When organizing Docker-related build files and deployment configurations, the following approaches and their respective trade-offs must be considered:
+Given the monorepo structure, which houses multiple distinct applications alongside shared libraries, the project will utilize a dedicated `deploy/` directory at the repository root.
 
-* **Dedicated `deploy/` or `docker/` directory:**
-* *Pros:* Keeps the repository root clean. Centralizes orchestration files (e.g., `docker-compose.yml`), container definitions, and deployment scripts into a single, easily discoverable location.
-* *Cons:* Can complicate Docker build contexts. If a Dockerfile resides in a subdirectory but requires access to the entire monorepo workspace (e.g., `uv` workspace files), the build command must be explicitly run from the repository root, passing the specific Dockerfile path.
-
-
-* **Application-level or Root-level Dockerfiles:**
-* *Pros:* Simplifies the Docker build context. The Dockerfile sits directly adjacent to the application or workspace it defines.
-* *Cons:* Scatters deployment configuration across the repository. Orchestration files and environment scripts can clutter the root directory or obscure application logic within subdirectories.
-
-
+* **Justification:** A dedicated directory keeps the repository root clean of infrastructure boilerplate. More importantly, because our deployment relies on an orchestration layer to mount a shared volume across multiple containers (the Core Daemon, PRM, and PEMs), placing the orchestration files (e.g., `docker-compose.yml`) and environment templates in a centralized location provides a single, unified source of truth for the entire integrated system, rather than scattering these multi-container configurations across individual app directories.
 
 ## 5. Linting and Code Standards
 
 The project enforces a strict separation between code linting and code formatting:
 
-* **Global Linting:** A workspace-wide linting standard will be defined at the repository root to ensure code quality, catch syntax errors, and maintain standard Python conventions across all components.
-* **No Automated Formatting:** The use of automated code formatters is strictly prohibited. Developers retain full manual control over the visual structure and formatting of their Python source code.
+* **Global Linting:** The project will utilize **Ruff** for code linting. Because Ruff is developed by Astral—the same organization behind our chosen build tool, `uv`—it integrates seamlessly into the workflow. Ruff provides exceptionally fast, comprehensive Python linting out-of-the-box and can be easily configured via the workspace root to strictly verify conventions across all components.
+* **No Automated Formatting:** The use of automated code formatters is strictly prohibited. Developers retain full manual control over the visual structure and formatting of their Python source code. Ruff's formatting capabilities will remain explicitly disabled in the configuration.
 
 ---
 
 ### Comments & Discussion Points
 
-* **Deployment Directory Decision:** Now that the pros and cons of the Docker build file organization are documented, do you want to officially adopt one of these approaches for the monorepo layout, or leave it as an open decision for a later phase?
-* **Linting Tooling:** Do you have a preferred linter in mind (e.g., Ruff's linter without the formatter, Flake8) that we should explicitly name in the document, or should it remain generic for now?
+* **Build Workflow:** You asked if this is the right place to talk about the build workflow. Yes, high-level build execution steps (e.g., how the `uv` workspace commands are chained, how local environments are bootstrapped, or how the Docker images are built from the monorepo) fit perfectly into this document. However, if you are referring specifically to automated CI/CD pipelines (like Codeberg CI actions for running tests and linters on push), we might want to either add a dedicated "CI/CD & Automation Workflow" section here or branch it into its own smaller document. Let me know how deep you want to detail the build workflow!
+* **Pending Updates List:** You asked why I added the Codebase & Repository Architecture document back into the pending updates. That was an oversight on my part! I carried the entire pending list over verbatim from the previous state without removing the item we were actively working on. Good catch. I have successfully removed it from the list below.
