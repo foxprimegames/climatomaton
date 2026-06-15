@@ -10,3 +10,11 @@ reformatting mapping for nested lists under a bullet point:
 Based on the uploaded architecture document and list of pending document updates, let's determine the codebase and repository architecture.
 
 process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+1. We need a place for PEMs to be dropped in, but they will not exist initially.
+2. Discuss pros and cons related to a dedicated deploy or docker directory or other organization for the docker-related build files.
+3. Linting, yes.  Formatting, no.  I have not found a python formatter that I agree with.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
