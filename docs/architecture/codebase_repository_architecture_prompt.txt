@@ -1,0 +1,42 @@
+
+reformatting mapping for nested lists under a bullet point:
+
+:map q :.,/^$/s;^*;  *;<CR>+|map Q :.,/^$/s;^*;   *;<CR>+
+
+----
+
+(upload: architecture.md, pending_uploads.md)
+
+Based on the uploaded architecture document and list of pending document updates, let's determine the codebase and repository architecture.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+1. We need a place for PEMs to be dropped in, but they will not exist initially.
+2. Discuss pros and cons related to a dedicated deploy or docker directory or other organization for the docker-related build files.
+3. Linting, yes.  Formatting, no.  I have not found a python formatter that I agree with.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+1. given the project architecture, make a decision on the organization of the deployment files and justify the decision.
+2. if there is a linter that is part of the `uv` build tool, use that.  otherwise, propose a linter that will be easy to integrate into the build workflow.
+3. is this the right place to talk about the build workflow?
+4. why did you add the codebase & repository architecture document back into the pending updates when that is the document we are working on?
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+1. Add a description of the build workflow at the appropriate level of detail for this document.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+--
+
+1. Is this document ready to produce implementation artifacts (epics/stories/etc.)?
+2. Do we need to specify that documentation should be written to indicate how to use the build tools for the various stages of development (linting, building, testing) and how to initialize the developer environment?
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
