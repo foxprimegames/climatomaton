@@ -43,8 +43,18 @@ The build and development workflow relies heavily on `uv`'s workspace capabiliti
 * **Workspace Execution:** Component-specific tasks and isolated scripts are executed from the workspace root using `uv run` targeting the specific package or module.
 * **Containerization:** To build the Docker images for deployment, the Docker build context must be set to the monorepo root. This ensures the build daemon has access to the shared workspace configurations (`uv.lock`, `pyproject.toml`) and the internal `libs/` source code. The specific Dockerfiles residing in the `deploy/` directory will selectively install only the necessary application components for their respective target environments.
 
+## 7. Developer Documentation Requirements
+
+To ensure a smooth onboarding process and consistent development practices, the repository must include comprehensive developer documentation (e.g., a root-level `README.md` or a dedicated `docs/` directory). This documentation must explicitly detail:
+
+* How to initialize the local developer environment using `uv`.
+* How to execute the global linting tools (Ruff).
+* How to run the unit and functional testing suites.
+* How to build the deployment containers and utilize the deployment scripts.
+
 ---
 
 ### Comments & Discussion Points
 
-* **CI/CD Pipelines:** Now that the local build and containerization workflows are defined, do we need to establish a dedicated section for automated CI/CD pipelines (e.g., running the `clime-cli` syntax checks and Ruff linting on pull requests), or will that be detailed in a separate document later?
+* **Implementation Readiness:** To address your first point, *this specific document* is now mature enough to begin producing implementation artifacts (epics/stories) for the initial repository setup. You have everything you need to create the Codeberg repo, configure the `uv` workspace layout, set up the `deploy/` folder, and configure Ruff. However, keep in mind that the *overall* project still has 14 pending design documents. Writing actual application logic should wait until those respective component designs are finalized.
+* **Developer Documentation Integration:** I have added Section 7 to the document to explicitly state the requirement for documentation detailing how to use the build tools, linters, test suites, and environment initialization procedures.
