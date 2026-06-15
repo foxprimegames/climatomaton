@@ -19,16 +19,7 @@
 * **Graceful Shutdown Signals:** The environment must issue standard termination signals (`SIGTERM`) and provide a brief grace period to allow the Event Bus and Rules Engine to finalize any in-flight file writes and network requests before exiting.
 * **Testing Environment:** Functional testing of the integrated system will be performed against a dedicated staging or private testing-only Discord server to ensure live Nomicron gameplay is completely isolated from development.
 
-#### 3. Codebase & Repository Architecture Document (New Document)
-
-* **Build System Discussion (`uv` vs `hatch`):** While `hatch` is an officially endorsed PyPA project and fantastic for generic package building, `uv` (built by Astral) is recommended for this specific multi-component project. `uv` acts as an ultra-fast, drop-in replacement for `pip`, `venv`, and `pip-tools` written in Rust. Crucially, `uv` recently introduced Cargo-style "workspace" support. This allows us to define the Parser Library, the PRM, and the Core Engine as separate packages within the same repository, seamlessly linking them together locally without needing to publish the internal library to a PyPI index or wrangle complex local file references in standard `pyproject.toml` configurations.
-* **Monorepo Organization:** The document must define a unified workspace layout. A standard approach would separate concerns clearly, for example:
-  * `libs/clime-parser`: The shared parsing library.
-  * `apps/core-daemon`: The main Climatomaton Discord engine.
-  * `apps/git-prm`: The standalone Git-Fetch container process.
-  * `tools/clime-cli`: The standalone syntax checker utility.
-
-#### 4. App Wrapper Design Document (New Document)
+#### 3. App Wrapper Design Document (New Document)
 
 * **App Workflow Definition:**
   * Start the event bus.
@@ -47,11 +38,11 @@
 * **Event-Based Health Monitoring:** Detail the explicit requirements for the App Wrapper to routinely dispatch health queries across the internal event bus, enforce response timeouts per component, and maintain a serialized health status file containing sets of healthy/unhealthy subsystems alongside a rolling UTC liveness timestamp.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 5. Health Checking and Observability Procedures Document (New Document)
+#### 4. Health Checking and Observability Procedures Document (New Document)
 
 * **Procedures:** Standardize general health checking and observability procedures to be followed by all components (Core, PRMs, PEMs) for outputting structured standard logs, defining container health-check endpoints/mechanisms, and constructing alert payloads.
 
-#### 6. Logging & Observability Manager Design Document (New Document)
+#### 5. Logging & Observability Manager Design Document (New Document)
 
 * **Component Specifications:** Detail the internal architecture, event handling, routing logic, and data structures of the Logging & Observability Manager component.
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
@@ -59,7 +50,7 @@
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 7. DAC (Discord API Client) Design Document (New Document)
+#### 6. DAC (Discord API Client) Design Document (New Document)
 
 * **Discord Integration Specifics:** Define exact OAuth2 scopes (DAC).
 * **Rate Limiting:** The DAC design document must incorporate the specific logic for overall and per-source notification rate limiting.
@@ -68,7 +59,7 @@
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 8. DGL (Discord Gateway Listener) Design Document (New Document)
+#### 7. DGL (Discord Gateway Listener) Design Document (New Document)
 
 * **Discord Integration Specifics:** Define exact Discord intents/permissions (DGL).
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
@@ -76,14 +67,7 @@
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 9. Parser Library & CLI Tooling Design Document (New Document)
-
-* **Library Specifications:** Detail the architecture of the shared Python parsing library that translates plain-English Clime files into JSON-IR.
-* **I/O Decoupling Requirement:** Explicitly specify that the library must perform no file operations. The functions for Lexing, Parsing, and Emitting must be designed to accept either static objects (strings, lists of strings, or populated AST objects) or iterators yielding the appropriate content, returning the resulting token stream, AST, or JSON-IR respectively.
-* **Error Accumulation Strategy:** The parser must implement an error recovery strategy. Instead of fast-failing via exceptions, it should accumulate syntax errors and return a structured Result object (e.g., `success`, `errors`, `ast`), allowing callers to process multiple errors simultaneously.
-* **CLI Tooling:** Define the behavior of the standalone syntax checker CLI, detailing input arguments, exit codes for CI/CD integration, file-loading wrappers, and verbose error formatting for local debugging.
-
-#### 10. Rules Engine Design Document (New Document)
+#### 8. Rules Engine Design Document (New Document)
 
 * **Dynamic Type Registry Initialization & Type Mapping:** The engine must construct a master `TypeMap` at runtime by scanning the IPC volume for loaded PEM schemas. Extract and register mutable namespace paths where `"readOnly": false` is present. Strictly map JSON schema `array` types to internal tag lists, requiring the `items` definition to be `"type": "string"`.
 * **Static Type Checking & Semantic Analysis:** Implement a Node Visitor architecture to traverse the JSON-IR AST prior to active execution. Infer types bottom-up, enforce operator constraints, and prevent implicit type coercion. Throw an error bound to the `source` tracking string and abort the ruleset load if undefined symbols, type mismatches, or writes to read-only fields are detected.
@@ -94,7 +78,7 @@
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 11. Command Parser Design Document (New Document)
+#### 9. Command Parser Design Document (New Document)
 
 * **Input Processing:** Define the logic and string-matching patterns required to identify, extract, and route bot commands and direct messages from text streams.
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
@@ -102,7 +86,7 @@
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 12. EOT Parser Design Document (New Document)
+#### 10. EOT Parser Design Document (New Document)
 
 * **Report Extraction:** Establish the parsing architecture for pulling relevant state variables and triggering mechanics from standardized end-of-turn text reports.
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
@@ -110,7 +94,7 @@
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 13. Environment Manager Design Document (New Document)
+#### 11. Environment Manager Design Document (New Document)
 
 * **State Tracking:** Outline the memory structures and lifecycles used to track active climate modules, environmental tags, and active modifiers during a running session.
 * Each component, upon receiving the `app.initialize` event, is required to clean up any in-flight or temporary files it may have created and ensure the component is ready to function. When it is finished initializing, it publishes an `app.ready` event.
@@ -118,7 +102,7 @@
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 14. State Rehydrator Design Document (New Document)
+#### 12. State Rehydrator Design Document (New Document)
 
 * **Initialization Workflow:** The state rehydration workflow serves as the initialization workflow for the state rehydrator component. Upon receiving the `app.initialize` event, it requests channel history from the DAC, parses messages to populate the `climate` environment, and implements the pause-and-notify mechanism to transition the core daemon to a paused state if any end-of-turn reports are found chronologically later than the most recent climate report. When finished initializing, it publishes an `app.ready` event. Other than this initialization workflow, the state rehydrator does nothing except immediately respond to app wrapper events as appropriate.
 * **Climate Report Parsing:** Clearly designate this component's responsibility to parse climate reports, ensuring the parsing logic successfully recognizes reports generated by both the bot itself and any configured administrative users.
@@ -128,7 +112,7 @@
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
 
-#### 15. IPC Broker Design Document (New Document)
+#### 13. IPC Broker Design Document (New Document)
 
 * **Notification Payload Format:** Specify the exact JSON schema and required keys for the files dropped into the `notifications/` directory by external modules.
 * **Heartbeat Monitoring (PEMs):** Implement a "fast publish, lenient subscribe" model for tracking PEM heartbeats. While PEMs update their schema file timestamps every 30 seconds, the IPC Broker checks every 60 seconds. A PEM missing two consecutive checks (120 seconds) is considered dead, prompting the Broker to purge its stale files.
@@ -138,3 +122,19 @@
 * Each component, upon receiving the `app.start` event, begins normal processing.
 * Each component, upon receiving the `app.prepare_for_shutdown` event, must gracefully stop all in-flight transactions and do as much cleanup as it can, then send the `app.ready_for_shutdown` event.
 * **Workflow Diagrams:** Include relevant system event flow and lifecycle diagrams specific to this component.
+
+#### 14. Parser Library & CLI Tooling Design Document (New Document)
+
+* **Library Specifications:** Detail the architecture of the shared Python parsing library that translates plain-English Clime files into JSON-IR.
+* **I/O Decoupling Requirement:** Explicitly specify that the library must perform no file operations. The functions for Lexing, Parsing, and Emitting must be designed to accept either static objects (strings, lists of strings, or populated AST objects) or iterators yielding the appropriate content, returning the resulting token stream, AST, or JSON-IR respectively.
+* **Error Accumulation Strategy:** The parser must implement an error recovery strategy. Instead of fast-failing via exceptions, it should accumulate syntax errors and return a structured Result object (e.g., `success`, `errors`, `ast`), allowing callers to process multiple errors simultaneously.
+* **CLI Tooling:** Define the behavior of the standalone syntax checker CLI, detailing input arguments, exit codes for CI/CD integration, file-loading wrappers, and verbose error formatting for local debugging.
+
+#### 15. Codebase & Repository Architecture Document (New Document)
+
+* **Build System Discussion (`uv` vs `hatch`):** While `hatch` is an officially endorsed PyPA project and fantastic for generic package building, `uv` (built by Astral) is recommended for this specific multi-component project. `uv` acts as an ultra-fast, drop-in replacement for `pip`, `venv`, and `pip-tools` written in Rust. Crucially, `uv` recently introduced Cargo-style "workspace" support. This allows us to define the Parser Library, the PRM, and the Core Engine as separate packages within the same repository, seamlessly linking them together locally without needing to publish the internal library to a PyPI index or wrangle complex local file references in standard `pyproject.toml` configurations.
+* **Monorepo Organization:** The document must define a unified workspace layout. A standard approach would separate concerns clearly, for example:
+  * `libs/clime-parser`: The shared parsing library.
+  * `apps/core-daemon`: The main Climatomaton Discord engine.
+  * `apps/git-prm`: The standalone Git-Fetch container process.
+  * `tools/clime-cli`: The standalone syntax checker utility.
