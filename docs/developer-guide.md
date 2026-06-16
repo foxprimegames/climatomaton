@@ -26,42 +26,32 @@ pip install -r dev-requirements.txt
 
 Installing `uv`
 ----------------
-Two common approaches exist:
+Only one supported installation method is documented here: install `uv` into the project-local virtual environment using pip and pin the version in `dev-requirements.txt`.
 
-- Project-local (recommended for reproducibility): install `uv` into the `.venv` used above via `pip install uv` and pin the version in `dev-requirements.txt`.
-- Global CLI via `pipx` (useful if you prefer single-user CLI installs):
+Project-local (required for this repository):
 
 ```powershell
-python -m pip install --user pipx
-python -m pipx ensurepath
-pipx install uv
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r dev-requirements.txt
 ```
 
-Recommendation: use the project virtual environment and `dev-requirements.txt` so that all developers share the same tool versions and so CI can reproduce the environment.
-
-Recommended uv minimum version
--------------------------------
-Use the latest stable release in the 0.9.x range (or the latest stable version at time of setup). The pinned version is listed in `dev-requirements.txt`.
+Recommendation: use the project virtual environment and `dev-requirements.txt` so that all developers and CI share the same tool versions.
 
 High-level `uv` usage (placeholder)
 -----------------------------------
-This is a new repository. Once `uv` is installed in your environment, initialize the workspace from the repository root:
+This repository defers workspace initialization to the repository owner. Do not run `uv workspace init` here unless instructed.
 
-```powershell
-# from repo root
-uv workspace init
+When components are ready to be linked, the supported workflow for synchronizing or linking components will use `uv sync` (or the project-specific `uv` command sequence). Replace this placeholder with the exact `uv sync` invocation and any required arguments after the workspace has been initialized by the repository owner.
 
-# inspect the files created by uv and record them in this guide
-uv workspace info  # if available
-```
-
-`uv sync` is (in many uv implementations) used to link components and keep workspace state up-to-date. Because `uv` implementations can vary, record the exact outputs of `uv workspace init` here once you run it and we will update this guide.
+Record the exact output from your `uv sync` run in this document so the team can standardize the workflow.
 
 Linting and code quality
 ------------------------
 We use `ruff` as the repository linter. Important policy: DO NOT run any ruff formatting commands that modify source files (for example `ruff format` or `ruff --fix`). The repository enforces check-only linting.
 
-Run lint checks locally with the provided script:
+Run lint checks locally with the provided scripts. Use the PowerShell script on Windows and the bash script from a POSIX shell, git-bash, or inside containers.
 
 PowerShell:
 
@@ -69,7 +59,13 @@ PowerShell:
 .\scripts\lint.ps1
 ```
 
-This script will activate `.venv` (if present) and run `ruff check .`. It returns a non-zero exit code on failure and does not modify files.
+Bash / POSIX (git-bash, Linux, macOS, or inside containers):
+
+```bash
+./scripts/lint.sh
+```
+
+Both scripts will activate `.venv` (if present) and run `ruff check .`. They return a non-zero exit code on failure and do not modify files.
 
 Pre-commit and CI
 -----------------
@@ -97,10 +93,11 @@ docker compose -f deploy/docker-compose.yml config
 
 Commit checklist
 ----------------
+
 Before committing, run:
 
 1. Activate .venv and install dev requirements (if needed)
-2. .\scripts\lint.ps1  # ruff check
+2. .\scripts\lint.ps1  # ruff check (or ./scripts/lint.sh from a POSIX shell)
 3. Run tests (when present)
 4. Ensure git status is clean
 
