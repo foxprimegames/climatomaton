@@ -1,0 +1,3 @@
+uv>=0.9,<1.0
+ruff>=0.12,<1.0
+# Add other dev tooling here (pytest, pre-commit) as needed

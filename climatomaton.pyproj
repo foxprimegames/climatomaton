@@ -22,11 +22,10 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Content Include="docs\DEVELOPER_GUIDE.md" />
+    <Content Include="dev-requirements.txt" />
     <Content Include="README.md" />
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="scripts\" />
+    <Content Include="scripts\lint.ps1" />
+    <Content Include="scripts\lint.sh" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
