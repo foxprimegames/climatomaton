@@ -1,0 +1,75 @@
+please proceed to step 4.
+
+>>>>
+
+Step 4 completed: created libs/, apps/, tools/, and deploy/ README placeholders on branch infra/scaffold-dirs and committed with reference to issue 27.
+Reminder: Save All in Visual Studio so any in-memory changes are written before further commits.
+Would you like me to push this branch now and then proceed to Step 5, or pause?
+
+----
+
+since you didn't get the updated project file in the git commit statement, please amend the commit to include it.
+
+>>>>
+
+Amended the commit to include climatomaton.pyproj. The amended commit now contains the README placeholders and the updated project file.
+Would you like me to push infra/scaffold-dirs to origin and proceed to Step 5, or pause?
+
+----
+
+every time you add new files or delete files from the project, make sure you include the project and solution files in your next commit, and make sure you remind me to "save-all" before executing that commit.
+
+>>>>
+
+Understood. I will enforce this rule going forward:
+•	Before any commit that adds, removes, or changes files, I will remind you to "Save All" so project/solution files are written to disk.
+•	I will include project/solution files in the same commit whenever files are added or removed. By default I will stage common project files: *.sln, *.csproj, *.pyproj, *.vcxproj, *.fsproj, *.props, *.targets (and any tracked project files present).
+•	Commit workflow I will follow each time: create/switch to the step branch → prompt you to Save All → stage changed files + project/solution files → commit with the summary and the Codeberg issue reference on a separate line → push only if you instruct me to.
+•	I will pause before committing and require you to supply the Codeberg issue number.
+Confirm the file extensions above are correct or list any additional project/solution file patterns you want me to always include.
+
+----
+
+the project and solution files do not get changed when you modify a file, only when you add or remove a file.
+
+>>>>
+
+Acknowledged.
+I will change the workflow so project/solution files are only included when files are added or removed (not for ordinary file edits). New process for add/remove commits:
+•	I will remind you to "Save All" before making the commit.
+•	I will stage added/removed files and also stage tracked project/solution files (by default: *.sln, *.csproj, *.pyproj, *.vcxproj, *.fsproj, *.props, *.targets) so the project stays consistent.
+•	I will commit with the summary and the Codeberg issue reference on a separate line (you must provide the issue number before I commit).
+•	I will pause before pushing; I will only push when you ask.
+Confirm or tell me any additional project/solution filename patterns you want included automatically.
+
+----
+
+please push the branch.
+
+>>>>
+
+Branch infra/scaffold-dirs pushed to origin and set to track origin/infra/scaffold-dirs.
+Next: proceed to Step 5 (Configure Linting Standards) or pause?
+
+----
+
+the branch has been reviewed and merged.
+
+>>>>
+
+Acknowledged — branch infra/scaffold-dirs merged.
+I can now sync your local repo and delete the merged branch. I will:
+1.	git switch main
+2.	git pull --ff-only origin main
+3.	git branch -d infra/scaffold-dirs
+Shall I run those now?
+
+----
+
+yes
+
+>>>>
+
+Synced main and deleted local infra/scaffold-dirs branch. Working tree shows an untracked docs/implementation_prompts file.
+I'll pause. When you're ready I'll start Step 5.
+
