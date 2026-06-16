@@ -1,0 +1,254 @@
+show me the plan for implementing the following tasks.  They must be performed _in order_, with a break in between each.
+
+1. Draft Project README: Define the vision and high-level architectural purpose of the monorepo.
+2. Create Developer Guide: Document prerequisites, `uv` installation, `uv` sync usage, linting, and build workflows.
+3. Initialize Monorepo Workspace: Execute the `uv` workspace initialization in the root to link components.
+4. Establish Directory Structure: Create the standardized file system hierarchy (libs/, apps/, tools/, deploy/).
+5. Configure Linting Standards: Implement root-level `ruff` configuration, strictly disabling automated formatting.
+6. Create Deployment Orchestration Base: Author the base `docker-compose.yml` to define volume and orchestration logic.
+
+>>>>
+
+Step 1 — Understanding
+•   You want a step-by-step implementation plan for six ordered tasks (README, Developer Guide, uv workspace init, directory layout, ruff config, base docker-compose), with a break between each task.
+•   Ambiguities: specifics for target audience, uv installation method/version, exact services/volumes for docker-compose, placeholders for new dirs, ruff rules/ignores, CI inclusion, and how long the required break should be.
+
+Step 2 — Exploration (what I checked)
+•   Read .github/copilot-instructions.md (file present but empty).
+•   Found docs/architecture/ with files such as codebase_repository_architecture.md, pending_updates.md, and design_docs_1.0/architecture.md (search hits present but these files contain no indexed content in the quick search).
+•   Performed searches for README, ruff/pyproject configs, and docker-compose.yml; those did not appear in the search results at root (indicating none were found by the search).
+•   No existing uv workspace metadata or obvious monorepo scaffolding surfaced in the search results.
+
+Clarifying Questions
+1.   Should the README target external contributors, internal engineers, or both?
+2.   Do you prefer uv to be installed via pipx, pip, or a system package manager and what minimum uv version should I target?
+3.   Are there existing apps or libs that must be linked during uv workspace init, or is this a new empty workspace?
+4.   For the standardized directories (libs/, apps/, tools/, deploy/), do you want any specific initial placeholder files or example components created?
+5.   For ruff, should I enforce any specific rule set or ignore list and confirm that automated formatting (e.g., ruff --fix or ruff format) must be disabled?
+6.   For the base docker-compose.yml, which services (names and images), ports, and host-to-container volume mappings should be included?
+7.   Do you want the Developer Guide to include CI steps for linting and uv sync or keep those instructions for local development only?
+8.   How long should the required "break" be between each task and should I include an automated gating check before moving to the next task?
+
+Next step
+•   Once you answer the clarifying questions I will draft a detailed implementation plan for Visual Studio that lists affected files, commands to run, commands to verify each step, gating/checklist items between tasks, and estimated effort for each task.
+
+----
+
+1. The README should be a description of the purpose of the repo and what it contains.  It is primary for viewers, but also for background for developers working on the project.  The developers' guide should have the more in-depth information for developers working on the project.
+2. Please recommend a `uv` version. Best would be to have `uv` installed in a python environment in whichever method is best for that.
+3. This is a new project (other than the existing architectural documents).  As parts of the overall project get implemented, they will be added to the `uv` project.  I don't know `uv`, so I don't know how that works.
+4. Probably a README with a simple 1-line description of the purpose of the directory - just something to hold the directory in place through git commits.
+5. I do not know ruff.  The primary restriction is that _no_ formatting is to take place.  The source files must not be modified, only checked.
+6. If you review the architecture document, you will see that no inbound ports are permitted for any part of the project.  There is a single shared volume mounted by all the containers that serves for IPC.  The services are those that will be developed in the project, so they will be added as the implementation proceeds.
+7. Developer guide should include how to set up the local environment, how to ensure your code is ready for commit, and whatever else is needed.  I do not know what `uv sync` is.
+8. The break is not a time break, I just want to make sure you do not combine steps; each step should be clearly demarcated.
+
+----
+
+i don't see a "detailed implementation plan".  I see six one-line bullet points.
+
+>>>>
+
+Understood — here is the full detailed implementation plan (expanded) for the six ordered tasks. Each step is atomic, lists files to create/modify, exact PowerShell commands to run, verification checks, and a gating checklist so you can review before I proceed to the next step.
+Step 1 — Draft Project README (create README.md at repo root)
+•	Purpose
+•	Provide a short description of repo purpose, high-level contents, and links to docs/DEVELOPER_GUIDE.md and docs/architecture/.
+•	Files to create
+•	README.md (at C:\Users\Johnson\git\codeberg\foxprimegames\climatomaton\README.md)
+•	Content outline (minimum)
+•	Title and one-sentence purpose
+•	What this repo contains (bullet list: apps/, libs/, tools/, deploy/, docs/)
+•	High-level architecture note: no inbound ports, shared IPC volume
+•	Quick start: link to Developer Guide
+•	Contributing/developer link
+•	Commands (PowerShell)
+•	Create file and open for editing:
+•	New-Item -Path . -Name README.md -ItemType File -Force
+•	code README.md
+•	Or create with content inline:
+•	Set-Content -Path README.md -Value '# Climatomaton\n\nPurpose: ...'
+•	Verification
+•	Test-Path README.md -> should return True
+•	git status (ensure file is viewable)
+•	Gating checklist (before moving to step 2)
+•	You confirm the README tone and purpose are correct or request edits.
+Step 2 — Create Developer Guide (docs/DEVELOPER_GUIDE.md)
+•	Purpose
+•	Provide developer-facing setup: prerequisites, recommended Python environment, uv installation options, uv workspace/init hints, uv sync notes (placeholder), linting/build workflows, commit checklist.
+•	Files to create
+•	docs/DEVELOPER_GUIDE.md
+•	Sections to include (explicit)
+1.	Prerequisites: Git, Python (recommend 3.11+), Docker (optional for deploy checks), PowerShell usage notes.
+2.	Python environment: create virtualenv (.venv) and activate:
+•	python -m venv .venv
+•	..venv\Scripts\Activate.ps1
+•	pip install --upgrade pip
+3.	uv installation (recommended)
+•	Option A (venv): pip install uv (recommend pin in dev-requirements.txt)
+•	Option B (pipx, recommended for CLI): python -m pip install --user pipx; python -m pipx ensurepath; pipx install uv
+•	Recommended uv version: latest stable (suggestion: 0.9.x or current stable at time of setup); note to pin later.
+4.	uv workspace init & sync (explain placeholders)
+•	Explain run location (repo root) and that exact created filenames will be recorded after running uv workspace init.
+•	Example: uv workspace init
+•	Note: uv sync purpose—linking components; placeholder until workspace metadata exists.
+5.	Linting
+•	Use ruff in check-only mode: ruff check .
+•	Explicit prohibition: do not run ruff format or ruff --fix locally or in CI.
+•	Provide sample lint script (scripts/lint.ps1) and CI snippet (run ruff check .).
+6.	Build / local test guidance
+•	No inbound ports policy; use named volume for IPC (deploy/docker-compose.yml)
+•	How to validate docker-compose file: docker compose -f deploy/docker-compose.yml config
+7.	Commit checklist
+•	Activate venv, run scripts/lint.ps1, ensure git status clean, add tests/lint passing.
+•	Commands (PowerShell)
+•	New-Item -ItemType Directory -Path docs -Force
+•	New-Item -Path docs -Name DEVELOPER_GUIDE.md -ItemType File -Force
+•	code docs/DEVELOPER_GUIDE.md
+•	Verification
+•	Test-Path docs/DEVELOPER_GUIDE.md
+•	Manually confirm the uv instructions and ruff prohibition are present
+•	Gating checklist
+•	You confirm the uv installation recommendation and that Developer Guide contains the ruff check-only rule.
+Step 3 — Initialize Monorepo Workspace (run uv workspace init at repo root)
+•	Purpose
+•	Run uv workspace init to create workspace metadata that will be used later to register components.
+•	Prerequisite
+•	uv installed and available in shell (from step 2)
+•	Activate chosen environment (.venv or pipx)
+•	Commands (PowerShell) — run at repo root
+•	If using venv:
+•	..venv\Scripts\Activate.ps1
+•	Run init:
+•	uv workspace init
+•	Inspect created files:
+•	git status --porcelain
+•	Get-ChildItem -Force | Where-Object Name -Match 'uv|workspace|.uv|workspace.yaml'
+•	Capture uv workspace info (if available):
+•	uv workspace info
+•	Files to expect and commit
+•	Typical: uv workspace metadata file(s) such as uv.workspace.yaml, workspace.yaml, or a .uv/ directory. The exact filename depends on the uv implementation — we will record the exact name produced and add it to docs/DEVELOPER_GUIDE.md.
+•	Commit:
+•	git add <created-files>
+•	git commit -m "chore: initialize uv workspace"
+•	Verification
+•	uv workspace info or uv status shows workspace recognized
+•	Confirm files are in git and committed
+•	Gating checklist
+•	You confirm the created workspace metadata filenames are acceptable and that docs are updated with exact filenames.
+Step 4 — Establish Directory Structure (libs/, apps/, tools/, deploy/) with placeholder READMEs
+•	Purpose
+•	Ensure standardized directories exist and are kept in Git with small placeholder files.
+•	Files to create
+•	libs/README.md -> "libs: reusable libraries for the monorepo."
+•	apps/README.md -> "apps: top-level runnable applications."
+•	tools/README.md -> "tools: developer tooling, scripts, and helpers."
+•	deploy/README.md -> "deploy: orchestration and deployment manifests."
+•	Optionally: .gitkeep files instead of README.md
+•	Commands (PowerShell)
+•	New-Item -ItemType Directory -Name libs,apps,tools,deploy -Force
+•	Set-Content -Path libs/README.md -Value 'libs: reusable libraries for the monorepo.'
+•	Repeat Set-Content for apps/tools/deploy README.md
+•	Verification
+•	Get-ChildItem -Directory
+•	Get-Content libs/README.md
+•	Commit
+•	git add libs apps tools deploy
+•	git commit -m "chore: scaffold monorepo directories with placeholder READMEs"
+•	Gating checklist
+•	You confirm the one-line descriptions and that files are committed.
+Step 5 — Configure Linting Standards (root-level ruff configuration, check-only)
+•	Purpose
+•	Centralize ruff configuration, provide a lint-runner, forbid auto-formatting actions.
+•	Files to create/modify
+•	pyproject.toml (add [tool.ruff] section) at repo root
+•	scripts/lint.ps1 — runs ruff check . in the selected environment
+•	Optional: .pre-commit-config.yaml (runs ruff in check mode only)
+•	Suggested pyproject.toml contents (minimal)
+•	[tool.ruff]
+•	line-length = 100
+•	exclude = ["deploy/*", ".venv", ".git"]
+•	select = ["E", "F", "W", "I", "C", "B"]  (example; adjust later)
+•	Note in Developer Guide: do not run ruff format or ruff --fix
+•	Example scripts/lint.ps1 (content)
+•	param([switch]$Ci)
+•	if (-Not (Test-Path .venv)) { Write-Host 'Ensure venv or pipx installed uv and ruff'; exit 1 }
+•	..venv\Scripts\Activate.ps1
+•	ruff check .
+•	Commands (PowerShell) to create files
+•	New-Item -Path pyproject.toml -ItemType File -Force
+•	Set-Content -Path pyproject.toml -Value '<content above>'
+•	New-Item -Path scripts -ItemType Directory -Force; New-Item -Path scripts -Name lint.ps1 -ItemType File -Force
+•	code pyproject.toml; code scripts/lint.ps1
+•	Verification
+•	Run: ..venv\Scripts\Activate.ps1; ruff check .
+•	Confirm ruff check did not modify files; run git status --porcelain (should not show changes due to ruff)
+•	CI guidance (to include in docs)
+•	CI step: run ruff check . and fail on non-zero exit code; do not run any fix/format step
+•	Gating checklist
+•	You confirm the pyproject configuration and that automated formatting is explicitly forbidden in docs.
+Step 6 — Create Deployment Orchestration Base (deploy/docker-compose.yml)
+•	Purpose
+•	Add base docker-compose template that enforces the no-inbound-ports policy and defines shared IPC volume for all services.
+•	File to create
+•	deploy/docker-compose.yml
+•	Suggested content (v3.8 style, minimal)
+•	version: "3.8"
+•	services:
+example template for adding services; do not expose ports
+example-service: image: busybox:1.36 command: ["sh", "-c", "sleep 3600"] volumes: - ipc_shared:/var/ipc_shared networks: [] # no 'ports' entries allowed per architecture
+•	volumes: ipc_shared: name: climatomaton_ipc_shared
+•	Add comments at top describing no inbound ports rule and how to add services.
+•	Commands (PowerShell)
+•	New-Item -Path deploy -Name docker-compose.yml -ItemType File -Force
+•	code deploy/docker-compose.yml
+•	Verification
+•	docker compose -f deploy/docker-compose.yml config  (requires Docker installed/running)
+•	Manually confirm no ports: entries and volume exists in file
+•	Commit
+•	git add deploy/docker-compose.yml
+•	git commit -m "chore: add base docker-compose with shared IPC volume and no inbound ports"
+•	Gating checklist
+•	You confirm the compose template and commit.
+Notes, risks, and follow-ups
+•	uv metadata filenames depend on the uv tool implementation. After step 3 I will add the precise filenames to docs/DEVELOPER_GUIDE.md.
+•	ruff cannot technically prevent someone from running formatting commands locally; enforcement must be by CI and policy. The plan sets check-only usage by default and documents prohibition.
+•	Docker compose validation step requires Docker Desktop/engine to be running; validation is optional if Docker is not installed locally.
+•	Breaks between steps: after each step I will pause for your review/approval (you requested breaks are logical, not time-based).
+If you approve this detailed plan I will start Step 1 (create README.md). I will:
+1.	announce when I start Step 1,
+2.	apply the changes in the repository,
+3.	run the verification commands,
+4.	then call the plan progress update and pause for your review before Step 2.
+Please confirm: proceed with Step 1 now?
+
+----
+
+step 1 looks okay. for step 2, why do you recommend pipx over pip?  and please include the dev-requirements.txt file and reference that in the provided command line.  Also, is there a way to configure ruff to not allow it to run in format mode even if the command line tells it to do so? for step 4: do you recommend `.gitkeep` over README files?
+
+>>>>
+
+Short answers and concrete next steps.
+1.	pipx vs pip (why pipx was suggested)
+•	pipx pros: installs CLI tools isolated from any single project, makes them globally runnable without activating a venv, and avoids polluting a project environment.
+•	pip (inside a venv) pros: reproducible per-project tooling, easy to pin versions via dev-requirements.txt, better for teams who must replicate the same tool versions.
+•	Recommendation for this repo: use a project venv + dev-requirements.txt (pip in venv). That gives reproducibility and matches your earlier preference for a Python environment.
+2.	dev-requirements.txt (suggested content) and commands
+•	dev-requirements.txt (place at repo root) uv>=0.9,<1.0 ruff>=0.12,<1.0
+add other dev tooling here (pytest, pre-commit) as needed
+•	Commands to set up a reproducible developer environment (PowerShell) python -m venv .venv ..venv\Scripts\Activate.ps1 python -m pip install --upgrade pip pip install -r dev-requirements.txt
+•	Alternative (if you still want pipx for uv/ruff): install pipx and pipx install uv ruff; still keep dev-requirements.txt for CI and venv-based reproducibility.
+3.	Can ruff be configured to prevent running in format mode?
+•	Short answer: No — ruff has no configuration option that disables its formatting subcommand. If the binary is present, someone can invoke ruff format / ruff --fix.
+•	Practical controls you can enforce:
+•	CI enforcement: CI only runs ruff check . and fails the build on violations.
+•	Pre-commit / Git hook: add a pre-commit hook that runs ruff check and rejects commits if the working tree has unexpected modifications (this will block commits that result from running format/fix).
+•	Wrapper script: provide scripts/lint.ps1 and avoid exposing ruff directly in PATH; encourage developers to use the script.
+•	Policy + docs: make the prohibition explicit in DEVELOPER_GUIDE.md and enforce in CI.
+•	Example lightweight pre-commit (PowerShell) that fails if any tracked files are modified (detects local formatting runs):
+.git/hooks/pre-commit (make executable or commit as scripts/pre-commit.ps1 and instruct install)
+if (Test-Path ..venv) { . ..venv\Scripts\Activate.ps1 } ruff check . if ($LASTEXITCODE -ne 0) { Write-Error 'ruff check failed; fix issues without using format/fix locally.'; exit 1 } $diff = git diff --name-only if ($diff) { Write-Error 'Working tree changed after checks (possible formatting). Revert changes and run ruff check only.'; exit 1 } exit 0
+(I can implement a pre-commit hook or .pre-commit-config.yaml that runs ruff in check-only mode if you want.)
+4.	.gitkeep vs README.md for empty directories
+•	Recommendation: use README.md files (one-line description) in each top-level directory (libs/, apps/, tools/, deploy/). Benefit: informative to humans and keeps the directory in git. .gitkeep is fine if you prefer a minimal convention, but README.md is more useful long-term.
+Next action
+•	I can implement Step 2 now using the venv + dev-requirements.txt approach and add the dev-requirements.txt file, scripts/lint.ps1, and a suggested pre-commit hook (disabled by default) and update docs/DEVELOPER_GUIDE.md accordingly. Proceed?

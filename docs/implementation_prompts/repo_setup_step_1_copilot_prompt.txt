@@ -1,0 +1,53 @@
+please implement step 1.
+
+>>>>
+
+(forgot to copy original readme)
+
+Step 1 completed: README.md added at repository root.
+I will pause here per your instruction. Confirm when you want me to start Step 2 (Create Developer Guide) and I will proceed.
+
+----
+
+please review the architecture.md document as well as the introductory prompt in the architecture_prompt.txt file for more information about the purpose of the climatomaton project.  should the README be expanded?  if not, please point specifically to the architecture document for more information.
+
+>>>>
+
+Recommendation: keep the README concise but add an explicit pointer to the architecture doc plus a one-line summary of the key constraints so readers immediately understand the system’s intent.
+Suggested one-line addition to README: See docs/architecture/architecture.md (System Overview and Communication Protocols) for the full architecture: stateless design, no inbound ports, and file-based IPC via a shared shared volume.
+If you want, I will apply that change to README.md now.
+
+----
+
+yes
+
+>>>>
+
+Step 1 README updated with a clear pointer to docs/architecture/architecture.md and a one-line summary of the key system constraints.
+Confirm when you want me to start Step 2 (Create Developer Guide) and I will proceed.
+
+----
+
+please create a branch and commit the README file.  use an appropriate git commit message.  include a reference to `https://codeberg.org/foxprimegames/climatomaton/issues/24` in the commit message (or a shorter version if you know that codeberg will auto-link to an issue using some short format in a git commit message)
+
+>>>>
+
+(original commit command not copied)
+
+----
+
+make the issue reference on a separate line from the commit summary
+
+----
+
+please perform the commit.  i denied it because you did not format the commit message in a way i liked.
+
+>>>>
+
+GitHub Copilot
+Step 1 commit completed on branch docs/readme.
+I will pause here. Confirm when you want me to start Step 2 (Create Developer Guide) and I will proceed.
+
+----
+
+(lots of attempts to get copilot to amend the commit with the solution and project file changes; it tried using bash syntax in powershell and failed to understand how git add works.  after several tries, i got it to do the right thing.)
