@@ -39,13 +39,59 @@ pip install -r dev-requirements.txt
 
 Recommendation: use the project virtual environment and `dev-requirements.txt` so that all developers and CI share the same tool versions.
 
-High-level `uv` usage (placeholder)
------------------------------------
-This repository defers workspace initialization to the repository owner. Do not run `uv workspace init` here unless instructed.
+High-level `uv` usage
+----------------------
+Each component that should be managed by uv must contain its own project metadata (pyproject.toml), created either by running `uv init` inside that component directory or by adding a pyproject.toml that complies with uv's expectations.
 
-When components are ready to be linked, the supported workflow for synchronizing or linking components will use `uv sync` (or the project-specific `uv` command sequence). Replace this placeholder with the exact `uv sync` invocation and any required arguments after the workspace has been initialized by the repository owner.
+Do not run `uv init` once at the repository root expecting uv to split the repo into multiple projects. Instead create a per-component project for each top-level component you want uv to manage.
 
-Record the exact output from your `uv sync` run in this document so the team can standardize the workflow.
+Starting a new per-component project
+
+The repository already contains the top-level folders (apps/, libs/, tools/, deploy/). To create a new uv-managed component, run uv init for that component and point it at the desired path. The command will create the component directory if it does not already exist.
+
+PowerShell (single component):
+
+```powershell
+# from repository root - create a new app component at apps\<component-dir>
+.\.venv\Scripts\uv.exe init --name <component-name> --app apps\<component-dir>
+```
+
+Bash / POSIX (single component):
+
+```bash
+# from repository root - create a new app component at apps/<component-dir>
+.venv/bin/uv init --name <component-name> --app apps/<component-dir>
+```
+
+Recommended flag: --no-workspace
+
+To avoid uv attempting workspace discovery or auto-registering the new project immediately, add the --no-workspace flag when running init. This makes the init action safer and reviewable; later, after you have reviewed and committed the generated pyproject.toml, you can run uv sync from the repository root to have uv discover and link workspace members:
+
+```powershell
+# init without registering to a workspace immediately
+.\.venv\Scripts\uv.exe init --name <component-name> --app --no-workspace apps\<component-dir>
+
+# later, from repo root, discover and link projects
+.\.venv\Scripts\uv.exe workspace list
+.\.venv\Scripts\uv.exe sync
+```
+
+Notes
+- Replace --app with --lib for library components.
+- Always perform init on a feature branch and review generated files (pyproject.toml, lockfiles) before committing them.
+- uv sync will discover any per-component pyproject.toml files and treat them as workspace members even if they were created with --no-workspace.
+
+After each component has a pyproject.toml, inspect the workspace and link or sync components from the repository root:
+
+```powershell
+.\.venv\Scripts\uv.exe workspace list
+.\.venv\Scripts\uv.exe sync
+.\.venv\Scripts\uv.exe workspace metadata
+```
+
+Notes
+- Creating per-component pyproject files is a one-time, reviewable change — perform these actions on a feature branch, review the generated metadata, and commit if acceptable.
+- The `uv sync` command reconciles local workspace members (links packages for local development and updates lockfiles). Record the exact `uv sync` invocation you use here so other contributors can reproduce the environment.
 
 Linting and code quality
 ------------------------
