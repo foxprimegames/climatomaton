@@ -2,14 +2,13 @@ param(
 	[switch]$Ci
 )
 
-if (Test-Path .venv) {
-	Write-Host "Activating .venv..."
-	. .\.venv\Scripts\Activate.ps1
+# Prefer running ruff via the project venv python to avoid relying on script activation (execution policy may prevent .ps1 activation).
+if (Test-Path ".venv\Scripts\python.exe") {
+	Write-Host "Using .venv python to run ruff"
+	.\.venv\Scripts\python.exe -m ruff check .
+	exit $LASTEXITCODE
 } else {
-	Write-Host "No .venv found. Ensure ruff is installed and on PATH or create a .venv and install dev-requirements.txt"
+	Write-Host "No .venv python found; falling back to ruff on PATH. Ensure ruff is installed."
+	ruff check .
+	exit $LASTEXITCODE
 }
-
-# Run ruff in check-only mode. Do NOT run ruff format or ruff --fix.
-ruff check .
-
-exit $LASTEXITCODE
