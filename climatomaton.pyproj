@@ -22,11 +22,19 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Content Include="apps\README.md" />
+    <Content Include="deploy\README.md" />
+    <Content Include="libs\README.md" />
     <Content Include="README.md" />
+    <Content Include="tools\README.md" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="apps\" />
+    <Folder Include="deploy\" />
     <Folder Include="docs\" />
+    <Folder Include="libs\" />
     <Folder Include="scripts\" />
+    <Folder Include="tools\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
