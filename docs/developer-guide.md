@@ -161,6 +161,8 @@ Build and deploy validation
 ---------------------------
 Deployment manifests live in `deploy/`. The repository enforces a no-inbound-ports policy; all services should avoid `ports:` entries and communicate via the shared IPC volume.
 
+See `deploy/docker-compose.yml` for the base orchestration template. The shared volume `climatomaton_ipc_shared` is used for file-based IPC between containers; services should mount that volume rather than exposing inbound ports.
+
 You can validate the base compose file if Docker is available:
 
 ```powershell

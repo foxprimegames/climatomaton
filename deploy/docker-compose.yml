@@ -1,0 +1,22 @@
+version: "3.8"
+# NOTE: Per repository architecture, services MUST NOT expose inbound ports.
+# Use the shared IPC volume below for inter-container communication.
+services: {} # remove when first service is added
+  # Minimal example service (intentionally non-privileged; no ports defined).
+  # This block can be used as a copy/paste starting point. Do NOT add `ports:`.
+# example-service:
+#   image: busybox:1.36
+#   command: ["sh", "-c", "sleep 3600"]
+#   volumes:
+#     - climatomaton_ipc_shared:/var/ipc_shared
+#   networks:
+#     - internal
+    # DO NOT add a `ports:` section — no inbound ports allowed.
+
+networks:
+  internal:
+    internal: true
+
+volumes:
+  climatomaton_ipc_shared:
+    name: climatomaton_ipc_shared

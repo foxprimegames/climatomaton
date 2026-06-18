@@ -22,16 +22,20 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Content Include=".github\copilot-instructions.md" />
     <Content Include=".github\workflows\pre-commit.yml" />
     <Content Include=".pre-commit-config.yaml" />
     <Content Include=".ruff.toml" />
     <Content Include="apps\README.md" />
+    <Content Include="deploy\docker-compose.yml" />
     <Content Include="deploy\README.md" />
     <Content Include="libs\README.md" />
     <Content Include="README.md" />
     <Content Include="tools\README.md" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include=".github\" />
+    <Folder Include=".github\workflows\" />
     <Folder Include="apps\" />
     <Folder Include="deploy\" />
     <Folder Include="docs\" />
