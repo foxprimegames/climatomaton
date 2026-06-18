@@ -1,0 +1,3 @@
+line-length = 100
+exclude = ["deploy/*", ".venv", ".git"]
+select = ["E", "F", "W", "I", "C", "B"]

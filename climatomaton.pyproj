@@ -22,6 +22,9 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Content Include=".github\workflows\pre-commit.yml" />
+    <Content Include=".pre-commit-config.yaml" />
+    <Content Include=".ruff.toml" />
     <Content Include="apps\README.md" />
     <Content Include="deploy\README.md" />
     <Content Include="libs\README.md" />
