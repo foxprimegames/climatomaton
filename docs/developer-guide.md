@@ -19,7 +19,7 @@ Example (PowerShell):
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-pip install -r dev-requirements.txt
+python -m pip install -r dev-requirements.txt
 ```
 
 `dev-requirements.txt` contains the development CLI tools used by contributors (uv, ruff, etc.). See the repository root for the file.
@@ -34,7 +34,7 @@ Project-local (required for this repository):
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-pip install -r dev-requirements.txt
+python -m pip install -r dev-requirements.txt
 ```
 
 Recommendation: use the project virtual environment and `dev-requirements.txt` so that all developers and CI share the same tool versions.
@@ -118,6 +118,36 @@ Pre-commit and CI
 CI must run `ruff check .` and fail on any diagnostics. Do not run `ruff format` or `ruff --fix` in CI.
 
 Optional: Install a local Git hook that runs `ruff check .` prior to commit. If you add such a hook, ensure it only runs `ruff check` and that it fails the commit when diagnostics are present. Consider also validating that no tracked files changed after checks complete (to detect accidental formatting).
+
+Activate hooks (recommended)
+----------------------------
+Install the development tooling into the project virtual environment and install the pre-commit hooks into this clone's Git hooks directory. This makes the pre-commit checks run automatically on each commit for contributors who install the hooks.
+
+PowerShell (recommended):
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r dev-requirements.txt
+.\.venv\Scripts\python.exe -m pre_commit install
+# Optional: run all hooks once now
+.\.venv\Scripts\python.exe -m pre_commit run --all-files
+```
+
+Bash / POSIX:
+
+```bash
+python -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r dev-requirements.txt
+.venv/bin/pre-commit install
+# Optional: run all hooks now
+.venv/bin/pre-commit run --all-files
+```
+
+Notes:
+- The `.pre-commit-config.yaml` file committed to the repository is the configuration that `pre-commit` uses to install and run hooks; installing the hooks is a per-clone operation and must be performed by each contributor (or in CI). 
+- CI should also run `pre-commit run --all-files` (or at minimum `python -m ruff check .`) to enforce checks server-side.
 
 Linting enforcement notes
 ------------------------
