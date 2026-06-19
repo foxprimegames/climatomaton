@@ -1,0 +1,1 @@
+given the attached parser library and cli tooling design document, rules language reference, and rules intermediate representation design document, please present a plan to implement the parsing library.
