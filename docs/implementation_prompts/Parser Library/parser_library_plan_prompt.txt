@@ -1,0 +1,123 @@
+given the attached parser library and cli tooling design document, rules language reference, and rules intermediate representation design document, please present a plan to implement the parsing library.
+
+----
+
+milestones and tasks will be implemented as github issues.  the ruff configuration is already in place.
+
+Please provide the plan as one or more milestones, with detailed tasks for each milestone.
+
+please use the following labels, or introduce new labels in the same formats, to categorize each milestone and task:
+* `comp/build system` - The build system (`uv`, `ruff`, etc.)
+* `comp/deploy` - The deployment system (docker, docker-compose, etc.)
+* `comp/repo` - repository-level tasks
+* `tags/documentation`
+* `type/architecture`
+* `type/bug`
+* `type/feature`
+
+----
+
+let's reduce the component labels - those should be repo-level components, which in this case are the `comp/parser_library`and `comp/cli_tools`.  The internal components to the parser library do not need individual labels, do they?
+
+Milestone 1:
+
+* No need to update DEVELOPERS.md; the EBNF grammar rules already exist in the `rules_language_specification.md` file; the rest is in the design document.  The milestone and tasks should reference the specific files needed.
+
+Milestone 2:
+
+* Is `Trie` a specific library, or is it a well-known (to others besides me) data structure?
+
+Milestone 5:
+
+* This task list should only be for the parser library.  The CLI tooling will be a separate implementation plan.
+
+General note:
+
+* We need full-coverage test cases for each part of the parsing library.
+* There is not yet any defined test framework or protocol defined.  I was fond at one point of the `behave` test framework, but am willing to take suggestions.
+
+----
+
+A small detail, but, if the functions are exposed at the module level, only the `parse_clime` should be made part of the `__ALL__` identifier list; `tokenize`, `parse`, and `emit` must be imported specifically by name.
+
+Also, we should have a label for tests.  Not sure if that should be a `type` or `tags` label.
+
+Finally, I would like to have unit tests as part of each separate task, as well as having more integration-level tests at the milestone level.
+
+If you recommend `pytest`, let's use that.
+
+----
+
+Milestone 1 includes a task to "define parsing Result and Token schemas" but does not actually include the Token definition.
+
+Not sure the integration tests for milestone 1 are actually needed, since the stub functions won't actually do anything?
+
+(after it only displayed milestone 1)
+
+please display the entire plan each time. 
+
+----
+
+are these issues described in enough detail for implementation?  for example, if different developers are working on the parser and lexer, is the definition of the token data structure enough for the parser and lexer to communicate?
+
+Also, please change the current milestones to be top-level issues and the current issues to be sub-issues.  all of the issues in this will be part of a single milestone for implementation of the parser library.
+
+----
+
+Should part of the interface contract be the AST format shared between the parser and emitter?
+
+(after it only displayed milestone 1)
+
+please always display the entire plan.
+
+----
+
+The ASTNode must include `__str__` and `__repr__`.
+
+Is this document ready for implementation?
+
+Some comments that are probably too low-level for this document:
+
+I want to ensure that the defined types use `kind` when differentiating different kinds of nodes or values, not the python keyword `type`. (e.g. if a single AST node type is used for both climate rules and tag rules, then that node type should include a `kind` field indicating `tag` or climate`, not a `type` field)
+
+Finally, I would love it if the ASTNode `__str__` format ended up re-creating equivalent rule text, while `__repr__` format showed the tree of nodes.
+
+given the rule
+```
+tag rule "Boring weather"
+when -5 <= climate.value <= 5
+then climate.tags include "boring" and exclude "exciting"
+```
+
+then `str(rule_node)` would show something like
+```
+TAG RULE "Boring weather" WHEN -5 <= climate.value <= 5 THEN climate.tags INCLUDES "boring" AND EXCLUDES "exciting"
+```
+
+and `repr(rule_node)` would show something like
+```
+RuleNode(
+    kind='tag',
+    title='Boring weather',
+    conditions=[
+        RangeComparisonNode(
+            low_limit=NumberNode(value=-5),
+            low_op='<=',
+            comp_value=NamespacePath(identifiers=['climate', 'value']),
+            high_op='<=',
+            high_limit=NumberNode(value=5),
+        )
+    ],
+    actions=[
+        ActionMutateNode(
+            target=NamespacePath(identifiers=['climate', 'tags']),
+            mutation='INCLUDES',
+            value=StringNode('boring'),
+            and_mutation=ActionMutateNode(
+                mutation='EXCLUDES',
+                value=StringNode('exciting'),
+            ),
+        ),
+    ]
+)
+```
