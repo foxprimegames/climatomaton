@@ -35,3 +35,13 @@ General note:
 
 * We need full-coverage test cases for each part of the parsing library.
 * There is not yet any defined test framework or protocol defined.  I was fond at one point of the `behave` test framework, but am willing to take suggestions.
+
+----
+
+A small detail, but, if the functions are exposed at the module level, only the `parse_clime` should be made part of the `__ALL__` identifier list; `tokenize`, `parse`, and `emit` must be imported specifically by name.
+
+Also, we should have a label for tests.  Not sure if that should be a `type` or `tags` label.
+
+Finally, I would like to have unit tests as part of each separate task, as well as having more integration-level tests at the milestone level.
+
+If you recommend `pytest`, let's use that.
