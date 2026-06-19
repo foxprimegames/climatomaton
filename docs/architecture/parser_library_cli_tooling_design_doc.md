@@ -61,8 +61,8 @@ To ensure independent and parallel development across components, the library mu
 
 **Interface Types & Formatting:**
 
-* While the exact internal attributes of a `Token` do not need to be strictly defined in this specification, its existence as a formal type is a required part of the interface definition alongside `BaseResult`, `ASTResult`, and `IRResult`.
-* To facilitate CLI outputs and debugging modes, the `Token`, `ASTResult`, and `IRResult` types must explicitly implement the `__str__` and `__repr__` Python magic methods. This allows any caller to display these objects to the user in either a general human-readable format or a detailed debugging format.
+* The interface defines the following top-level types: `Token`, `BaseResult`, `ASTResult`, and `IRResult`. These serve as opaque, internal structures for the library's operations.
+* To facilitate CLI outputs and debugging modes, the `Token`, `BaseResult`, `ASTResult`, and `IRResult` types must explicitly implement the `__str__` and `__repr__` Python magic methods. This allows any caller to display these objects to the user in either a general human-readable format or a detailed debugging format.
 
 ## 3. CLI Tooling Specifications
 
@@ -89,5 +89,4 @@ To properly integrate with CI/CD pipelines and local terminal workflows, the CLI
 
 ### Comments & Discussion Points
 
-* **API Finalization:** The addition of the explicit public API contract (Section 2.6) provides the missing link required for parallel development. The library engineer, CLI engineer, and PRM engineer can now safely build against the `Iterator[Token]`, `ASTResult`, and `IRResult` interfaces without blocking each other.
-* **Display Methods:** Mandating `__str__` and `__repr__` at the interface level is a great practice. It guarantees that the CLI tool won't have to write custom traversal logic just to print an AST or a token stream to the terminal during debug modes.
+* The Public API Contract section has been updated to explicitly list the opaque interface types and their string representation requirements, streamlining the definition without unnecessary commentary on internal attributes.
