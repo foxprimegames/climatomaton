@@ -1,98 +1,102 @@
-You are completely right on both counts. Good catch.
+To answer your question candidly: **No, the previous descriptions are not quite detailed enough for fully independent, parallel development.** While the tasks describe *what* the data structures should do, they lack the strict internal contracts required for two developers to work blindly alongside each other.
 
-Merging the Token definition into the Result schemas task made it ambiguous. The Token class is a foundational data structure that needs its own properties (e.g., token type, literal value, line, and column coordinates) and deserves its own dedicated task.
+Using your Lexer/Parser example: If Developer A builds the Lexer and Developer B builds the Parser, they cannot communicate solely through a generic `Token` class. Developer B needs to know exactly what `token.type` will evaluate to when checking for the start of a rule. If Developer A uses `TokenType.RULE_DECLARATION` and Developer B is writing logic expecting `TokenType.CLIMATE_RULE`, the parser will fail.
 
-As for the Milestone 1 integration test, you are right again. Writing an end-to-end test for empty stubs just verifies that Python can pass variables between functions, which is performative and unnecessary. We can drop it and rely on the standard unit tests to verify the module imports, saving the actual integration testing for Milestone 2 when we have a real token stream.
+To enable parallel development, the **Interface Contracts** issue must be completed first, and it must explicitly mandate the creation of a `TokenType` enumeration (e.g., locking in `KEYWORD_CLIMATE`, `KEYWORD_TAG`, `OP_INCLUDES`, `IDENTIFIER`, `NUMBER`, etc.). Once that `Enum` file is merged, Developer A can map their Trie to those enums, and Developer B can write their recursive descent logic against those same enums, completely independently.
 
-Here is the complete, consolidated implementation plan for the parsing library, incorporating all our refinements regarding testing, component scoping, and data structures.
+Additionally, because the error resolution policy requires the system to log failures and abort processing for a broken rule (rather than fast-failing the whole file or assuming default values), Developer B relies on Developer A to provide highly accurate line and column coordinates within that `Token` object so the logged failure is actually useful for debugging.
 
-### Milestone 1: Library Foundation & Interface Contracts
+Here is the restructured implementation plan, nested under a single milestone, with the interface contracts tightened up to support parallel development.
 
-**Description:** Establish the parsing library within the `uv` workspace, set up `pytest`, define the public API contracts, and lay down the base data structures.
+---
 
-* **Task: Initialize `comp/parser_library` workspace & testing framework**
+# Milestone: Parser Library Implementation
+
+**Description:** End-to-end implementation of the decoupled Clime parsing library, from raw string ingestion to strict JSON-IR emission.
+
+### Issue 1: Library Foundation & Interface Contracts
+
+**Description:** Establish the workspace, set up `pytest`, and strictly define the data schemas and enumerations that will serve as the immutable contract between the lexer, parser, and emitter components. *This issue must be completed before Issues 2, 3, or 4 can begin parallel development.*
+
+* **Sub-Issue 1.1: Initialize `comp/parser_library` workspace & testing framework**
   * **Description:** Create the dedicated parser library package. Configure `pytest` within the workspace. Expose the primary functions as empty stubs, strictly defining `__all__ = ["parse_clime"]` at the module level so `tokenize`, `parse`, and `emit` require explicit imports.
   * **Unit Tests:** Verify module import behavior and `__all__` visibility restrictions.
   * **Labels:** `comp/build system`, `comp/parser_library`, `type/architecture`, `type/test`
-* **Task: Define `Token` data structure**
-  * **Description:** Implement the `Token` class to represent the discrete lexical units yielded by the lexer. Ensure it tracks the token type, the exact string value, and the line/column coordinates for error reporting. Implement the `__str__` and `__repr__` magic methods for future debugging outputs.
+* **Sub-Issue 1.2: Define `TokenType` Enumeration and `Token` data structure**
+  * **Description:** Create an exhaustive `Enum` of all valid token types defined by the EBNF grammar (e.g., keywords, operators, literals, identifiers). Implement the `Token` class to pair these enum types with their exact string values and specific line/column coordinates. Implement `__str__` and `__repr__` for debugging.
   * **Unit Tests:** Verify instantiation and string representation formats.
   * **Labels:** `comp/parser_library`, `type/architecture`, `type/test`
-* **Task: Define parsing Result schemas**
-  * **Description:** Implement the `BaseResult`, `ASTResult`, and `IRResult` classes to handle structural returns and error accumulation without fast-failing via standard exceptions. Implement the `__str__` and `__repr__` magic methods.
-  * **Unit Tests:** Verify error accumulation logic, boolean `success` flag behavior, and string representation outputs.
+* **Sub-Issue 1.3: Define parsing Result schemas**
+  * **Description:** Implement `BaseResult`, `ASTResult`, and `IRResult` classes. These must support the policy of accumulating errors (logging failures to abort processing of a specific rule) without throwing standard exceptions that would crash the pipeline. Implement boolean `success` flags and `__str__`/`__repr__` methods.
+  * **Unit Tests:** Verify error accumulation logic and boolean flag behavior.
   * **Labels:** `comp/parser_library`, `type/architecture`, `type/test`
 
 ---
 
-### Milestone 2: Lexical Analyzer (Lexer)
+### Issue 2: Lexical Analyzer (Lexer)
 
-**Description:** Build the state machine responsible for processing the raw text of `.rules` files into a discrete stream of tokens.
+**Description:** Build the state machine responsible for processing the raw text of `.rules` files into a discrete stream of `Token` objects.
 
-* **Task: Implement Trie-based character buffer & state machine**
-  * **Description:** Build the lexer to accept an `Iterator[str]`. Implement a prefix tree (Trie) to process tokens using the maximal munch principle, safely handling split chunks and dot-separated identifier syntax for `NamespacePath` resolution.
-  * **Unit Tests:** `pytest.mark.parametrize` tests for individual keyword, identifier, and operator extraction. Test ingestion of fragmented string chunks.
+* **Sub-Issue 2.1: Implement Trie-based character buffer & state machine**
+  * **Description:** Build the lexer to accept an `Iterator[str]`. Implement a prefix tree (Trie) to process tokens using the maximal munch principle. Map matched strings directly to the `TokenType` enums established in Sub-Issue 1.2. Ensure the lexer accurately captures dot-separated identifier syntax for `NamespacePath` extraction.
+  * **Unit Tests:** `pytest.mark.parametrize` tests for keyword, identifier, and operator extraction. Test ingestion of fragmented string chunks.
   * **Labels:** `comp/parser_library`, `type/feature`, `type/test`
-* **Task: Implement comment stripping and whitespace handling**
+* **Sub-Issue 2.2: Implement comment stripping and whitespace handling**
   * **Description:** Add logic to identify and discard all `[ ... ]` comments and insignificant whitespace at the lexer level.
-  * **Unit Tests:** Verify comments at various positions (start, middle, end of string) are dropped without affecting surrounding tokens.
+  * **Unit Tests:** Verify comments at various positions are dropped without affecting surrounding tokens.
   * **Labels:** `comp/parser_library`, `type/feature`, `type/test`
-* **Task: Implement lexical error accumulation**
-  * **Description:** Register structured lexical errors with line/column coordinates in the `errors` list upon encountering illegal character sequences, then skip to the next safe boundary to resume.
-  * **Unit Tests:** Feed illegal characters and verify the exact line/column coordinates in the resulting error objects, and assert that lexing resumes correctly.
+* **Sub-Issue 2.3: Implement lexical error accumulation**
+  * **Description:** Register structured lexical errors with exact coordinates in the `errors` list upon encountering illegal character sequences, skip to the next safe boundary, and resume.
+  * **Unit Tests:** Feed illegal characters and verify coordinate accuracy and resumption logic.
   * **Labels:** `comp/parser_library`, `type/bug` (Handling), `type/feature`, `type/test`
-* **Task: Milestone 2 Integration Test - Token Stream Validation**
-  * **Description:** Write integration tests that feed complete, multi-line Clime rule strings (both valid and invalid) into `tokenize` and assert the exact sequence and type of the complete returned token stream.
+* **Sub-Issue 2.4: Integration Test - Token Stream Validation**
+  * **Description:** Feed complete Clime rule strings (valid and invalid) into `tokenize` and assert the exact sequence of the returned `Token` objects.
   * **Labels:** `comp/parser_library`, `type/test`
 
 ---
 
-### Milestone 3: Abstract Syntax Tree (AST) & Parser
+### Issue 3: Abstract Syntax Tree (AST) & Parser
 
 **Description:** Construct the recursive descent parser to consume the token stream and build the AST in accordance with the Clime EBNF grammar.
 
-* **Task: Define AST Python node classes**
-  * **Description:** Create Python classes representing the exact EBNF grammar nodes (e.g., `Rule`, `Condition`, `Action`, `Expression`).
+* **Sub-Issue 3.1: Define AST Python node classes**
+  * **Description:** Create Python classes representing the exact EBNF grammar nodes (`Rule`, `Condition`, `Action`, `Expression`).
   * **Unit Tests:** Test the instantiation and attribute validation of each isolated AST node class.
   * **Labels:** `comp/parser_library`, `type/architecture`, `type/test`
-* **Task: Implement recursive descent expression parsing**
-  * **Description:** Build the parser logic to handle standard mathematical and logical expressions, strictly enforcing operator precedence.
-  * **Unit Tests:** `pytest.mark.parametrize` tests feeding small, manually constructed token lists representing complex equations and asserting the correct hierarchical tree shape.
+* **Sub-Issue 3.2: Implement recursive descent expression parsing**
+  * **Description:** Build the parser logic to evaluate the `TokenType` stream, strictly enforcing operator precedence for mathematical and logical expressions.
+  * **Unit Tests:** Parameterized tests asserting the correct hierarchical tree shape for complex equations.
   * **Labels:** `comp/parser_library`, `type/feature`, `type/test`
-* **Task: Parse Clime syntactic sugar constructs**
-  * **Description:** Implement parsing logic to capture natural language shortcuts (e.g., `x < N < y`, `includes any of`) into specific AST nodes.
-  * **Unit Tests:** Verify that syntactic sugar token sequences resolve to their specific, flagged AST node types.
+* **Sub-Issue 3.3: Parse Clime syntactic sugar constructs**
+  * **Description:** Implement logic to capture natural language shortcuts (e.g., `x < N < y`, `includes any of`) into specific AST nodes flagged for downstream unrolling.
+  * **Unit Tests:** Verify sugar sequences resolve to specific, flagged node types.
   * **Labels:** `comp/parser_library`, `type/feature`, `type/test`
-* **Task: Implement rule-boundary error synchronization**
-  * **Description:** Implement error recovery. If syntax errors occur within a rule, log the failure, discard the branch, and synchronize at the next `climate rule` or `tag rule` keyword to abort processing on that specific rule but continue evaluating the rest.
-  * **Unit Tests:** Feed malformed rule tokens and verify that the error is recorded, the bad rule is dropped, but subsequent valid rules are successfully parsed.
+* **Sub-Issue 3.4: Implement rule-boundary error synchronization**
+  * **Description:** Enforce the error policy. If syntax errors occur within a rule, register the failure, discard the branch, and synchronize at the next `climate rule` or `tag rule` token to abort that specific rule while saving the rest.
+  * **Unit Tests:** Feed malformed tokens and verify the bad rule is dropped while subsequent rules succeed.
   * **Labels:** `comp/parser_library`, `type/feature`, `type/test`
-* **Task: Milestone 3 Integration Test - AST Construction Validation**
-  * **Description:** Write tests that pipe raw strings through `tokenize` and `parse`, asserting the final, complete AST structure accurately reflects full rule definitions.
+* **Sub-Issue 3.5: Integration Test - AST Construction Validation**
+  * **Description:** Pipe raw strings through `tokenize` and `parse`, asserting the final AST structure.
   * **Labels:** `comp/parser_library`, `type/test`
 
 ---
 
-### Milestone 4: JSON-IR Emitter
+### Issue 4: JSON-IR Emitter
 
-**Description:** Build the Emitter pipeline to translate the validated AST into the strict JSON-IR dictionary structure required by the Core Daemon.
+**Description:** Build the pipeline to translate the validated AST into the strict JSON-IR dictionary structure required by the Core Daemon.
 
-* **Task: Build AST-to-Dictionary traversal engine**
-  * **Description:** Implement the `emit()` function to recursively traverse the AST and generate the native Python dictionary output, injecting explicit `"kind"` and `"datatype"` identifiers.
-  * **Unit Tests:** Feed isolated AST nodes into the emitter and verify the output dictionary strictly matches the JSON-IR schema structure for that specific node type.
+* **Sub-Issue 4.1: Build AST-to-Dictionary traversal engine**
+  * **Description:** Implement `emit()` to recursively traverse the AST and generate the native Python dictionary output, injecting explicit `"kind"` and `"datatype"` identifiers.
+  * **Unit Tests:** Feed isolated nodes into the emitter and verify the output strictly matches the JSON-IR schema structure.
   * **Labels:** `comp/parser_library`, `type/architecture`, `type/feature`, `type/test`
-* **Task: Map operators to strict JSON-IR codes**
+* **Sub-Issue 4.2: Map operators to strict JSON-IR codes**
   * **Description:** Map standard AST operators to their standardized JSON-IR string codes (e.g., `+` to `"ADD"`, `not` to `"NOT"`).
-  * **Unit Tests:** Exhaustively test the mapping of every defined operator.
+  * **Unit Tests:** Exhaustively test the mapping of every operator.
   * **Labels:** `comp/parser_library`, `type/feature`, `type/test`
-* **Task: Implement syntactic sugar unrolling**
+* **Sub-Issue 4.3: Implement syntactic sugar unrolling**
   * **Description:** Expand the flagged sugar nodes during emission into distinct, atomic JSON-IR nodes.
-  * **Unit Tests:** Verify that a single sugar AST node correctly expands into the expected array of distinct JSON-IR dictionaries.
+  * **Unit Tests:** Verify that a single sugar AST node correctly expands into an array of distinct JSON-IR dictionaries.
   * **Labels:** `comp/parser_library`, `type/feature`, `type/test`
-* **Task: Milestone 4 Integration Test - Full JSON-IR Compilation**
-  * **Description:** The ultimate validation. Feed complete Clime source strings into the public `parse_clime()` function and assert that the final output perfectly matches a predefined, valid JSON-IR dictionary structure.
+* **Sub-Issue 4.4: Integration Test - Full JSON-IR Compilation**
+  * **Description:** Feed complete source strings into `parse_clime()` and assert that the final output perfectly matches a predefined, valid JSON-IR dictionary structure.
   * **Labels:** `comp/parser_library`, `type/test`
-
----
-
-Are you ready to move on to outlining the CLI tooling implementation plan?
