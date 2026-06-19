@@ -1,0 +1,14 @@
+
+reformatting mapping for nested lists under a bullet point:
+
+:map q :.,/^$/s;^*;  *;<CR>+|map Q :.,/^$/s;^*;   *;<CR>+
+
+----
+
+(upload: architecture.md, rules_intermediate_representation_design_doc.md, rules_language_reference.md, pending_uploads.md)
+
+Based on the uploaded architecture document, rules intermediate language design document and language reference, and list of pending document updates, let's start on the parser library and cli tooling design document.
+
+the most important note is that the cli tooling is NOT PART of the PRM or core process; it is only used for validation of rules files by developers and the CI workflow.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
