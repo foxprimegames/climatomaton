@@ -1,0 +1,62 @@
+
+reformatting mapping for nested lists under a bullet point:
+
+:map q :.,/^$/s;^*;  *;<CR>+|map Q :.,/^$/s;^*;   *;<CR>+
+
+----
+
+(upload: architecture.md, rules_intermediate_representation_design_doc.md, rules_language_reference.md, pending_uploads.md)
+
+Based on the uploaded architecture document, rules intermediate language design document and language reference, and list of pending document updates, let's start on the parser library and cli tooling design document.
+
+the most important note is that the cli tooling is NOT PART of the PRM or core process; it is only used for validation of rules files by developers and the CI workflow.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+----
+
+1. need details on lexer, parser, emitter appropriate to the design doc level.
+2. cli tool should be able to accept multiple paths to individual `.rules` files
+3. the lexer should specify the input format for the iterator.  preferrable would be to allow any string iterator, including fixed-block-length iterators and small substring iterators, meaning the lexer would not be guaranteed to have a complete keyword upon receipt of a string from the iterator.
+4. The `Result` object should either have more generically named fields or should be more specific to the type.  perhaps an abstract `BaseResult` class along with `ASTResult` and `IRResult` classes for the particular return types.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+----
+
+1. for the lexer, given that not all language tokens are whitespace separated, how can you know when the buffer contains a keyword or when the fact that nothing matches just means it's a syntax error?  i know one solution for this is a state machine instead of full regular expressions, but is there a better solution?
+2. need to specify what a "token" is.
+3. need to specify what the AST is.
+4. need to specify that the emitter is generating the JSON-IR representation of the AST in a dictionary format (i.e. it's not outputting a JSON string)
+5. agreed on configuring the cli tool in uv so that it can be executed from the virtual environment activated path.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+----
+
+okay, i take it back.  the token and ast format do not necessarily need to be strictly defined in this document, since those are internal representations to the library (although the cli tool could conveivably offer a mode where it outputs the token stream and/or the AST tree in addition to or instead of the JSON-IR).
+
+does this document contain the appropriate level of detail for a design document for this kind of library?  does any part of it need more detail or less?  specifically, is everything that acts as an interface with other components fully defined?
+
+asked in a different way:  would one engineer be able to create the parsing library, a second engineer be able to create the cli tool, and a third engineer be able to create the PRM that parses rules nad passes them off to the core system, all based purely on the information in this document?
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+----
+
+Agreed inre the calling interface.
+
+The library should have one main entry point `(source: Iterator[str]) -> IRResult`.
+It should also have three low-level entry points for lexing, parsing, and IR emitting:
+* `(source: Iterator[str]) -> Iterator[Token]`
+* `(tokens: Iterator[Token]) -> ASTResult`
+* `(ast: ASTResult) -> IRResult`
+The exact definition of `Token` (or whatever you want to call it) doesn't necessarily need to be specified, but the fact that there is a `Token` (or whatever) type does need to be part of the interface definition, just as BaseResult, ASTResult, and IRResult are.  In addition, it should be defined that the `Token`, `ASTResult`, and `IRResult` types need to implement `__str__` and `__repr__` to allow a caller to display them to the user in either a general or debugging format.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+----
+
+You don't need to include the commentary about "While the exact internal attributes of a `Token` do not need to be strictly defined".  Just list the top-level types that are defined as part of the interface, indicate that they are internal types or opaque or private or whatever, and include the note that they will implement str and repr.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
