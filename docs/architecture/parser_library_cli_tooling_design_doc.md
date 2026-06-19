@@ -45,6 +45,25 @@ The Emitter traverses a validated AST object and translates it into the target J
 
 **Output Format:** The Emitter generates the JSON-IR representation natively as a **Python dictionary format**; it strictly does **not** output a serialized JSON string. It returns this dictionary encapsulated in an `IRResult` object.
 
+### 2.6 Public API Contract
+
+To ensure independent and parallel development across components, the library must strictly adhere to a defined public interface.
+
+**Main Entry Point:**
+
+* `parse_clime(source: Iterator[str]) -> IRResult`: The primary orchestration function that executes the full pipeline from raw source text to the final JSON-IR dictionary.
+
+**Low-Level Entry Points:**
+
+* `tokenize(source: Iterator[str]) -> Iterator[Token]`: Performs lexical analysis on the input stream and yields a sequence of tokens.
+* `parse(tokens: Iterator[Token]) -> ASTResult`: Constructs the Abstract Syntax Tree from the provided token stream.
+* `emit(ast: ASTResult) -> IRResult`: Translates a validated AST object into the JSON-IR dictionary payload.
+
+**Interface Types & Formatting:**
+
+* While the exact internal attributes of a `Token` do not need to be strictly defined in this specification, its existence as a formal type is a required part of the interface definition alongside `BaseResult`, `ASTResult`, and `IRResult`.
+* To facilitate CLI outputs and debugging modes, the `Token`, `ASTResult`, and `IRResult` types must explicitly implement the `__str__` and `__repr__` Python magic methods. This allows any caller to display these objects to the user in either a general human-readable format or a detailed debugging format.
+
 ## 3. CLI Tooling Specifications
 
 The standalone CLI tool wraps the shared parsing library to provide local and automated validation capabilities.
@@ -70,5 +89,5 @@ To properly integrate with CI/CD pipelines and local terminal workflows, the CLI
 
 ### Comments & Discussion Points
 
-* **Assessment of Interface Detail:** To answer your question—yes, this document contains an excellent high-level architectural view, but it is currently missing one critical piece of detail to guarantee three engineers could work completely independently. While the *data structures* passed between components (the `Iterator[str]`, the `BaseResult` derivatives, and the JSON-IR dictionary) are well-defined, the **Public API Contract** (the actual function signatures) of the library is not explicitly specified.
-* **Recommendation for Independence:** For the PRM engineer and CLI engineer to write code that calls the library while the library engineer is still building it, they need to agree on exact entry points. Adding a small section defining the public API—for example, specifying that the library exposes a function `parse_clime(source: Iterator[str]) -> IRResult`—would fully cement the interface and allow perfect parallel development.
+* **API Finalization:** The addition of the explicit public API contract (Section 2.6) provides the missing link required for parallel development. The library engineer, CLI engineer, and PRM engineer can now safely build against the `Iterator[Token]`, `ASTResult`, and `IRResult` interfaces without blocking each other.
+* **Display Methods:** Mandating `__str__` and `__repr__` at the interface level is a great practice. It guarantees that the CLI tool won't have to write custom traversal logic just to print an AST or a token stream to the terminal during debug modes.
