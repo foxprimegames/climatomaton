@@ -69,3 +69,55 @@ Should part of the interface contract be the AST format shared between the parse
 (after it only displayed milestone 1)
 
 please always display the entire plan.
+
+----
+
+The ASTNode must include `__str__` and `__repr__`.
+
+Is this document ready for implementation?
+
+Some comments that are probably too low-level for this document:
+
+I want to ensure that the defined types use `kind` when differentiating different kinds of nodes or values, not the python keyword `type`. (e.g. if a single AST node type is used for both climate rules and tag rules, then that node type should include a `kind` field indicating `tag` or climate`, not a `type` field)
+
+Finally, I would love it if the ASTNode `__str__` format ended up re-creating equivalent rule text, while `__repr__` format showed the tree of nodes.
+
+given the rule
+```
+tag rule "Boring weather"
+when -5 <= climate.value <= 5
+then climate.tags include "boring" and exclude "exciting"
+```
+
+then `str(rule_node)` would show something like
+```
+TAG RULE "Boring weather" WHEN -5 <= climate.value <= 5 THEN climate.tags INCLUDES "boring" AND EXCLUDES "exciting"
+```
+
+and `repr(rule_node)` would show something like
+```
+RuleNode(
+    kind='tag',
+    title='Boring weather',
+    conditions=[
+        RangeComparisonNode(
+            low_limit=NumberNode(value=-5),
+            low_op='<=',
+            comp_value=NamespacePath(identifiers=['climate', 'value']),
+            high_op='<=',
+            high_limit=NumberNode(value=5),
+        )
+    ],
+    actions=[
+        ActionMutateNode(
+            target=NamespacePath(identifiers=['climate', 'tags']),
+            mutation='INCLUDES',
+            value=StringNode('boring'),
+            and_mutation=ActionMutateNode(
+                mutation='EXCLUDES',
+                value=StringNode('exciting'),
+            ),
+        ),
+    ]
+)
+```

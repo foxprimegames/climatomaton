@@ -1,16 +1,12 @@
-Understood. I will ensure the complete, consolidated plan is provided in every iteration so you always have the full picture in one place.
+This document is absolutely ready for implementation. Incorporating these specific, low-level constraints into the interface contract is an excellent move. Setting the debugging experience and strict attribute naming (like avoiding Python's reserved `type` keyword) up front eliminates context-switching friction when moving between different components of the parser.
 
-I have incorporated the AST Node contracts into Issue 1 to guarantee parallel development is unblocked. I left them defined generically as Python classes, but we can easily specify `dataclasses` later if you prefer.
-
-Here is the complete implementation plan for the Parser Library milestone, formatted with strict flat hierarchies to keep everything clean.
+Here is the complete, consolidated implementation plan for the parser library, with Sub-Issue 1.4 fully updated to mandate your `kind`, `__str__`, and `__repr__` requirements.
 
 ---
 
 # Milestone: Parser Library Implementation
 
 **Description:** End-to-end implementation of the decoupled Clime parsing library, from raw string ingestion to strict JSON-IR emission.
-
----
 
 ## Issue 1: Library Foundation & Interface Contracts
 
@@ -36,8 +32,8 @@ Here is the complete implementation plan for the Parser Library milestone, forma
 
 ### Sub-Issue 1.4: Define AST Node Contracts
 
-**Description:** Define the base `ASTNode` class and all specific sub-classes required by the Clime grammar (e.g., `RuleNode`, `ConditionNode`, `BinaryOpNode`, `LiteralNode`). Explicitly define the attributes for each node (e.g., a `BinaryOpNode` must have `left: ASTNode`, `right: ASTNode`, and `op: TokenType`). This forms the immutable contract between the Parser and Emitter.
-**Unit Tests:** Test object instantiation and attribute assignment.
+**Description:** Define the base `ASTNode` class and all specific sub-classes required by the Clime grammar (e.g., `RuleNode`, `ConditionNode`, `BinaryOpNode`). Explicitly define the attributes for each node. To avoid Python keyword clashes, use `kind` to differentiate node or value classifications (e.g., `kind='tag'` vs `kind='climate'`). Implement a `__str__` method that cleanly reconstructs the equivalent normalized rule text (e.g., `TAG RULE "Boring weather"...`). Implement a `__repr__` method that outputs the explicit, indented hierarchy of the node tree for deep debugging.
+**Unit Tests:** Test object instantiation, attribute assignment, normalized text generation in `__str__`, and tree representation in `__repr__`.
 **Labels:** `comp/parser_library`, `type/architecture`, `type/test`
 
 ---
@@ -95,7 +91,7 @@ Here is the complete implementation plan for the Parser Library milestone, forma
 
 ### Sub-Issue 3.4: Integration Test - AST Construction Validation
 
-**Description:** Pipe raw strings through `tokenize` and `parse`, asserting the final AST structure.
+**Description:** Pipe raw strings through `tokenize` and `parse`, asserting the final AST structure via the defined `__repr__` outputs.
 **Labels:** `comp/parser_library`, `type/test`
 
 ---
@@ -106,7 +102,7 @@ Here is the complete implementation plan for the Parser Library milestone, forma
 
 ### Sub-Issue 4.1: Build AST-to-Dictionary traversal engine
 
-**Description:** Implement `emit()` to recursively traverse the AST and generate the native Python dictionary output, injecting explicit `"kind"` and `"datatype"` identifiers.
+**Description:** Implement `emit()` to recursively traverse the AST and generate the native Python dictionary output, injecting explicit `"kind"` and `"datatype"` identifiers as mapped from the `ASTNode` classes.
 **Unit Tests:** Feed isolated nodes into the emitter and verify the output strictly matches the JSON-IR schema structure.
 **Labels:** `comp/parser_library`, `type/architecture`, `type/feature`, `type/test`
 
@@ -126,7 +122,3 @@ Here is the complete implementation plan for the Parser Library milestone, forma
 
 **Description:** Feed complete source strings into `parse_clime()` and assert that the final output perfectly matches a predefined, valid JSON-IR dictionary structure.
 **Labels:** `comp/parser_library`, `type/test`
-
----
-
-Would you like to build out the implementation plan for the CLI Tooling next, or is there anything else in this library plan you'd like to adjust first?
