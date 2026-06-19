@@ -14,3 +14,24 @@ please use the following labels, or introduce new labels in the same formats, to
 * `type/architecture`
 * `type/bug`
 * `type/feature`
+
+----
+
+let's reduce the component labels - those should be repo-level components, which in this case are the `comp/parser_library`and `comp/cli_tools`.  The internal components to the parser library do not need individual labels, do they?
+
+Milestone 1:
+
+* No need to update DEVELOPERS.md; the EBNF grammar rules already exist in the `rules_language_specification.md` file; the rest is in the design document.  The milestone and tasks should reference the specific files needed.
+
+Milestone 2:
+
+* Is `Trie` a specific library, or is it a well-known (to others besides me) data structure?
+
+Milestone 5:
+
+* This task list should only be for the parser library.  The CLI tooling will be a separate implementation plan.
+
+General note:
+
+* We need full-coverage test cases for each part of the parsing library.
+* There is not yet any defined test framework or protocol defined.  I was fond at one point of the `behave` test framework, but am willing to take suggestions.
