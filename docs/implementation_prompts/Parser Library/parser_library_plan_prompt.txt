@@ -45,3 +45,13 @@ Also, we should have a label for tests.  Not sure if that should be a `type` or 
 Finally, I would like to have unit tests as part of each separate task, as well as having more integration-level tests at the milestone level.
 
 If you recommend `pytest`, let's use that.
+
+----
+
+Milestone 1 includes a task to "define parsing Result and Token schemas" but does not actually include the Token definition.
+
+Not sure the integration tests for milestone 1 are actually needed, since the stub functions won't actually do anything?
+
+(after it only displayed milestone 1)
+
+please display the entire plan each time. 

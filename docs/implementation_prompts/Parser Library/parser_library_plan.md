@@ -1,8 +1,10 @@
-That `__all__` restriction is a great detail. It enforces a clean public API while still allowing you to import the internal pipeline steps for testing or advanced debugging. I'll incorporate that directly into the initialization task.
+You are completely right on both counts. Good catch.
 
-I agree with adding a specific label for tests. Using `type/test` aligns perfectly with your existing `type/feature` and `type/bug` ontology.
+Merging the Token definition into the Result schemas task made it ambiguous. The Token class is a foundational data structure that needs its own properties (e.g., token type, literal value, line, and column coordinates) and deserves its own dedicated task.
 
-Here is the revised implementation plan, utilizing `pytest` as the testing framework, with unit tests embedded into every feature task and a dedicated integration-level test task capping off each milestone.
+As for the Milestone 1 integration test, you are right again. Writing an end-to-end test for empty stubs just verifies that Python can pass variables between functions, which is performative and unnecessary. We can drop it and rely on the standard unit tests to verify the module imports, saving the actual integration testing for Milestone 2 when we have a real token stream.
+
+Here is the complete, consolidated implementation plan for the parsing library, incorporating all our refinements regarding testing, component scoping, and data structures.
 
 ### Milestone 1: Library Foundation & Interface Contracts
 
@@ -10,15 +12,18 @@ Here is the revised implementation plan, utilizing `pytest` as the testing frame
 
 * **Task: Initialize `comp/parser_library` workspace & testing framework**
   * **Description:** Create the dedicated parser library package. Configure `pytest` within the workspace. Expose the primary functions as empty stubs, strictly defining `__all__ = ["parse_clime"]` at the module level so `tokenize`, `parse`, and `emit` require explicit imports.
-  * **Unit Tests:** Verify module import behavior and `__all__` restrictions.
+  * **Unit Tests:** Verify module import behavior and `__all__` visibility restrictions.
   * **Labels:** `comp/build system`, `comp/parser_library`, `type/architecture`, `type/test`
-* **Task: Define parsing Result and Token schemas**
-  * **Description:** Implement the `BaseResult`, `ASTResult`, and `IRResult` classes to handle error accumulation. Implement the `__str__` and `__repr__` magic methods.
+* **Task: Define `Token` data structure**
+  * **Description:** Implement the `Token` class to represent the discrete lexical units yielded by the lexer. Ensure it tracks the token type, the exact string value, and the line/column coordinates for error reporting. Implement the `__str__` and `__repr__` magic methods for future debugging outputs.
+  * **Unit Tests:** Verify instantiation and string representation formats.
+  * **Labels:** `comp/parser_library`, `type/architecture`, `type/test`
+* **Task: Define parsing Result schemas**
+  * **Description:** Implement the `BaseResult`, `ASTResult`, and `IRResult` classes to handle structural returns and error accumulation without fast-failing via standard exceptions. Implement the `__str__` and `__repr__` magic methods.
   * **Unit Tests:** Verify error accumulation logic, boolean `success` flag behavior, and string representation outputs.
   * **Labels:** `comp/parser_library`, `type/architecture`, `type/test`
-* **Task: Milestone 1 Integration Test - Pipeline Skeleton**
-  * **Description:** Write a skeletal end-to-end `pytest` script that explicitly imports and pipes data through the stubbed `tokenize` -> `parse` -> `emit` functions to validate the overall data flow architecture before the internals are built.
-  * **Labels:** `comp/parser_library`, `type/test`
+
+---
 
 ### Milestone 2: Lexical Analyzer (Lexer)
 
@@ -40,6 +45,8 @@ Here is the revised implementation plan, utilizing `pytest` as the testing frame
   * **Description:** Write integration tests that feed complete, multi-line Clime rule strings (both valid and invalid) into `tokenize` and assert the exact sequence and type of the complete returned token stream.
   * **Labels:** `comp/parser_library`, `type/test`
 
+---
+
 ### Milestone 3: Abstract Syntax Tree (AST) & Parser
 
 **Description:** Construct the recursive descent parser to consume the token stream and build the AST in accordance with the Clime EBNF grammar.
@@ -57,12 +64,14 @@ Here is the revised implementation plan, utilizing `pytest` as the testing frame
   * **Unit Tests:** Verify that syntactic sugar token sequences resolve to their specific, flagged AST node types.
   * **Labels:** `comp/parser_library`, `type/feature`, `type/test`
 * **Task: Implement rule-boundary error synchronization**
-  * **Description:** Implement error recovery. If syntax errors occur within a rule, record the error, discard the branch, and synchronize at the next `climate rule` or `tag rule` keyword.
+  * **Description:** Implement error recovery. If syntax errors occur within a rule, log the failure, discard the branch, and synchronize at the next `climate rule` or `tag rule` keyword to abort processing on that specific rule but continue evaluating the rest.
   * **Unit Tests:** Feed malformed rule tokens and verify that the error is recorded, the bad rule is dropped, but subsequent valid rules are successfully parsed.
   * **Labels:** `comp/parser_library`, `type/feature`, `type/test`
 * **Task: Milestone 3 Integration Test - AST Construction Validation**
   * **Description:** Write tests that pipe raw strings through `tokenize` and `parse`, asserting the final, complete AST structure accurately reflects full rule definitions.
   * **Labels:** `comp/parser_library`, `type/test`
+
+---
 
 ### Milestone 4: JSON-IR Emitter
 
@@ -86,4 +95,4 @@ Here is the revised implementation plan, utilizing `pytest` as the testing frame
 
 ---
 
-Would you like me to draft the exact text for the first GitHub issue so you can drop it directly into your tracker, or are we ready to move on to planning the CLI tooling?
+Are you ready to move on to outlining the CLI tooling implementation plan?
