@@ -84,9 +84,3 @@ To properly integrate with CI/CD pipelines and local terminal workflows, the CLI
 * **Debug Output Modes:** The CLI tool may optionally offer execution modes to output the raw token stream and/or the raw AST structure instead of, or in addition to, the final JSON-IR to assist in library development and complex debugging.
 * **Exit Codes:** Must return a `0` exit code on a fully successful validation pass, and a non-zero exit code (e.g., `1`) if any syntax errors are detected in the provided files.
 * **Error Formatting:** Must parse the `errors` list returned by the library's `BaseResult` objects and format them into verbose, human-readable terminal output. This output should strictly map errors back to the exact line and column in the source `.rules` file to assist in rapid debugging.
-
----
-
-### Comments & Discussion Points
-
-* The Public API Contract section has been updated to explicitly list the opaque interface types and their string representation requirements, streamlining the definition without unnecessary commentary on internal attributes.
