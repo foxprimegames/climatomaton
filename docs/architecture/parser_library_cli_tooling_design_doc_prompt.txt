@@ -12,3 +12,12 @@ Based on the uploaded architecture document, rules intermediate language design 
 the most important note is that the cli tooling is NOT PART of the PRM or core process; it is only used for validation of rules files by developers and the CI workflow.
 
 process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
+
+----
+
+1. need details on lexer, parser, emitter appropriate to the design doc level.
+2. cli tool should be able to accept multiple paths to individual `.rules` files
+3. the lexer should specify the input format for the iterator.  preferrable would be to allow any string iterator, including fixed-block-length iterators and small substring iterators, meaning the lexer would not be guaranteed to have a complete keyword upon receipt of a string from the iterator.
+4. The `Result` object should either have more generically named fields or should be more specific to the type.  perhaps an abstract `BaseResult` class along with `ASTResult` and `IRResult` classes for the particular return types.
+
+process the above instructions into the document under discussion and render it.  ONLY make changes to the document and the pending updates list that were discussed in the instructions.  always place any comments, new issues, other discussion points, or questions after the end of document.  always render the complete pending updates list after any comments, new issues, other discussion points, or questions.  remember to use code segments (backticks) instead of latex markup, and any time you want to include a double-asterisk as a stand-alone code segment, use two code segments with a single asterisk each with a space between the two code segments.  avoid any trailing spaces in your output.
