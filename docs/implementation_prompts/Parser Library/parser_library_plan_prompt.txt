@@ -1,1 +1,16 @@
 given the attached parser library and cli tooling design document, rules language reference, and rules intermediate representation design document, please present a plan to implement the parsing library.
+
+----
+
+milestones and tasks will be implemented as github issues.  the ruff configuration is already in place.
+
+Please provide the plan as one or more milestones, with detailed tasks for each milestone.
+
+please use the following labels, or introduce new labels in the same formats, to categorize each milestone and task:
+* `comp/build system` - The build system (`uv`, `ruff`, etc.)
+* `comp/deploy` - The deployment system (docker, docker-compose, etc.)
+* `comp/repo` - repository-level tasks
+* `tags/documentation`
+* `type/architecture`
+* `type/bug`
+* `type/feature`
