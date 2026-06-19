@@ -61,3 +61,11 @@ please display the entire plan each time.
 are these issues described in enough detail for implementation?  for example, if different developers are working on the parser and lexer, is the definition of the token data structure enough for the parser and lexer to communicate?
 
 Also, please change the current milestones to be top-level issues and the current issues to be sub-issues.  all of the issues in this will be part of a single milestone for implementation of the parser library.
+
+----
+
+Should part of the interface contract be the AST format shared between the parser and emitter?
+
+(after it only displayed milestone 1)
+
+please always display the entire plan.
