@@ -113,6 +113,9 @@ Mutations in the `then` block define standard assignment and list alterations.
 
 ## 7. Extended Backus-Naur Form (EBNF) Grammar
 
+NOTE - all string literals in the following EBNF syntax are
+to be treated as CASE-INSENSITIVE per section 1.
+
 ```ebnf
 RuleSet ::= Rule+
 Rule ::= RuleType StringLiteral "when" Conditions "then" Actions
@@ -155,8 +158,8 @@ ArgumentList ::= Expression ("," Expression)*
 Literal ::= Number | Boolean | StringLiteral | TagList
 Number ::= ["-"] Digit+ ["." Digit+]
 Boolean ::= "true" | "false"
-StringLiteral ::= '"' [^"\\]* '"' # keep rendering engines happy: '
-                | "'" [^'\\]* "'" # keep rendering engines happy: "
+StringLiteral ::= '"' ( [^"\\] | '\"' | '\\' )* '"' # keep rendering engines happy: "
+                | "'" ( [^'\\] | "\'" | "\\" )* "'" # keep rendering engines happy: '
 TagList ::= "empty" | StringLiteral "," | StringLiteral ("," StringLiteral)+
 
 Identifier ::= Letter (Letter | Digit | "_")*
